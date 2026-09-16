@@ -156,7 +156,8 @@ function renderizarGraficosAvanzados(kpis) {
     const etiquetasFechas = registrosSosa.map(r => {
         let partes = r.fecha.split('-');
         let horaCorta = r.hora ? r.hora.substring(0,5) : '';
-        return partes.length === 3 ? `${partes[2]/${partes[1]} ${horaCorta}` : `${r.fecha} ${horaCorta}`;
+        // CORRECCIÓN DE LA SINTAXIS EN LA LÍNEA DE FECHA:
+        return partes.length === 3 ? `${partes[2]}/${partes[1]} ${horaCorta}` : `${r.fecha} ${horaCorta}`;
     });
 
     const valoresConcentracion = registrosSosa.map(r => parseFloat(r.concen));
@@ -226,7 +227,6 @@ function generarMatrizAccionesIA() {
     const tbody = document.getElementById('ia-matrix-body');
     tbody.innerHTML = '';
 
-    // Analizamos equipos con más desviaciones para generar diagnósticos automáticos inteligentes
     let conteoEquiposDesvio = {};
     listaRegistros.forEach(r => {
         const regla = listaParametros.find(p => p.solucion === r.solucion);
@@ -238,10 +238,7 @@ function generarMatrizAccionesIA() {
         }
     });
 
-    // Ordenar equipos con más desvíos
     let equiposOrdenados = Object.entries(conteoEquiposDesvio).sort((a, b) => b[1] - a[1]);
-
-    // Casos de diagnóstico generados por el motor de IA basados en los datos reales
     let accionesSimuladas = [];
 
     if (equiposOrdenados.length > 0) {
@@ -272,7 +269,6 @@ function generarMatrizAccionesIA() {
         });
     }
 
-    // Fila estándar del sistema de calidad
     accionesSimuladas.push({
         hallazgo: `Validación General de Soluciones Madre`,
         porQue: `Garantizar la estabilidad bromatológica y la correcta preparación inicial de productos químicos.`,
