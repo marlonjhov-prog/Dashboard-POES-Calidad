@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard POES | Control de Inocuidad e Ineficiencia</title>
+    <title>Dashboard POES | Control Gerencial de Inocuidad</title>
     
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -22,7 +22,7 @@
                         'corporate-green': '#1f8c22',
                         'alert-yellow': '#f59e0b',
                         'danger-red': '#dc2626',
-                        'surface-dark': '#111827',
+                        'surface-dark': '#0f172a',
                         'card-bg': '#ffffff'
                     }
                 }
@@ -33,49 +33,76 @@
 <body class="bg-slate-100 font-sans antialiased text-slate-800">
 
     <!-- Header / Navbar Principal -->
-    <header class="bg-white shadow-sm border-b-4 border-corporate-green sticky top-0 z-50">
+    <header class="bg-surface-dark text-white shadow-md border-b-4 border-corporate-green sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
             <div class="flex items-center">
-                <div class="bg-green-50 p-3 rounded-xl mr-4 border border-green-100">
+                <div class="bg-corporate-green/20 p-3 rounded-xl mr-4 border border-corporate-green/40">
                     <i class="fa-solid fa-shield-halved text-corporate-green text-3xl"></i>
                 </div>
                 <div>
-                    <h1 class="text-xl md:text-2xl font-black tracking-tight text-slate-900">DASHBOARD POES</h1>
-                    <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider">Limpieza y Desinfección: Barrera Preventiva de Inocuidad</p>
+                    <h1 class="text-xl md:text-2xl font-black tracking-tight text-white">DASHBOARD POES</h1>
+                    <p class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Limpieza y Desinfección: Barrera Preventiva de Inocuidad</p>
                 </div>
             </div>
             <div class="hidden md:flex items-center space-x-6 text-right">
                 <div>
-                    <p class="text-sm font-bold text-slate-700">Planta Lácteos San Antonio</p>
+                    <p class="text-sm font-bold text-slate-200">Planta Lácteos San Antonio</p>
                     <p class="text-xs text-slate-400">Control CIP & Monitoreo Químico</p>
                 </div>
-                <div class="bg-emerald-50 text-corporate-green px-3 py-1.5 rounded-lg border border-emerald-200 text-xs font-bold flex items-center">
-                    <span class="w-2 h-2 rounded-full bg-corporate-green animate-ping mr-2"></span> Sistema en Línea
+                <div class="bg-emerald-950 text-emerald-400 px-3 py-1.5 rounded-lg border border-emerald-800 text-xs font-bold flex items-center">
+                    <span class="w-2 h-2 rounded-full bg-corporate-green animate-ping mr-2"></span> En Línea
                 </div>
             </div>
         </div>
     </header>
 
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- BARRA DE FILTROS GLOBALES INTERACTIVOS -->
+    <section class="bg-white shadow-sm border-b border-slate-200 py-4">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div class="flex items-center space-x-2 text-slate-700 font-bold text-sm">
+                <i class="fa-solid fa-filter text-corporate-green"></i>
+                <span>Filtros de Análisis Gerencial:</span>
+            </div>
+            <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                <!-- Filtro por Solución Química -->
+                <div class="flex items-center space-x-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
+                    <label class="text-xs font-semibold text-slate-500 uppercase">Solución:</label>
+                    <select id="filtro-solucion" class="bg-transparent text-sm font-bold text-slate-800 focus:outline-none cursor-pointer">
+                        <option value="TODAS">Todas las Soluciones</option>
+                    </select>
+                </div>
+                <!-- Filtro por Rango Temporal -->
+                <div class="flex items-center space-x-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
+                    <label class="text-xs font-semibold text-slate-500 uppercase">Período:</label>
+                    <select id="filtro-periodo" class="bg-transparent text-sm font-bold text-slate-800 focus:outline-none cursor-pointer">
+                        <option value="TODO">Histórico Completo</option>
+                        <option value="30">Últimos 30 Registros</option>
+                        <option value="100">Últimos 100 Registros</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         
         <!-- Pantalla de Carga (Loader) -->
-        <div id="loader" class="flex flex-col justify-center items-center py-28">
+        <div id="loader" class="flex flex-col justify-center items-center py-32">
             <div class="animate-spin rounded-full h-16 w-16 border-4 border-corporate-green border-t-transparent mb-4"></div>
-            <p class="text-slate-600 font-bold text-lg animate-pulse">Sincronizando datos con Supabase...</p>
-            <p class="text-xs text-slate-400 mt-1">Analizando matriz de concentraciones y rangos</p>
+            <p class="text-slate-600 font-bold text-lg animate-pulse">Sincronizando base de datos...</p>
         </div>
 
-        <!-- Contenedor del Dashboard (Oculto hasta cargar) -->
+        <!-- Contenedor del Dashboard -->
         <div id="dashboard-content" class="hidden opacity-0 transition-opacity duration-700 ease-in-out space-y-8">
             
-            <!-- FILA 1: TARJETAS DE KPIs PRINCIPALES (Inspirado en la Referencia) -->
+            <!-- TARJETAS DE KPIS AVANZADOS -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 
-                <!-- KPI 1: Eficacia / Cumplimiento -->
+                <!-- KPI 1: Eficacia -->
                 <div class="bg-card-bg rounded-2xl shadow-sm p-6 border-l-8 border-corporate-green hover:shadow-md transition">
                     <div class="flex justify-between items-start">
                         <div>
-                            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Eficacia (% Conforme)</p>
+                            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Eficacia General</p>
                             <h2 class="text-4xl font-black text-slate-900 mt-2" id="kpi-eficacia">--%</h2>
                         </div>
                         <div class="p-3 bg-emerald-50 rounded-xl text-corporate-green">
@@ -83,16 +110,16 @@
                         </div>
                     </div>
                     <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                        <span class="text-slate-500 font-medium">Objetivo gerencial</span>
+                        <span class="text-slate-500 font-medium">Meta Gerencial</span>
                         <span class="text-corporate-green font-bold bg-emerald-50 px-2 py-0.5 rounded">≥ 95.0%</span>
                     </div>
                 </div>
 
-                <!-- KPI 2: Desvíos Críticos (Riesgo Microbiológico) -->
+                <!-- KPI 2: Desvíos por Defecto (Riesgo < Mínimo) -->
                 <div class="bg-card-bg rounded-2xl shadow-sm p-6 border-l-8 border-danger-red hover:shadow-md transition">
                     <div class="flex justify-between items-start">
                         <div>
-                            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Desvíos (Riesgo)</p>
+                            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Alerta: Riesgo (&lt; Min)</p>
                             <h2 class="text-4xl font-black text-slate-900 mt-2" id="kpi-desvios">--</h2>
                         </div>
                         <div class="p-3 bg-red-50 rounded-xl text-danger-red">
@@ -100,16 +127,16 @@
                         </div>
                     </div>
                     <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                        <span class="text-slate-500 font-medium">Condición</span>
-                        <span class="text-danger-red font-bold bg-red-50 px-2 py-0.5 rounded">CONCEN &lt; Mínimo</span>
+                        <span class="text-slate-500 font-medium">Condición Crítica</span>
+                        <span class="text-danger-red font-bold bg-red-50 px-2 py-0.5 rounded">Falta de Concentración</span>
                     </div>
                 </div>
 
-                <!-- KPI 3: Ineficiencia (Pérdida Económica Técnica / Exceso) -->
+                <!-- KPI 3: Desvíos por Exceso (> Máximo) -->
                 <div class="bg-card-bg rounded-2xl shadow-sm p-6 border-l-8 border-alert-yellow hover:shadow-md transition">
                     <div class="flex justify-between items-start">
                         <div>
-                            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Ineficiencia (Excesos)</p>
+                            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Alerta: Exceso (&gt; Max)</p>
                             <h2 class="text-4xl font-black text-slate-900 mt-2" id="kpi-excesos">--</h2>
                         </div>
                         <div class="p-3 bg-amber-50 rounded-xl text-alert-yellow">
@@ -117,16 +144,16 @@
                         </div>
                     </div>
                     <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                        <span class="text-slate-500 font-medium">Condición</span>
-                        <span class="text-alert-yellow font-bold bg-amber-50 px-2 py-0.5 rounded">CONCEN &gt; Máximo</span>
+                        <span class="text-slate-500 font-medium">Condición Ineficiente</span>
+                        <span class="text-alert-yellow font-bold bg-amber-50 px-2 py-0.5 rounded">Sobre-dosificación</span>
                     </div>
                 </div>
 
-                <!-- KPI 4: Total de Muestras Registradas -->
+                <!-- KPI 4: Muestras Analizadas -->
                 <div class="bg-card-bg rounded-2xl shadow-sm p-6 border-l-8 border-blue-500 hover:shadow-md transition">
                     <div class="flex justify-between items-start">
                         <div>
-                            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Analizado</p>
+                            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Muestras</p>
                             <h2 class="text-4xl font-black text-slate-900 mt-2" id="kpi-total">--</h2>
                         </div>
                         <div class="p-3 bg-blue-50 rounded-xl text-blue-500">
@@ -134,34 +161,34 @@
                         </div>
                     </div>
                     <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                        <span class="text-slate-500 font-medium">Volumen de datos</span>
-                        <span class="text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded">Histórico Completo</span>
+                        <span class="text-slate-500 font-medium">Base de Datos</span>
+                        <span class="text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded">Supabase Activo</span>
                     </div>
                 </div>
             </div>
 
-            <!-- FILA 2: GRÁFICAS PRINCIPALES -->
+            <!-- GRÁFICAS PRINCIPALES MEJORADAS -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
-                <!-- Gráfico de Tendencia (Líneas - 2 Columnas) -->
+                <!-- Tendencia Temporal (Líneas - 2 Columnas) -->
                 <div class="bg-card-bg rounded-2xl shadow-sm p-6 lg:col-span-2 border border-slate-100">
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 pb-4 border-b border-slate-100 gap-2">
                         <div>
-                            <h3 class="text-base font-bold text-slate-800"><i class="fa-solid fa-chart-line mr-2 text-blue-500"></i>Tendencia de Concentración vs. Parámetros (SOSA)</h3>
-                            <p class="text-xs text-slate-400 mt-0.5">Evolución temporal cruzada con límites críticos</p>
+                            <h3 class="text-base font-bold text-slate-800"><i class="fa-solid fa-chart-line mr-2 text-blue-500"></i>Tendencia de Concentración vs. Rangos Permitidos</h3>
+                            <p class="text-xs text-slate-400 mt-0.5">Evolución temporal cruzada con límites técnicos</p>
                         </div>
-                        <span class="bg-blue-50 text-blue-600 text-xs font-bold px-3 py-1 rounded-full">Monitoreo CIP</span>
+                        <span id="label-quimico-activo" class="bg-blue-50 text-blue-600 text-xs font-bold px-3 py-1 rounded-full">SOSA</span>
                     </div>
                     <div class="relative h-80 w-full">
                         <canvas id="trendChart"></canvas>
                     </div>
                 </div>
                 
-                <!-- Gráfico de Distribución (Doughnut - 1 Columna) -->
+                <!-- Distribución de Estado (Doughnut - 1 Columna) -->
                 <div class="bg-card-bg rounded-2xl shadow-sm p-6 border border-slate-100 flex flex-col justify-between">
                     <div>
-                        <h3 class="text-base font-bold text-slate-800 mb-1"><i class="fa-solid fa-chart-pie mr-2 text-corporate-green"></i>Estado General</h3>
-                        <p class="text-xs text-slate-400 mb-4">Proporción global de cumplimiento</p>
+                        <h3 class="text-base font-bold text-slate-800 mb-1"><i class="fa-solid fa-chart-pie mr-2 text-corporate-green"></i>Distribución Global</h3>
+                        <p class="text-xs text-slate-400 mb-4">Proporción general de cumplimiento</p>
                     </div>
                     <div class="relative h-64 w-full flex justify-center items-center">
                         <canvas id="statusChart"></canvas>
@@ -174,20 +201,20 @@
                 </div>
             </div>
 
-            <!-- FILA 3: MATRIZ DE ACCIONES CORRECTIVAS Y PREVENTIVAS (IA & Análisis Técnico) -->
+            <!-- MATRIZ DE ACCIONES CORRECTIVAS Y PREVENTIVAS -->
             <div class="bg-card-bg rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                <div class="bg-slate-900 text-white px-6 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div class="bg-surface-dark text-white px-6 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div class="flex items-center">
                         <div class="bg-corporate-green p-2 rounded-lg mr-3">
-                            <i class="fa-solid fa-microchip text-white text-lg"></i>
+                            <i class="fa-solid fa-table-list text-white text-lg"></i>
                         </div>
                         <div>
-                            <h3 class="text-base font-bold">Matriz de Acciones Correctivas y Preventivas (Asistido por IA)</h3>
-                            <p class="text-xs text-slate-400">Diagnóstico técnico basado en las desviaciones de la columna CONCEN</p>
+                            <h3 class="text-base font-bold">Matriz de Acciones Correctivas y Preventivas</h3>
+                            <p class="text-xs text-slate-400">Diagnóstico de desviaciones detectadas en tiempo real</p>
                         </div>
                     </div>
                     <span class="bg-emerald-600 text-white text-xs font-bold px-3 py-1 rounded-full flex items-center">
-                        <i class="fa-solid fa-bolt mr-1.5"></i> Motor Analítico Activo
+                        <i class="fa-solid fa-bolt mr-1.5"></i> Operativo
                     </span>
                 </div>
                 
@@ -195,17 +222,15 @@
                     <table class="w-full text-left border-collapse">
                         <thead>
                             <tr class="border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                <th class="pb-3 px-4">Desvío / Hallazgo</th>
-                                <th class="pb-3 px-4">Por qué lo medimos</th>
+                                <th class="pb-3 px-4">Hallazgo / Desvío</th>
                                 <th class="pb-3 px-4">Acción Correctiva (Técnica)</th>
-                                <th class="pb-3 px-4">Cuándo</th>
                                 <th class="pb-3 px-4">Equipo Afectado</th>
                                 <th class="pb-3 px-4">Responsable</th>
                                 <th class="pb-3 px-4 text-center">Estado</th>
                             </tr>
                         </thead>
-                        <tbody id="ia-matrix-body" class="divide-y divide-slate-100 text-sm text-slate-700">
-                            <!-- Inyectado dinámicamente por JavaScript -->
+                        <tbody id="matrix-body" class="divide-y divide-slate-100 text-sm text-slate-700">
+                            <!-- Inyectado dinámicamente -->
                         </tbody>
                     </table>
                 </div>
@@ -214,7 +239,7 @@
         </div>
     </main>
 
-    <!-- Script Principal con la lógica avanzada -->
+    <!-- Script Principal -->
     <script src="./js/app.js"></script>
 </body>
 </html>
