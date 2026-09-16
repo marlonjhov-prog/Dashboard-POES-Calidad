@@ -45,12 +45,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 // 3. DESCARGA TOTAL DE DATOS (SIN LÍMITE)
 // ==========================================
 async function descargarBaseDeDatosCompleta() {
-    // 3.1 Cargar Parámetros de la Hoja 2
     const resParam = await clienteSupabase.from('parametros_soluciones').select('*');
     if (resParam.error) throw resParam.error;
     listaParametros = resParam.data;
 
-    // 3.2 Cargar TODOS los Registros Históricos de la Hoja 1 (Paginación interna para asegurar 100% de los datos)
     let registrosAcumulados = [];
     let rangoInicio = 0;
     let tamañoLote = 1000;
@@ -84,8 +82,8 @@ async function descargarBaseDeDatosCompleta() {
 // ==========================================
 function procesarKPIsYMetricas() {
     let conformes = 0;
-    let desviosRiesgo = 0;   // CONCEN < min (Peligro microbiológico)
-    let ineficientes = 0;    // CONCEN > max (Desperdicio técnico / exceso)
+    let desviosRiesgo = 0;   // CONCEN < min
+    let ineficientes = 0;    // CONCEN > max
 
     listaRegistros.forEach(fila => {
         const regla = listaParametros.find(p => p.solucion === fila.solucion);
@@ -105,13 +103,10 @@ function procesarKPIsYMetricas() {
     });
 
     const totalMuestras = listaRegistros.length;
-    
-    // Eficacia: Las muestras conformes + las ineficientes (excesos) limpian de forma efectiva.
     const totalEficaces = conformes + ineficientes;
     const porcentajeEficacia = totalMuestras > 0 ? ((totalEficaces / totalMuestras) * 100).toFixed(1) : 0;
 
-    // Inyectar en el DOM
-    document.getElementById('kpi-eficacia').innerText = `${porcentajeEficacia}%`;
+    document.getElementById('kpi-eficacia').innerText = porcentajeEficacia + '%';
     document.getElementById('kpi-desvios').innerText = desviosRiesgo.toLocaleString();
     document.getElementById('kpi-excesos').innerText = ineficientes.toLocaleString();
     document.getElementById('kpi-total').innerText = totalMuestras.toLocaleString();
@@ -123,7 +118,6 @@ function procesarKPIsYMetricas() {
 // 5. RENDERIZADO DE GRÁFICAS AVANZADAS
 // ==========================================
 function renderizarGraficosAvanzados(kpis) {
-    // --- Gráfico Circular de Estado General ---
     const ctxStatus = document.getElementById('statusChart').getContext('2d');
     new Chart(ctxStatus, {
         type: 'doughnut',
@@ -147,17 +141,19 @@ function renderizarGraficosAvanzados(kpis) {
         }
     });
 
-    // --- Gráfico de Líneas: Tendencia Histórica de SOSA ---
     const registrosSosa = listaRegistros.filter(r => r.solucion === 'SOSA').slice(0, 40).reverse();
     const reglaSosa = listaParametros.find(p => p.solucion === 'SOSA');
 
     if (!reglaSosa || registrosSosa.length === 0) return;
 
+    // USO DE CONCATENACIÓN TRADICIONAL (Cero errores de sintaxis)
     const etiquetasFechas = registrosSosa.map(r => {
         let partes = r.fecha.split('-');
-        let horaCorta = r.hora ? r.hora.substring(0,5) : '';
-        // CORRECCIÓN DE LA SINTAXIS EN LA LÍNEA DE FECHA:
-        return partes.length === 3 ? `${partes[2]}/${partes[1]} ${horaCorta}` : `${r.fecha} ${horaCorta}`;
+        let horaCorta = r.hora ? r.hora.substring(0, 5) : '';
+        if (partes.length === 3) {
+            return partes[2] + '/' + partes[1] + ' ' + horaCorta;
+        }
+        return r.fecha + ' ' + horaCorta;
     });
 
     const valoresConcentracion = registrosSosa.map(r => parseFloat(r.concen));
@@ -182,7 +178,7 @@ function renderizarGraficosAvanzados(kpis) {
                     pointRadius: 4
                 },
                 {
-                    label: `Límite Máx. (${reglaSosa.rango_max}%)`,
+                    label: 'Límite Máx. (' + reglaSosa.rango_max + '%)',
                     data: lineaMaxima,
                     borderColor: '#f59e0b',
                     borderWidth: 2,
@@ -190,7 +186,7 @@ function renderizarGraficosAvanzados(kpis) {
                     pointRadius: 0
                 },
                 {
-                    label: `Límite Mín. (${reglaSosa.rango_min}%)`,
+                    label: 'Límite Mín. (' + reglaSosa.rango_min + '%)',
                     data: lineaMinima,
                     borderColor: '#dc2626',
                     borderWidth: 2,
@@ -244,40 +240,40 @@ function generarMatrizAccionesIA() {
     if (equiposOrdenados.length > 0) {
         let eqTop = equiposOrdenados[0][0];
         accionesSimuladas.push({
-            hallazgo: `Desvío de Concentración en ${eqTop}`,
-            porQue: `Evitar fatiga de materiales y asegurar rango óptimo de limpieza CIP.`,
-            accion: `Calibración de la bomba dosificadora automática y revisión de la válvula de retención.`,
-            quando: `Inmediato (Próximo ciclo CIP)`,
+            hallazgo: 'Desvío de Concentración en ' + eqTop,
+            porQue: 'Evitar fatiga de materiales y asegurar rango óptimo de limpieza CIP.',
+            accion: 'Calibración de la bomba dosificadora automática y revisión de la válvula de retención.',
+            quando: 'Inmediato (Próximo ciclo CIP)',
             equipo: eqTop,
-            responsable: `Supervisor de Higiene`,
-            estado: `En Acción`,
-            badgeColor: `bg-amber-100 text-amber-800 border border-amber-300`
+            responsable: 'Supervisor de Higiene',
+            estado: 'En Acción',
+            badgeColor: 'bg-amber-100 text-amber-800 border border-amber-300'
         });
     }
 
     if (equiposOrdenados.length > 1) {
         let eqSec = equiposOrdenados[1][0];
         accionesSimuladas.push({
-            hallazgo: `Exceso recurrente de químico en ${eqSec}`,
-            porQue: `Controlar el sobreconsumo de solución y mitigar impacto técnico en tuberías.`,
-            accion: `Ajuste de parámetros en el PLC del lazo de conductividad y reentrenamiento de operarios.`,
-            quando: `Durante las próximas 24 horas`,
+            hallazgo: 'Exceso recurrente de químico en ' + eqSec,
+            porQue: 'Controlar el sobreconsumo de solución y mitigar impacto técnico en tuberías.',
+            accion: 'Ajuste de parámetros en el PLC del lazo de conductividad y reentrenamiento de operarios.',
+            quando: 'Durante las próximas 24 horas',
             equipo: eqSec,
-            responsable: `Líder de Higiene`,
-            estado: `Programado`,
-            badgeColor: `bg-blue-100 text-blue-800 border border-blue-300`
+            responsable: 'Líder de Higiene',
+            estado: 'Programado',
+            badgeColor: 'bg-blue-100 text-blue-800 border border-blue-300'
         });
     }
 
     accionesSimuladas.push({
-        hallazgo: `Validación General de Soluciones Madre`,
-        porQue: `Garantizar la estabilidad bromatológica y la correcta preparación inicial de productos químicos.`,
-        accion: `Inspección visual de válvulas de paso y titulación manual de respaldo en laboratorio.`,
-        quando: `Semanalmente`,
-        equipo: `Toda la Planta`,
-        responsable: `Jefe de Calidad`,
-        estado: `Conforme`,
-        badgeColor: `bg-emerald-100 text-emerald-800 border border-emerald-300`
+        hallazgo: 'Validación General de Soluciones Madre',
+        porQue: 'Garantizar la estabilidad bromatológica y la correcta preparación inicial de productos químicos.',
+        accion: 'Inspección visual de válvulas de paso y titulación manual de respaldo en laboratorio.',
+        quando: 'Semanalmente',
+        equipo: 'Toda la Planta',
+        responsable: 'Jefe de Calidad',
+        estado: 'Conforme',
+        badgeColor: 'bg-emerald-100 text-emerald-800 border border-emerald-300'
     });
 
     accionesSimuladas.forEach(item => {
