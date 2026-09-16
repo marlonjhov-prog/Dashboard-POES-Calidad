@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard POES | Control de Inocuidad</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: { extend: { colors: { 'corporate-green': '#1f8c22', 'alert-yellow': '#f59e0b', 'danger-red': '#dc2626', 'surface-dark': '#111827' } } }
+        }
+    </script>
+</head>
+<body class="bg-gray-50 font-sans antialiased text-gray-800">
+    <!-- Navbar -->
+    <header class="bg-white shadow-sm border-b-4 border-corporate-green sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center">
+                <i class="fa-solid fa-shield-halved text-corporate-green text-3xl mr-3"></i>
+                <div>
+                    <h1 class="text-xl md:text-2xl font-bold tracking-tight">DASHBOARD POES</h1>
+                    <p class="text-[10px] md:text-xs text-gray-500 font-semibold uppercase tracking-wider">Limpieza y Desinfección</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div id="loader" class="flex justify-center items-center py-20">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-corporate-green"></div>
+        </div>
+
+        <div id="dashboard-content" class="hidden opacity-0 transition-opacity duration-500">
+            <!-- KPIs -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-corporate-green">
+                    <p class="text-xs font-bold text-gray-400 uppercase tracking-wide">Eficacia (% Conforme)</p>
+                    <h2 class="text-4xl font-black text-gray-800 mt-2" id="kpi-eficacia">--%</h2>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-danger-red">
+                    <p class="text-xs font-bold text-gray-400 uppercase tracking-wide">Desvíos (Riesgo)</p>
+                    <h2 class="text-4xl font-black text-gray-800 mt-2" id="kpi-desvios">--</h2>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-alert-yellow">
+                    <p class="text-xs font-bold text-gray-400 uppercase tracking-wide">Ineficiencia (Exceso)</p>
+                    <h2 class="text-4xl font-black text-gray-800 mt-2" id="kpi-excesos">--</h2>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-blue-500">
+                    <p class="text-xs font-bold text-gray-400 uppercase tracking-wide">Muestras Analizadas</p>
+                    <h2 class="text-4xl font-black text-gray-800 mt-2" id="kpi-total">--</h2>
+                </div>
+            </div>
+
+            <!-- Gráficas (Lienzos en blanco por ahora) -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                <div class="bg-white rounded-xl shadow-sm p-6 lg:col-span-2">
+                    <h3 class="text-sm font-bold text-gray-700 uppercase mb-4">Tendencia: Concentración de SOSA</h3>
+                    <div class="relative h-72 w-full"><canvas id="trendChart"></canvas></div>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <h3 class="text-sm font-bold text-gray-700 uppercase mb-4">Estado General</h3>
+                    <div class="relative h-72 w-full flex justify-center items-center"><canvas id="statusChart"></canvas></div>
+                </div>
+            </div>
+        </div>
+    </main>
+    <script type="module" src="./js/app.js"></script>
+</body>
+</html>
