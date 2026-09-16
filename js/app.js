@@ -1,173 +1,188 @@
 // ==========================================
-// 1. CONFIGURACIÓN DE SUPABASE
+// 1. CREDENCIALES DE BASE DE DATOS
 // ==========================================
-// URL base del proyecto y Publishable Key inyectadas
-const SUPABASE_URL = 'https://pemughavmbgcxxahffpn.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_oUVzPeOCzi89qXy7Or3GDw_JzcpuKfd';
+const PROYECTO_URL = 'https://pemughavmbgcxxahffpn.supabase.co';
+const PUBLISHABLE_KEY = 'sb_publishable_oUVzPeOCzi89qXy7Or3GDw_JzcpuKfd';
 
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// IMPORTANTE: Cambiamos el nombre de la variable a 'clienteSupabase' para evitar el SyntaxError
+const clienteSupabase = supabase.createClient(PROYECTO_URL, PUBLISHABLE_KEY);
 
-let parametros = [];
-let registros = [];
+// Variables de estado global
+let datosParametros = [];
+let datosRegistros = [];
 
 // ==========================================
-// 2. INICIALIZACIÓN DEL DASHBOARD
+// 2. INICIO DE LA APLICACIÓN
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
+    console.log("Iniciando Dashboard POES...");
     try {
-        await cargarDatos();
-        const resultados = procesarKPIs();
-        renderizarGraficos(resultados.conformes, resultados.ineficientes, resultados.desvios);
-        mostrarDashboard();
+        await cargarInformacionDesdeBD();
+        
+        if (datosRegistros.length === 0) {
+            console.warn("No se encontraron registros en la base de datos.");
+            return;
+        }
+
+        const kpisAnalizados = calcularIndicadores();
+        dibujarGraficos(kpisAnalizados);
+        quitarPantallaDeCarga();
+        
+        console.log("Dashboard cargado exitosamente.");
+
     } catch (error) {
-        console.error("Error crítico al iniciar:", error);
-        alert("Hubo un error al cargar los datos desde Supabase. Revisa la consola.");
+        console.error("Error al construir el dashboard:", error);
+        document.getElementById('loader').innerHTML = `
+            <div class="text-danger-red text-center">
+                <i class="fa-solid fa-circle-xmark text-4xl mb-2"></i>
+                <p class="font-bold">Error de conexión</p>
+                <p class="text-sm text-gray-500">No se pudieron cargar los datos de Supabase. Revisa la consola (F12).</p>
+            </div>
+        `;
     }
 });
 
 // ==========================================
-// 3. OBTENER DATOS (LECTURA)
+// 3. CONSULTAS A SUPABASE (READ)
 // ==========================================
-async function cargarDatos() {
-    // 3.1 Cargar Parámetros de Soluciones (Rangos Min/Max)
-    const { data: dataParam, error: errParam } = await supabase
+async function cargarInformacionDesdeBD() {
+    // Leer Parámetros
+    const respuestaParametros = await clienteSupabase
         .from('parametros_soluciones')
         .select('*');
     
-    if (errParam) throw errParam;
-    parametros = dataParam;
+    if (respuestaParametros.error) throw respuestaParametros.error;
+    datosParametros = respuestaParametros.data;
 
-    // 3.2 Cargar Registros Históricos (Traemos los últimos 500 para el análisis)
-    const { data: dataReg, error: errReg } = await supabase
+    // Leer Registros (Últimos 500)
+    const respuestaRegistros = await clienteSupabase
         .from('registros_limpieza')
         .select('*')
         .order('fecha', { ascending: false })
         .order('hora', { ascending: false })
         .limit(500);
     
-    if (errReg) throw errReg;
-    registros = dataReg;
+    if (respuestaRegistros.error) throw respuestaRegistros.error;
+    datosRegistros = respuestaRegistros.data;
 }
 
 // ==========================================
-// 4. LÓGICA DE NEGOCIO (KPIs MATEMÁTICOS)
+// 4. MOTOR DE CÁLCULO (KPIs)
 // ==========================================
-function procesarKPIs() {
-    let conformes = 0;
-    let desviosRiesgo = 0; // Peligro microbiológico (Por debajo del min)
-    let ineficientes = 0;  // Desperdicio económico (Por encima del max)
+function calcularIndicadores() {
+    let conteoConformes = 0;
+    let conteoDesvios = 0; 
+    let conteoIneficientes = 0; 
 
-    registros.forEach(registro => {
-        // Buscar los parámetros correspondientes a la solución de este registro
-        const param = parametros.find(p => p.solucion === registro.solucion);
+    datosRegistros.forEach(fila => {
+        // Encontrar los rangos asociados al químico usado en esta fila
+        const regla = datosParametros.find(p => p.solucion === fila.solucion);
         
-        if (param) {
-            const concentracion = parseFloat(registro.concen);
+        if (regla) {
+            const valor = parseFloat(fila.concen);
             
-            if (concentracion < param.rango_min) {
-                desviosRiesgo++;
-            } else if (concentracion > param.rango_max) {
-                ineficientes++;
+            if (valor < parseFloat(regla.rango_min)) {
+                conteoDesvios++;
+            } else if (valor > parseFloat(regla.rango_max)) {
+                conteoIneficientes++;
             } else {
-                conformes++;
+                conteoConformes++;
             }
         }
     });
 
-    const totalAnalizados = registros.length;
-    
-    // Cálculo de Eficacia: 
-    // Los excesos (ineficientes) SÍ limpian, por lo tanto son eficaces microbiológicamente.
-    const eficaces = conformes + ineficientes;
-    const porcentajeEficacia = totalAnalizados > 0 ? ((eficaces / totalAnalizados) * 100).toFixed(1) : 0;
+    const total = datosRegistros.length;
+    // Eficacia general (Considera conformes y los excesos ineficientes que sí limpian)
+    const eficaces = conteoConformes + conteoIneficientes;
+    const porcentajeEficacia = total > 0 ? ((eficaces / total) * 100).toFixed(1) : 0;
 
-    // Inyectar resultados en las tarjetas HTML
+    // Pintar los números en el HTML
     document.getElementById('kpi-eficacia').innerText = `${porcentajeEficacia}%`;
-    document.getElementById('kpi-desvios').innerText = desviosRiesgo;
-    document.getElementById('kpi-excesos').innerText = ineficientes;
-    document.getElementById('kpi-total').innerText = totalAnalizados;
+    document.getElementById('kpi-desvios').innerText = conteoDesvios;
+    document.getElementById('kpi-excesos').innerText = conteoIneficientes;
+    document.getElementById('kpi-total').innerText = total;
 
-    return { conformes, ineficientes, desvios: desviosRiesgo };
+    return { 
+        optimos: conteoConformes, 
+        excesos: conteoIneficientes, 
+        riesgos: conteoDesvios 
+    };
 }
 
 // ==========================================
-// 5. RENDERIZADO DE GRÁFICAS (CHART.JS)
+// 5. MOTOR GRÁFICO (CHART.JS)
 // ==========================================
-function renderizarGraficos(conformes, ineficientes, desvios) {
-    // --- GRÁFICO 1: Distribución General del Estado (Doughnut) ---
-    const ctxStatus = document.getElementById('statusChart').getContext('2d');
-    new Chart(ctxStatus, {
+function dibujarGraficos(kpis) {
+    // --- Gráfico Circular (Estado Global) ---
+    const lienzoStatus = document.getElementById('statusChart').getContext('2d');
+    new Chart(lienzoStatus, {
         type: 'doughnut',
         data: {
-            labels: ['Conforme (Óptimo)', 'Ineficiente (Exceso Químico)', 'Desvío (Riesgo Microbiológico)'],
+            labels: ['Conforme (Óptimo)', 'Ineficiente (Exceso)', 'Desvío (Riesgo)'],
             datasets: [{
-                data: [conformes, ineficientes, desvios],
+                data: [kpis.optimos, kpis.excesos, kpis.riesgos],
                 backgroundColor: ['#1f8c22', '#f59e0b', '#dc2626'],
-                borderWidth: 0,
-                hoverOffset: 4
+                borderWidth: 2,
+                borderColor: '#ffffff',
+                hoverOffset: 5
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'bottom' }
-            },
-            cutout: '75%'
+            plugins: { legend: { position: 'bottom' } },
+            cutout: '70%'
         }
     });
 
-    // --- GRÁFICO 2: Tendencia de Concentración de SOSA (Líneas) ---
-    // Filtramos solo los registros de la solución 'SOSA' y tomamos los últimos 30 en orden cronológico (reverse)
-    const registrosSosa = registros.filter(r => r.solucion === 'SOSA').slice(0, 30).reverse();
-    const paramSosa = parametros.find(p => p.solucion === 'SOSA');
+    // --- Gráfico de Líneas (Tendencia SOSA) ---
+    // Aislar la sosa, tomar 30 recientes y ordenarlos del más viejo al más nuevo para el gráfico
+    let registrosSosa = datosRegistros.filter(r => r.solucion === 'SOSA').slice(0, 30).reverse();
+    const reglaSosa = datosParametros.find(p => p.solucion === 'SOSA');
 
-    // Si no hay parámetros o registros de sosa, abortamos este gráfico para evitar errores
-    if (!paramSosa || registrosSosa.length === 0) return; 
+    if (!reglaSosa || registrosSosa.length === 0) return;
 
-    // Preparar etiquetas del Eje X (Fechas cortas)
-    const labelsFechas = registrosSosa.map(r => {
-        const dateObj = new Date(r.fecha + 'T' + r.hora);
-        // Formato: "15/9 09:30"
-        return `${dateObj.getDate()}/${dateObj.getMonth() + 1} ${r.hora.substring(0,5)}`;
+    const ejeX_Fechas = registrosSosa.map(r => {
+        let partesFecha = r.fecha.split('-'); // asume formato YYYY-MM-DD
+        let horaCorta = r.hora ? r.hora.substring(0,5) : '';
+        return `${partesFecha[2]}/${partesFecha[1]} ${horaCorta}`;
     });
     
-    // Preparar datos de concentración
-    const dataConcentracion = registrosSosa.map(r => parseFloat(r.concen));
-    
-    // Generar líneas estáticas para los límites Min y Max a lo largo del Eje X
-    const minLine = Array(registrosSosa.length).fill(paramSosa.rango_min);
-    const maxLine = Array(registrosSosa.length).fill(paramSosa.rango_max);
+    const ejeY_Valores = registrosSosa.map(r => parseFloat(r.concen));
+    const limiteMinimo = Array(registrosSosa.length).fill(parseFloat(reglaSosa.rango_min));
+    const limiteMaximo = Array(registrosSosa.length).fill(parseFloat(reglaSosa.rango_max));
 
-    const ctxTrend = document.getElementById('trendChart').getContext('2d');
-    new Chart(ctxTrend, {
+    const lienzoTrend = document.getElementById('trendChart').getContext('2d');
+    new Chart(lienzoTrend, {
         type: 'line',
         data: {
-            labels: labelsFechas,
+            labels: ejeX_Fechas,
             datasets: [
                 {
                     label: 'Concentración Real (%)',
-                    data: dataConcentracion,
-                    borderColor: '#3b82f6', // Azul claro
-                    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                    data: ejeY_Valores,
+                    borderColor: '#3b82f6', 
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
                     borderWidth: 2,
-                    tension: 0.4, // Curvatura suave
-                    fill: true
+                    tension: 0.3, 
+                    fill: true,
+                    pointBackgroundColor: '#3b82f6',
+                    pointRadius: 3
                 },
                 {
-                    label: `Límite Máximo (${paramSosa.rango_max}%)`,
-                    data: maxLine,
-                    borderColor: '#f59e0b', // Amarillo de alerta
+                    label: 'Límite Máx.',
+                    data: limiteMaximo,
+                    borderColor: '#f59e0b', 
                     borderWidth: 2,
-                    borderDash: [6, 6], // Línea punteada
+                    borderDash: [5, 5], 
                     pointRadius: 0
                 },
                 {
-                    label: `Límite Mínimo (${paramSosa.rango_min}%)`,
-                    data: minLine,
-                    borderColor: '#dc2626', // Rojo de peligro
+                    label: 'Límite Mín.',
+                    data: limiteMinimo,
+                    borderColor: '#dc2626', 
                     borderWidth: 2,
-                    borderDash: [6, 6],
+                    borderDash: [5, 5],
                     pointRadius: 0
                 }
             ]
@@ -182,9 +197,8 @@ function renderizarGraficos(conformes, ineficientes, desvios) {
             scales: {
                 y: {
                     beginAtZero: false,
-                    // Ajustamos el eje Y para que los límites no queden pegados a los bordes
-                    suggestedMin: paramSosa.rango_min - 1,
-                    suggestedMax: paramSosa.rango_max + 1
+                    suggestedMin: parseFloat(reglaSosa.rango_min) - 0.5,
+                    suggestedMax: parseFloat(reglaSosa.rango_max) + 0.5
                 }
             }
         }
@@ -192,14 +206,16 @@ function renderizarGraficos(conformes, ineficientes, desvios) {
 }
 
 // ==========================================
-// 6. CONTROL DE UI (OCULTAR CARGADOR)
+// 6. TRANSICIONES UI
 // ==========================================
-function mostrarDashboard() {
-    document.getElementById('loader').classList.add('hidden');
-    const content = document.getElementById('dashboard-content');
-    content.classList.remove('hidden');
-    // Pequeño retardo (50ms) para que la transición CSS de opacidad sea suave
-    setTimeout(() => { 
-        content.classList.remove('opacity-0'); 
-    }, 50);
+function quitarPantallaDeCarga() {
+    const cargador = document.getElementById('loader');
+    const contenido = document.getElementById('dashboard-content');
+    
+    cargador.classList.add('hidden');
+    contenido.classList.remove('hidden');
+    
+    // Forzar el repintado antes de cambiar la opacidad
+    void contenido.offsetWidth; 
+    contenido.classList.remove('opacity-0');
 }
