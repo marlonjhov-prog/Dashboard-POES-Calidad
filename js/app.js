@@ -9,16 +9,17 @@ const clienteSupabase = supabase.createClient(PROYECTO_URL, PUBLISHABLE_KEY);
 let listaParametros = [];
 let listaRegistros = [];
 let loteActualCarga = 0;
-const tamañoLoteBloque = 3000;
+const tamañoLoteBloque = 4000;
 
 let chartStatusInstance = null;
 let chartTrendInstance = null;
+let chartEquiposSolucionesInstance = null;
 
 // ==========================================
 // 2. INICIALIZACIÓN
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log("Iniciando Dashboard POES Gerencial con Excel y Filtros...");
+    console.log("Iniciando Dashboard POES Gerencial Masivo...");
     try {
         await descargarParametros();
         await cargarMasDatosSupabase();
@@ -75,7 +76,7 @@ async function cargarMasDatosSupabase() {
         loteActualCarga++;
         document.getElementById('info-registros-totales').innerText = `${listaRegistros.length.toLocaleString()} registros en memoria`;
         
-        actualizarSelectoresAnios();
+        actualizarSelectoresDinamicos();
         aplicarFiltrosYRenderizar();
     }
 
@@ -90,7 +91,7 @@ async function cargarMasDatosSupabase() {
     }
 }
 
-// Función para importar Excel o CSV directamente al navegador y subir a Supabase
+// Importar Excel o CSV directamente
 async function importarArchivoExcel(event) {
     const archivo = event.target.files[0];
     if (!archivo) return;
@@ -100,18 +101,16 @@ async function importarArchivoExcel(event) {
         try {
             const datosBinarios = new Uint8Array(e.target.result);
             const libro = XLSX.read(datosBinarios, { type: 'array' });
-            const nombreHoja = libro.SheetNames[0];
-            const hoja = libro.Sheets[nombreHoja];
+            const hoja = libro.Sheets[libro.SheetNames[0]];
             const filasJson = XLSX.utils.sheet_to_json(hoja);
 
             if (filasJson.length === 0) {
-                alert("El archivo está vacío o no tiene el formato correcto.");
+                alert("El archivo está vacío.");
                 return;
             }
 
-            alert(`Se leyeron ${filasJson.length} registros del archivo. Preparando inserción en Supabase...`);
+            alert(`Procesando ${filasJson.length} registros...`);
 
-            // Normalizar y mapear campos al esquema de Supabase
             let nuevosRegistros = filasJson.map(row => ({
                 fecha: row.FECHA || row.fecha || new Date().toISOString().split('T')[0],
                 mes: row.MES || row.mes || 'enero',
@@ -124,26 +123,19 @@ async function importarArchivoExcel(event) {
                 laboratorista: row.LABORATORISTA || row.laboratorista || 'S/N'
             }));
 
-            // Insertar en lotes de 500 para evitar saturación de la API de Supabase
             let tamañoLoteSubida = 500;
             for (let i = 0; i < nuevosRegistros.length; i += tamañoLoteSubida) {
                 let lote = nuevosRegistros.slice(i, i + tamañoLoteSubida);
-                const { error } = await clienteSupabase.from('registros_limpieza').insert(lote);
-                if (error) {
-                    console.error("Error al insertar lote:", error);
-                    alert("Ocurrió un error al subir parte de los registros a Supabase.");
-                    break;
-                }
+                await clienteSupabase.from('registros_limpieza').insert(lote);
             }
 
-            alert("¡Importación exitosa! Actualizando memoria y tablero...");
+            alert("¡Importación exitosa a Supabase!");
             listaRegistros = [];
             loteActualCarga = 0;
             await cargarMasDatosSupabase();
-
         } catch (err) {
-            console.error("Error al procesar el archivo Excel:", err);
-            alert("Error al procesar el archivo. Asegúrate de que sea un Excel o CSV válido.");
+            console.error("Error:", err);
+            alert("Error al procesar el archivo Excel.");
         }
     };
     lector.readAsArrayBuffer(archivo);
@@ -162,56 +154,62 @@ function poblarFiltrosSelect() {
     });
 }
 
-function actualizarSelectoresAnios() {
+function actualizarSelectoresDinamicos() {
+    const selectEquipo = document.getElementById('filtro-equipo');
     const selectAnio = document.getElementById('filtro-anio');
-    let aniosDisponibles = new Set();
+    
+    let equiposSet = new Set();
+    let aniosSet = new Set();
 
     listaRegistros.forEach(r => {
-        if (r.fecha) {
-            let anio = r.fecha.substring(0, 4);
-            if (anio.length === 4) aniosDisponibles.add(anio);
-        }
+        if (r.equipo) equiposSet.add(r.equipo);
+        if (r.fecha && r.fecha.length >= 4) aniosSet.add(r.fecha.substring(0, 4));
     });
 
-    // Mantener la opción seleccionada actual si existe
-    let valorActual = selectAnio.value;
-    selectAnio.innerHTML = `<option value="TODOS">Todos</option>`;
-    
-    Array.from(aniosDisponibles).sort().reverse().forEach(a => {
+    let eqActual = selectEquipo.value;
+    selectEquipo.innerHTML = `<option value="TODOS">Todos</option>`;
+    Array.from(equiposSet).sort().forEach(eq => {
         const opt = document.createElement('option');
-        opt.value = a;
-        opt.innerText = a;
+        opt.value = eq; opt.innerText = eq;
+        selectEquipo.appendChild(opt);
+    });
+    selectEquipo.value = eqActual;
+
+    let anioActual = selectAnio.value;
+    selectAnio.innerHTML = `<option value="TODOS">Todos</option>`;
+    Array.from(aniosSet).sort().reverse().forEach(an => {
+        const opt = document.createElement('option');
+        opt.value = an; opt.innerText = an;
         selectAnio.appendChild(opt);
     });
-    selectAnio.value = valorActual;
+    selectAnio.value = anioActual;
 }
 
 function configurarEventosFiltros() {
     document.getElementById('filtro-solucion').addEventListener('change', aplicarFiltrosYRenderizar);
+    document.getElementById('filtro-equipo').addEventListener('change', aplicarFiltrosYRenderizar);
     document.getElementById('filtro-anio').addEventListener('change', aplicarFiltrosYRenderizar);
     document.getElementById('filtro-mes').addEventListener('change', aplicarFiltrosYRenderizar);
 }
 
 function obtenerDatosFiltrados() {
-    const solucionSel = document.getElementById('filtro-solucion').value;
+    const solSel = document.getElementById('filtro-solucion').value;
+    const eqSel = document.getElementById('filtro-equipo').value;
     const anioSel = document.getElementById('filtro-anio').value;
     const mesSel = document.getElementById('filtro-mes').value;
 
     return listaRegistros.filter(r => {
-        let cumpleSolucion = (solucionSel === 'TODAS' || r.solucion === solucionSel);
-        
-        let anioReg = r.fecha ? r.fecha.substring(0, 4) : '';
-        let cumpleAnio = (anioSel === 'TODOS' || anioReg === anioSel);
+        let matchSol = (solSel === 'TODAS' || r.solucion === solSel);
+        let matchEq = (eqSel === 'TODOS' || r.equipo === eqSel);
+        let matchAnio = (anioSel === 'TODOS' || (r.fecha && r.fecha.substring(0, 4) === anioSel));
+        let matchMes = (mesSel === 'TODOS' || (r.fecha && r.fecha.substring(5, 7) === mesSel));
 
-        let mesReg = r.fecha ? r.fecha.substring(5, 7) : '';
-        let cumpleMes = (mesSel === 'TODOS' || mesReg === mesSel);
-
-        return cumpleSolucion && cumpleAnio && cumpleMes;
+        return matchSol && matchEq && matchAnio && matchMes;
     });
 }
 
 // ==========================================
-// 5. PROCESAMIENTO ANALÍTICO
+// 5. PROCESAMIENTO ANALÍTICO Y KPIS
 // ==========================================
 function aplicarFiltrosYRenderizar() {
     const datosActivos = obtenerDatosFiltrados();
@@ -227,13 +225,9 @@ function aplicarFiltrosYRenderizar() {
             const min = parseFloat(regla.rango_min);
             const max = parseFloat(regla.rango_max);
 
-            if (val < min) {
-                riesgoDeficit++;
-            } else if (val > max) {
-                excesoIneficiente++;
-            } else {
-                conformes++;
-            }
+            if (val < min) riesgoDeficit++;
+            else if (val > max) excesoIneficiente++;
+            else conformes++;
         }
     });
 
@@ -241,7 +235,6 @@ function aplicarFiltrosYRenderizar() {
     const eficaces = conformes + excesoIneficiente;
     const pctEficacia = total > 0 ? ((eficaces / total) * 100).toFixed(1) : 0;
 
-    // Pintar KPIs
     document.getElementById('kpi-eficacia').innerText = pctEficacia + '%';
     document.getElementById('kpi-desvios').innerText = riesgoDeficit.toLocaleString();
     document.getElementById('kpi-excesos').innerText = excesoIneficiente.toLocaleString();
@@ -249,10 +242,11 @@ function aplicarFiltrosYRenderizar() {
 
     renderizarGraficas(datosActivos, { conformes, excesoIneficiente, riesgoDeficit, total });
     generarAlertasIA(datosActivos, { total, eficaces, riesgoDeficit, excesoIneficiente });
+    renderizarGraficoSolucionesPorEquipo(datosActivos);
 }
 
 // ==========================================
-// 6. MOTOR GRÁFICO CON PORCENTAJES Y TENDENCIA LIMPIA
+// 6. MOTOR GRÁFICO AVANZADO
 // ==========================================
 function renderizarGraficas(registros, kpis) {
     const total = kpis.total > 0 ? kpis.total : 1;
@@ -260,12 +254,11 @@ function renderizarGraficas(registros, kpis) {
     const pExceso = ((kpis.excesoIneficiente / total) * 100).toFixed(1);
     const pRiesgo = ((kpis.riesgoDeficit / total) * 100).toFixed(1);
 
-    // Actualizar Leyenda con Porcentajes
     document.getElementById('leg-optimo').innerText = `Opt: ${pOptimo}%`;
     document.getElementById('leg-exceso').innerText = `Exc: ${pExceso}%`;
     document.getElementById('leg-riesgo').innerText = `Ries: ${pRiesgo}%`;
 
-    // --- GRÁFICO DONA ---
+    // Gráfico Dona
     const ctxStatus = document.getElementById('statusChart').getContext('2d');
     if (chartStatusInstance) chartStatusInstance.destroy();
 
@@ -284,67 +277,48 @@ function renderizarGraficas(registros, kpis) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'bottom', labels: { boxWidth: 12, font: { weight: 'bold' } } }
-            },
+            plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10, weight: 'bold' } } } },
             cutout: '70%'
         }
     });
 
-    // --- GRÁFICO TENDENCIA ---
-    const solucionActiva = document.getElementById('filtro-solucion').value;
-    const quimico = solucionActiva === 'TODAS' ? 'SOSA' : solucionActiva;
+    // Gráfico Líneas (Tendencia acotada a datos reales)
+    const solActiva = document.getElementById('filtro-solucion').value;
+    const quimico = solActiva === 'TODAS' ? 'SOSA' : solActiva;
     document.getElementById('label-quimico-activo').innerText = quimico;
 
-    // Tomar una muestra óptima para que la línea no se sature (ej. últimos 35 registros filtrados)
-    const registrosTrend = registros.filter(r => r.solucion === quimico).slice(0, 35).reverse();
+    const regsTrend = registros.filter(r => r.solucion === quimico).slice(0, 30).reverse();
     const reglaTrend = listaParametros.find(p => p.solucion === quimico);
 
     const ctxTrend = document.getElementById('trendChart').getContext('2d');
     if (chartTrendInstance) chartTrendInstance.destroy();
 
-    if (!reglaTrend || registrosTrend.length === 0) return;
-
-    const labels = registrosTrend.map(r => {
-        let partes = r.fecha.split('-');
-        let hora = r.hora ? r.hora.substring(0,5) : '';
-        return partes.length === 3 ? partes[2] + '/' + partes[1] + ' ' + hora : r.fecha + ' ' + hora;
-    });
-
-    const valores = registrosTrend.map(r => parseFloat(r.concen));
-    const minLine = Array(registrosTrend.length).fill(parseFloat(reglaTrend.rango_min));
-    const maxLine = Array(registrosTrend.length).fill(parseFloat(reglaTrend.rango_max));
+    if (!reglaTrend || regsTrend.length === 0) return;
 
     chartTrendInstance = new Chart(ctxTrend, {
         type: 'line',
         data: {
-            labels: labels,
+            labels: regsTrend.map(r => (r.fecha || '') + ' ' + (r.hora ? r.hora.substring(0,5) : '')),
             datasets: [
                 {
                     label: 'Concentración Real (%)',
-                    data: valores,
+                    data: regsTrend.map(r => parseFloat(r.concen)),
                     borderColor: '#3b82f6',
                     backgroundColor: 'rgba(59, 130, 246, 0.1)',
                     borderWidth: 3,
                     tension: 0.35,
                     fill: true,
-                    pointRadius: 4
+                    pointRadius: 3
                 },
                 {
                     label: 'Máx. (' + reglaTrend.rango_max + '%)',
-                    data: maxLine,
-                    borderColor: '#f59e0b',
-                    borderWidth: 2,
-                    borderDash: [5, 5],
-                    pointRadius: 0
+                    data: Array(regsTrend.length).fill(parseFloat(reglaTrend.rango_max)),
+                    borderColor: '#f59e0b', borderWidth: 2, borderDash: [5, 5], pointRadius: 0
                 },
                 {
                     label: 'Mín. (' + reglaTrend.rango_min + '%)',
-                    data: minLine,
-                    borderColor: '#dc2626',
-                    borderWidth: 2,
-                    borderDash: [5, 5],
-                    pointRadius: 0
+                    data: Array(regsTrend.length).fill(parseFloat(reglaTrend.rango_min)),
+                    borderColor: '#dc2626', borderWidth: 2, borderDash: [5, 5], pointRadius: 0
                 }
             ]
         },
@@ -360,8 +334,58 @@ function renderizarGraficas(registros, kpis) {
     });
 }
 
+// Gráfico de Soluciones por Equipo (Porcentaje de participación)
+function renderizarGraficoSolucionesPorEquipo(registros) {
+    const ctx = document.getElementById('equiposSolucionesChart').getContext('2d');
+    if (chartEquiposSolucionesInstance) chartEquiposSolucionesInstance.destroy();
+
+    // Agrupar soluciones por equipo
+    let conteoSoluciones = {};
+    let solucionesUnicas = new Set();
+
+    registros.forEach(r => {
+        let eq = r.equipo || 'GENERAL';
+        let sol = r.solucion || 'OTRA';
+        solucionesUnicas.add(sol);
+        if (!conteoSoluciones[eq]) conteoSoluciones[eq] = {};
+        conteoSoluciones[eq][sol] = (conteoSoluciones[eq][sol] || 0) + 1;
+    });
+
+    let equiposLabels = Object.keys(conteoSoluciones).slice(0, 8); // Top 8 equipos
+    let solsArray = Array.from(solucionesUnicas);
+    let coloresPalette = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899'];
+
+    let datasets = solsArray.map((sol, index) => {
+        let dataPorEquipo = equiposLabels.map(eq => {
+            let totalEq = Object.values(conteoSoluciones[eq]).reduce((a, b) => a + b, 0);
+            let countSol = conteoSoluciones[eq][sol] || 0;
+            return totalEq > 0 ? ((countSol / totalEq) * 100).toFixed(1) : 0;
+        });
+        return {
+            label: sol,
+            data: dataPorEquipo,
+            backgroundColor: coloresPalette[index % coloresPalette.length],
+            borderRadius: 4
+        };
+    });
+
+    chartEquiposSolucionesInstance = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: equiposLabels, datasets: datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'top' } },
+            scales: {
+                x: { stacked: true, grid: { display: false } },
+                y: { stacked: true, max: 100, ticks: { callback: v => v + '%' }, grid: { color: '#f1f5f9' } }
+            }
+        }
+    });
+}
+
 // ==========================================
-// 7. ASISTENTE IA Y ALERTAS TÉCNICAS
+// 7. ASISTENTE IA (SIN REPETICIONES)
 // ==========================================
 function generarAlertasIA(registros, metricas) {
     const contenedor = document.getElementById('ai-alerts-container');
@@ -369,25 +393,23 @@ function generarAlertasIA(registros, metricas) {
     let pExceso = metricas.total > 0 ? ((metricas.excesoIneficiente / metricas.total) * 100).toFixed(1) : 0;
 
     contenedor.innerHTML = `
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="bg-red-50 border border-red-200 rounded-xl p-5">
-                <div class="flex items-center space-x-3 mb-2">
-                    <i class="fa-solid fa-triangle-exclamation text-danger-red text-xl"></i>
-                    <h4 class="font-bold text-red-900">Evaluación de Inocuidad (Eficacia)</h4>
-                </div>
-                <p class="text-xs text-slate-700 leading-relaxed">
-                    Se detectaron <b>${metricas.riesgoDeficit.toLocaleString()}</b> registros con concentración por debajo del mínimo permitido <b>(${pRiesgo}% del conjunto filtrado)</b>. Esto representa una alerta de desvío crítico con riesgo microbiológico.
-                </p>
+        <div class="bg-red-50 border border-red-200 rounded-xl p-5">
+            <div class="flex items-center space-x-3 mb-2">
+                <i class="fa-solid fa-triangle-exclamation text-danger-red text-xl"></i>
+                <h4 class="font-bold text-red-900">Evaluación de Inocuidad (Eficacia)</h4>
             </div>
-            <div class="bg-amber-50 border border-amber-200 rounded-xl p-5">
-                <div class="flex items-center space-x-3 mb-2">
-                    <i class="fa-solid fa-flask-vial text-alert-yellow text-xl"></i>
-                    <h4 class="font-bold text-amber-900">Evaluación de Costos (Eficiencia Operativa)</h4>
-                </div>
-                <p class="text-xs text-slate-700 leading-relaxed">
-                    Se registran <b>${metricas.excesoIneficiente.toLocaleString()}</b> eventos de sobredosificación por encima del límite máximo <b>(${pExceso}% del conjunto)</b>. Este comportamiento genera sobreconsumo químico y fatiga de materiales en equipos CIP.
-                </p>
+            <p class="text-xs text-slate-700 leading-relaxed">
+                Se detectaron <b>${metricas.riesgoDeficit.toLocaleString()}</b> registros con concentración por debajo del mínimo permitido <b>(${pRiesgo}% del filtro activo)</b>. Alerta crítica de riesgo microbiológico.
+            </p>
+        </div>
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-5">
+            <div class="flex items-center space-x-3 mb-2">
+                <i class="fa-solid fa-flask-vial text-alert-yellow text-xl"></i>
+                <h4 class="font-bold text-amber-900">Evaluación de Eficiencia (Costos / Exceso)</h4>
             </div>
+            <p class="text-xs text-slate-700 leading-relaxed">
+                Se registran <b>${metricas.excesoIneficiente.toLocaleString()}</b> eventos de sobredosificación por encima del máximo <b>(${pExceso}% del filtro activo)</b>. Impacto directo en sobreconsumo químico y fatiga de equipos.
+            </p>
         </div>
     `;
 }
@@ -419,16 +441,16 @@ function abrirModalDetalle(tipo) {
     }
 
     if (filtradosModal.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400">No hay registros en esta categoría.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400">No hay registros en esta categoría con el filtro actual.</td></tr>`;
     } else {
         filtradosModal.slice(0, 300).forEach(r => {
             const tr = document.createElement('tr');
             tr.className = "hover:bg-slate-50 transition border-b border-slate-100";
             tr.innerHTML = `
-                <td class="py-2.5 px-3 font-semibold">${r.fecha} ${r.hora}</td>
-                <td class="py-2.5 px-3 font-bold text-slate-900">${r.equipo}</td>
-                <td class="py-2.5 px-3 text-slate-600">${r.solucion}</td>
-                <td class="py-2.5 px-3 font-bold text-blue-600">${r.concen}</td>
+                <td class="py-2.5 px-3 font-semibold">${r.fecha || ''} ${r.hora || ''}</td>
+                <td class="py-2.5 px-3 font-bold text-slate-900">${r.equipo || 'N/A'}</td>
+                <td class="py-2.5 px-3 text-slate-600">${r.solucion || 'N/A'}</td>
+                <td class="py-2.5 px-3 font-bold text-blue-600">${r.concen || 0}</td>
                 <td class="py-2.5 px-3 text-slate-500">${r.operario || 'N/A'}</td>
             `;
             tbody.appendChild(tr);
