@@ -9,7 +9,7 @@ const clienteSupabase = supabase.createClient(PROYECTO_URL, PUBLISHABLE_KEY);
 let listaParametros = [];
 let listaRegistros = [];
 let loteActualCarga = 0;
-const tamañoLoteBloque = 2500; // Bloques grandes para eficiencia
+const tamañoLoteBloque = 3000;
 
 let chartStatusInstance = null;
 let chartTrendInstance = null;
@@ -18,11 +18,11 @@ let chartTrendInstance = null;
 // 2. INICIALIZACIÓN
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log("Iniciando Dashboard POES Gerencial Masivo...");
+    console.log("Iniciando Dashboard POES Gerencial con Excel y Filtros...");
     try {
         await descargarParametros();
-        await cargarMasDatosSupabase(); // Carga el primer bloque masivo
-        poblarFiltroSoluciones();
+        await cargarMasDatosSupabase();
+        poblarFiltrosSelect();
         configurarEventosFiltros();
         
         revelarInterfazDashboard();
@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // ==========================================
-// 3. CARGA MASIVA Y PAGINADA (HASTA +19K)
+// 3. CARGA DESDE SUPABASE Y EXCEL
 // ==========================================
 async function descargarParametros() {
     const res = await clienteSupabase.from('parametros_soluciones').select('*');
@@ -73,10 +73,9 @@ async function cargarMasDatosSupabase() {
     if (data && data.length > 0) {
         listaRegistros = listaRegistros.concat(data);
         loteActualCarga++;
-        console.log(`Bloque cargado. Total acumulado en memoria: ${listaRegistros.length}`);
-        
         document.getElementById('info-registros-totales').innerText = `${listaRegistros.length.toLocaleString()} registros en memoria`;
         
+        actualizarSelectoresAnios();
         aplicarFiltrosYRenderizar();
     }
 
@@ -85,44 +84,141 @@ async function cargarMasDatosSupabase() {
             btnCargar.innerHTML = `<i class="fa-solid fa-check mr-2"></i> Todo Cargado`;
             btnCargar.classList.replace('bg-blue-600', 'bg-slate-600');
         } else {
-            btnCargar.innerHTML = `<i class="fa-solid fa-cloud-arrow-down mr-2"></i> Cargar Más Registros (+10k)`;
+            btnCargar.innerHTML = `<i class="fa-solid fa-cloud-arrow-down mr-2"></i> Cargar Servidor (+10k)`;
             btnCargar.disabled = false;
         }
     }
 }
 
+// Función para importar Excel o CSV directamente al navegador y subir a Supabase
+async function importarArchivoExcel(event) {
+    const archivo = event.target.files[0];
+    if (!archivo) return;
+
+    const lector = new FileReader();
+    lector.onload = async function(e) {
+        try {
+            const datosBinarios = new Uint8Array(e.target.result);
+            const libro = XLSX.read(datosBinarios, { type: 'array' });
+            const nombreHoja = libro.SheetNames[0];
+            const hoja = libro.Sheets[nombreHoja];
+            const filasJson = XLSX.utils.sheet_to_json(hoja);
+
+            if (filasJson.length === 0) {
+                alert("El archivo está vacío o no tiene el formato correcto.");
+                return;
+            }
+
+            alert(`Se leyeron ${filasJson.length} registros del archivo. Preparando inserción en Supabase...`);
+
+            // Normalizar y mapear campos al esquema de Supabase
+            let nuevosRegistros = filasJson.map(row => ({
+                fecha: row.FECHA || row.fecha || new Date().toISOString().split('T')[0],
+                mes: row.MES || row.mes || 'enero',
+                hora: row.HORA || row.hora || '00:00:00',
+                solucion: row.SOLUCION || row.solucion || 'SOSA',
+                equipo: row.EQUIPO || row.equipo || 'GENERAL',
+                proceso: row.PROCESO || row.proceso || 'CIP',
+                concen: parseFloat(row.CONCEN || row.concen || 0),
+                operario: row.OPERARIO || row.operario || 'S/N',
+                laboratorista: row.LABORATORISTA || row.laboratorista || 'S/N'
+            }));
+
+            // Insertar en lotes de 500 para evitar saturación de la API de Supabase
+            let tamañoLoteSubida = 500;
+            for (let i = 0; i < nuevosRegistros.length; i += tamañoLoteSubida) {
+                let lote = nuevosRegistros.slice(i, i + tamañoLoteSubida);
+                const { error } = await clienteSupabase.from('registros_limpieza').insert(lote);
+                if (error) {
+                    console.error("Error al insertar lote:", error);
+                    alert("Ocurrió un error al subir parte de los registros a Supabase.");
+                    break;
+                }
+            }
+
+            alert("¡Importación exitosa! Actualizando memoria y tablero...");
+            listaRegistros = [];
+            loteActualCarga = 0;
+            await cargarMasDatosSupabase();
+
+        } catch (err) {
+            console.error("Error al procesar el archivo Excel:", err);
+            alert("Error al procesar el archivo. Asegúrate de que sea un Excel o CSV válido.");
+        }
+    };
+    lector.readAsArrayBuffer(archivo);
+}
+
 // ==========================================
-// 4. FILTROS Y EVENTOS
+// 4. FILTROS Y SELECTORES DINÁMICOS
 // ==========================================
-function poblarFiltroSoluciones() {
-    const select = document.getElementById('filtro-solucion');
+function poblarFiltrosSelect() {
+    const selectSolucion = document.getElementById('filtro-solucion');
     listaParametros.forEach(p => {
         const opt = document.createElement('option');
         opt.value = p.solucion;
         opt.innerText = p.solucion;
-        select.appendChild(opt);
+        selectSolucion.appendChild(opt);
     });
+}
+
+function actualizarSelectoresAnios() {
+    const selectAnio = document.getElementById('filtro-anio');
+    let aniosDisponibles = new Set();
+
+    listaRegistros.forEach(r => {
+        if (r.fecha) {
+            let anio = r.fecha.substring(0, 4);
+            if (anio.length === 4) aniosDisponibles.add(anio);
+        }
+    });
+
+    // Mantener la opción seleccionada actual si existe
+    let valorActual = selectAnio.value;
+    selectAnio.innerHTML = `<option value="TODOS">Todos</option>`;
+    
+    Array.from(aniosDisponibles).sort().reverse().forEach(a => {
+        const opt = document.createElement('option');
+        opt.value = a;
+        opt.innerText = a;
+        selectAnio.appendChild(opt);
+    });
+    selectAnio.value = valorActual;
 }
 
 function configurarEventosFiltros() {
     document.getElementById('filtro-solucion').addEventListener('change', aplicarFiltrosYRenderizar);
+    document.getElementById('filtro-anio').addEventListener('change', aplicarFiltrosYRenderizar);
+    document.getElementById('filtro-mes').addEventListener('change', aplicarFiltrosYRenderizar);
 }
 
 function obtenerDatosFiltrados() {
-    const solucion = document.getElementById('filtro-solucion').value;
-    if (solucion === 'TODAS') return listaRegistros;
-    return listaRegistros.filter(r => r.solucion === solucion);
+    const solucionSel = document.getElementById('filtro-solucion').value;
+    const anioSel = document.getElementById('filtro-anio').value;
+    const mesSel = document.getElementById('filtro-mes').value;
+
+    return listaRegistros.filter(r => {
+        let cumpleSolucion = (solucionSel === 'TODAS' || r.solucion === solucionSel);
+        
+        let anioReg = r.fecha ? r.fecha.substring(0, 4) : '';
+        let cumpleAnio = (anioSel === 'TODOS' || anioReg === anioSel);
+
+        let mesReg = r.fecha ? r.fecha.substring(5, 7) : '';
+        let cumpleMes = (mesSel === 'TODOS' || mesReg === mesSel);
+
+        return cumpleSolucion && cumpleAnio && cumpleMes;
+    });
 }
 
 // ==========================================
-// 5. PROCESAMIENTO ANALÍTICO Y KPIS
+// 5. PROCESAMIENTO ANALÍTICO
 // ==========================================
 function aplicarFiltrosYRenderizar() {
     const datosActivos = obtenerDatosFiltrados();
 
     let conformes = 0;
-    let riesgoDeficit = 0;   // CONCEN < min
-    let excesoIneficiente = 0; // CONCEN > max
+    let riesgoDeficit = 0;   
+    let excesoIneficiente = 0; 
 
     datosActivos.forEach(fila => {
         const regla = listaParametros.find(p => p.solucion === fila.solucion);
@@ -151,23 +247,34 @@ function aplicarFiltrosYRenderizar() {
     document.getElementById('kpi-excesos').innerText = excesoIneficiente.toLocaleString();
     document.getElementById('kpi-total').innerText = total.toLocaleString();
 
-    renderizarGraficas(datosActivos, { conformes, excesoIneficiente, riesgoDeficit });
+    renderizarGraficas(datosActivos, { conformes, excesoIneficiente, riesgoDeficit, total });
     generarAlertasIA(datosActivos, { total, eficaces, riesgoDeficit, excesoIneficiente });
 }
 
 // ==========================================
-// 6. MOTOR GRÁFICO AVANZADO
+// 6. MOTOR GRÁFICO CON PORCENTAJES Y TENDENCIA LIMPIA
 // ==========================================
 function renderizarGraficas(registros, kpis) {
+    const total = kpis.total > 0 ? kpis.total : 1;
+    const pOptimo = ((kpis.conformes / total) * 100).toFixed(1);
+    const pExceso = ((kpis.excesoIneficiente / total) * 100).toFixed(1);
+    const pRiesgo = ((kpis.riesgoDeficit / total) * 100).toFixed(1);
+
+    // Actualizar Leyenda con Porcentajes
+    document.getElementById('leg-optimo').innerText = `Opt: ${pOptimo}%`;
+    document.getElementById('leg-exceso').innerText = `Exc: ${pExceso}%`;
+    document.getElementById('leg-riesgo').innerText = `Ries: ${pRiesgo}%`;
+
+    // --- GRÁFICO DONA ---
     const ctxStatus = document.getElementById('statusChart').getContext('2d');
     if (chartStatusInstance) chartStatusInstance.destroy();
 
     chartStatusInstance = new Chart(ctxStatus, {
         type: 'doughnut',
         data: {
-            labels: ['Óptimo', 'Exceso', 'Riesgo'],
+            labels: [`Óptimo (${pOptimo}%)`, `Exceso (${pExceso}%)`, `Riesgo (${pRiesgo}%)`],
             datasets: [{
-                data: [kpis.conformes, kpis.excesoIneficiente, kpis.riesgos || kpis.riesgoDeficit],
+                data: [kpis.conformes, kpis.excesoIneficiente, kpis.riesgoDeficit],
                 backgroundColor: ['#1f8c22', '#f59e0b', '#dc2626'],
                 borderWidth: 3,
                 borderColor: '#ffffff',
@@ -177,16 +284,20 @@ function renderizarGraficas(registros, kpis) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            cutout: '72%'
+            plugins: {
+                legend: { position: 'bottom', labels: { boxWidth: 12, font: { weight: 'bold' } } }
+            },
+            cutout: '70%'
         }
     });
 
+    // --- GRÁFICO TENDENCIA ---
     const solucionActiva = document.getElementById('filtro-solucion').value;
     const quimico = solucionActiva === 'TODAS' ? 'SOSA' : solucionActiva;
     document.getElementById('label-quimico-activo').innerText = quimico;
 
-    const registrosTrend = registros.filter(r => r.solucion === quimico).slice(0, 40).reverse();
+    // Tomar una muestra óptima para que la línea no se sature (ej. últimos 35 registros filtrados)
+    const registrosTrend = registros.filter(r => r.solucion === quimico).slice(0, 35).reverse();
     const reglaTrend = listaParametros.find(p => p.solucion === quimico);
 
     const ctxTrend = document.getElementById('trendChart').getContext('2d');
@@ -217,7 +328,7 @@ function renderizarGraficas(registros, kpis) {
                     borderWidth: 3,
                     tension: 0.35,
                     fill: true,
-                    pointRadius: 3
+                    pointRadius: 4
                 },
                 {
                     label: 'Máx. (' + reglaTrend.rango_max + '%)',
@@ -254,11 +365,10 @@ function renderizarGraficas(registros, kpis) {
 // ==========================================
 function generarAlertasIA(registros, metricas) {
     const contenedor = document.getElementById('ai-alerts-container');
-    
-    let totalRiesgoPct = metricas.total > 0 ? ((metricas.riesgoDeficit / metricas.total) * 100).toFixed(1) : 0;
-    let totalExcesoPct = metricas.total > 0 ? ((metricas.excesoIneficiente / metricas.total) * 100).toFixed(1) : 0;
+    let pRiesgo = metricas.total > 0 ? ((metricas.riesgoDeficit / metricas.total) * 100).toFixed(1) : 0;
+    let pExceso = metricas.total > 0 ? ((metricas.excesoIneficiente / metricas.total) * 100).toFixed(1) : 0;
 
-    let html = `
+    contenedor.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="bg-red-50 border border-red-200 rounded-xl p-5">
                 <div class="flex items-center space-x-3 mb-2">
@@ -266,7 +376,7 @@ function generarAlertasIA(registros, metricas) {
                     <h4 class="font-bold text-red-900">Evaluación de Inocuidad (Eficacia)</h4>
                 </div>
                 <p class="text-xs text-slate-700 leading-relaxed">
-                    Se han detectado <b>${metricas.riesgoDeficit.toLocaleString()}</b> registros con concentración por debajo del mínimo permitido <b>(${totalRiesgoPct}% del total analizado)</b>. Esto representa una alerta de desvío crítico con riesgo microbiológico en los equipos involucrados.
+                    Se detectaron <b>${metricas.riesgoDeficit.toLocaleString()}</b> registros con concentración por debajo del mínimo permitido <b>(${pRiesgo}% del conjunto filtrado)</b>. Esto representa una alerta de desvío crítico con riesgo microbiológico.
                 </p>
             </div>
             <div class="bg-amber-50 border border-amber-200 rounded-xl p-5">
@@ -275,16 +385,15 @@ function generarAlertasIA(registros, metricas) {
                     <h4 class="font-bold text-amber-900">Evaluación de Costos (Eficiencia Operativa)</h4>
                 </div>
                 <p class="text-xs text-slate-700 leading-relaxed">
-                    Se registran <b>${metricas.excesoIneficiente.toLocaleString()}</b> eventos de sobrerregulación o exceso por encima del límite máximo <b>(${totalExcesoPct}% del total)</b>. Este comportamiento genera sobreconsumo químico y desgaste técnico prematuro en tuberías CIP.
+                    Se registran <b>${metricas.excesoIneficiente.toLocaleString()}</b> eventos de sobredosificación por encima del límite máximo <b>(${pExceso}% del conjunto)</b>. Este comportamiento genera sobreconsumo químico y fatiga de materiales en equipos CIP.
                 </p>
             </div>
         </div>
     `;
-    contenedor.innerHTML = html;
 }
 
 // ==========================================
-// 8. FUNCIONALIDAD INTERACTIVA DRILL-DOWN (MODAL)
+// 8. MODAL INTERACTIVO (DRILL-DOWN)
 // ==========================================
 function abrirModalDetalle(tipo) {
     const modal = document.getElementById('modal-detalle');
@@ -310,7 +419,7 @@ function abrirModalDetalle(tipo) {
     }
 
     if (filtradosModal.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400">No hay registros en esta categoría con el filtro actual.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400">No hay registros en esta categoría.</td></tr>`;
     } else {
         filtradosModal.slice(0, 300).forEach(r => {
             const tr = document.createElement('tr');
