@@ -62,7 +62,7 @@ function estandarizarNombreSolucion(nombre) {
 }
 
 // ==========================================
-// 4. INICIO Y DATOS
+// 4. INICIO Y DATOS (SUPABASE + EXCEL)
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
     actualizarBadgeIA();
@@ -148,7 +148,7 @@ function obtenerDatosFiltrados() {
 }
 
 // ==========================================
-// 6. MOTOR RENDER
+// 6. MOTOR RENDER PRINCIPAL
 // ==========================================
 function renderizarCore() {
     const datos = obtenerDatosFiltrados();
@@ -176,11 +176,13 @@ function renderizarCore() {
     drawScatter(datos);
     drawRadar(datos);
     drawHeatmap(datos, stats.desviosList);
+    
+    // Llamada segura a la IA
     generarPlanAccionIA(stats.desviosList);
 }
 
 // ==========================================
-// 7. GRÁFICAS DE VANGUARDIA
+// 7. GRÁFICAS (Chart.js y HTML dinámico)
 // ==========================================
 Chart.defaults.font.family = "'Inter', 'Segoe UI', sans-serif";
 Chart.defaults.color = '#64748b';
@@ -304,9 +306,8 @@ function drawHeatmap(datos, desviosList) {
 }
 
 // ==========================================
-// 8. ASISTENTE IA GEMINI (SEGURO POR LOCALSTORAGE)
+// 8. ASISTENTE IA GEMINI (CON DEPURACIÓN AVANZADA)
 // ==========================================
-// Sistema seguro: lee la clave del navegador, sin bloquear GitHub
 function obtenerApiKeySegura() {
     return localStorage.getItem('poes_gemini_key') || '';
 }
@@ -316,10 +317,10 @@ function actualizarBadgeIA() {
     const key = obtenerApiKeySegura();
     if (key) {
         badge.innerHTML = `<span class="w-2 h-2 bg-accent-green rounded-full animate-ping inline-block mr-1"></span> IA Activa`;
-        badge.className = "bg-accent-green/20 text-accent-green text-[10px] font-bold px-3 py-1 rounded-full border border-accent-green/30 shadow-[0_0_10px_rgba(16,185,129,0.2)]";
+        badge.className = "bg-accent-green/20 text-accent-green text-[10px] font-bold px-3 py-1 rounded-full border border-accent-green/30 shadow-[0_0_10px_rgba(16,185,129,0.2)] cursor-pointer";
     } else {
         badge.innerHTML = `<i class="fa-solid fa-lock mr-1"></i> IA Inactiva (Falta Clave)`;
-        badge.className = "bg-slate-800 text-slate-400 text-[10px] font-bold px-3 py-1 rounded-full border border-slate-600";
+        badge.className = "bg-slate-800 text-slate-400 text-[10px] font-bold px-3 py-1 rounded-full border border-slate-600 cursor-pointer";
     }
 }
 
@@ -349,12 +350,13 @@ async function generarPlanAccionIA(desviosList) {
             body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
 
-        const jsonRes = await res.json();
-        
-        if (jsonRes.error) {
-            throw new Error(jsonRes.error.message || "Error en API Key");
+        // Este bloque captura el error exacto si Google rechaza la clave
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(`Google Error (${res.status}): ${errorData.error?.message || 'Error desconocido'}`);
         }
 
+        const jsonRes = await res.json();
         let rawText = jsonRes.candidates?.[0]?.content?.parts?.[0]?.text || '';
         rawText = rawText.replace(/```json/gi, '').replace(/```/gi, '').trim();
         let plan = JSON.parse(rawText);
@@ -371,13 +373,14 @@ async function generarPlanAccionIA(desviosList) {
         tbody.innerHTML = html;
 
     } catch(err) {
-        tbody.innerHTML = `<tr><td colspan="4" class="py-4 text-center text-red-400 font-mono"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Error en la API. Asegúrate de que tu clave (IA Config) sea correcta y válida.</td></tr>`;
-        console.error("Gemini Error:", err);
+        // Imprime el error EXACTO en la pantalla
+        tbody.innerHTML = `<tr><td colspan="4" class="py-4 px-6 text-center text-red-400 font-mono text-[11px]"><i class="fa-solid fa-triangle-exclamation mr-1"></i> <b>Detalle del Error:</b> ${err.message}</td></tr>`;
+        console.error("Gemini Debug Error:", err);
     }
 }
 
 // ==========================================
-// 9. MANEJO DE MODALES (DETALLE E IA CONFIG)
+// 9. MODALES (DETALLE E IA CONFIG)
 // ==========================================
 function abrirModalDetalle(tipo) {
     const modal = document.getElementById('modal-detalle'); const tbody = document.getElementById('modal-tbody'); tbody.innerHTML = '';
@@ -403,23 +406,20 @@ function abrirModalDetalle(tipo) {
 }
 function cerrarModalDetalle() { document.getElementById('modal-detalle').classList.add('hidden'); }
 
-// MODAL CONFIGURACIÓN IA
 function abrirConfigIA() {
     const modal = document.getElementById('modal-config-ia');
     const input = document.getElementById('input-api-key');
     input.value = obtenerApiKeySegura();
     modal.classList.remove('hidden');
 }
-function cerrarConfigIA() {
-    document.getElementById('modal-config-ia').classList.add('hidden');
-}
+function cerrarConfigIA() { document.getElementById('modal-config-ia').classList.add('hidden'); }
 function guardarApiKey() {
     const inputVal = document.getElementById('input-api-key').value.trim();
     if(inputVal) {
         localStorage.setItem('poes_gemini_key', inputVal);
         cerrarConfigIA();
         actualizarBadgeIA();
-        renderizarCore(); // Recarga la tabla de IA al instante
+        renderizarCore(); 
     } else {
         alert("Por favor, ingresa una clave válida.");
     }
