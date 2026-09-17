@@ -382,7 +382,7 @@ async function generarPlanAccionIA(desviosList) {
 
     try {
         // MODELO CONFIGURADO: gemini-1.5-flash-8b (Flash-Lite)
-        const modeloIA = 'gemini-1.5-flash-8b';
+        const modeloIA = 'gemini-3.5-flash-lite';
         
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modeloIA}:generateContent?key=${apiKey}`, {
             method: 'POST',
