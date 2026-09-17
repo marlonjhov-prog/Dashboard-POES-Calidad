@@ -128,7 +128,7 @@ async function importarArchivoExcel(event) {
 }
 
 // ==========================================
-// 5. FILTROS
+// 5. FILTROS Y BÚSQUEDA ÁGIL
 // ==========================================
 function poblarFiltros() {
     const s = document.getElementById('filtro-solucion');
@@ -151,15 +151,21 @@ function actualizarSelectores() {
     Array.from(anSet).sort().reverse().forEach(a => an.appendChild(new Option(a, a))); an.value = anVal;
 }
 
+function filtrarPorTextoAgil() {
+    renderizarCore();
+}
+
 function obtenerDatosFiltrados() {
     const elS = document.getElementById('filtro-solucion');
     const elE = document.getElementById('filtro-equipo');
     const elA = document.getElementById('filtro-anio');
     const elM = document.getElementById('filtro-mes');
+    const elBusqueda = document.getElementById('input-busqueda-agil');
     
     if(!elS || !elE || !elA || !elM) return [];
 
     const s = elS.value, e = elE.value, a = elA.value, m = elM.value;
+    const textoBusqueda = elBusqueda ? n(elBusqueda.value) : '';
     
     return listaRegistros.filter(r => {
         let mMes = true;
@@ -168,7 +174,20 @@ function obtenerDatosFiltrados() {
             let mapMeses = {'01':'ENERO','02':'FEBRERO','03':'MARZO','04':'ABRIL','05':'MAYO','06':'JUNIO','07':'JULIO','08':'AGOSTO','09':'SEPTIEMBRE','10':'OCTUBRE','11':'NOVIEMBRE','12':'DICIEMBRE'};
             mMes = (mesBD === m || n(r.mes) === mapMeses[m] || n(r.mes).includes(mapMeses[m]));
         }
-        return (s === 'TODAS' || r.solucion === s) && (e === 'TODOS' || r.equipo === e) && (a === 'TODOS' || (r.fecha && r.fecha.startsWith(a))) && mMes;
+
+        let cumpleFiltros = (s === 'TODAS' || r.solucion === s) && 
+                           (e === 'TODOS' || r.equipo === e) && 
+                           (a === 'TODOS' || (r.fecha && r.fecha.startsWith(a))) && 
+                           mMes;
+
+        if (!cumpleFiltros) return false;
+
+        if (textoBusqueda) {
+            let cadenaRegistro = `${n(r.equipo)} ${n(r.solucion)} ${n(r.operario)} ${n(r.laboratorista)} ${n(r.proceso)}`;
+            return cadenaRegistro.includes(textoBusqueda);
+        }
+
+        return true;
     });
 }
 
@@ -349,7 +368,7 @@ function drawHeatmap(datos, desviosList) {
 }
 
 // ==========================================
-// 8. ASISTENTE IA GEMINI (CONTROL MANUAL POR BOTÓN)
+// 8. ASISTENTE IA GEMINI (3.5 FLASH-LITE / gemini-3.5-flash-lite)
 // ==========================================
 function obtenerApiKeySegura() {
     return localStorage.getItem('poes_gemini_key') || '';
@@ -388,15 +407,16 @@ async function generarPlanAccionIA(desviosList) {
         return;
     }
 
-    tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-emerald-400/70 font-mono animate-pulse"><i class="fa-solid fa-microchip mr-2"></i>Analizando ${desviosList.length} desvíos con Google AI (Flash)...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-emerald-400/70 font-mono animate-pulse"><i class="fa-solid fa-microchip mr-2"></i>Analizando ${desviosList.length} desvíos con 3.5 Flash-Lite...</td></tr>`;
 
     let muestraIA = desviosList.slice(0, 10).map(r => `Equipo: ${r.equipo} | Solución: ${r.solucion} | Conc: ${r.concen} | Falla: ${r.tipo} | Resp: ${r.operario || r.laboratorista}`);
     const prompt = `Eres un Auditor Jefe de POES. Analiza estos desvíos en planta láctea:\n${muestraIA.join('\n')}\n\nGenera un "Plan de Acciones Correctivas" en formato JSON estricto, sin markdown adicional, con un arreglo de objetos. Usa esta estructura exacta:\n[{"hallazgo": "Resumen del desvío", "causa_raiz": "Causa técnica probable", "accion": "Acción inmediata", "responsable": "Rol o nombre del operador/técnico"}]\nDevuelve máximo 4 acciones críticas consolidadas.`;
 
-    const modeloIA = 'gemini-3.6-flash';
+    // MODELO OFICIAL EXACTO PARA 3.5 FLASH-LITE
+    const modeloIA = 'gemini-3.5-flash-lite';
 
     try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1/models/${modeloIA}:generateContent?key=${apiKey}`, {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modeloIA}:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
@@ -424,7 +444,7 @@ async function generarPlanAccionIA(desviosList) {
         tbody.innerHTML = html;
 
     } catch(err) {
-        tbody.innerHTML = `<tr><td colspan="4" class="py-4 px-6 text-center text-red-400 font-mono text-[11px]"><i class="fa-solid fa-triangle-exclamation mr-1"></i> <b>Límite de Cuota (429):</b> Has alcanzado el límite gratuito temporal. Espera unos segundos antes de volver a hacer clic en el botón. (${err.message})</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="py-4 px-6 text-center text-red-400 font-mono text-[11px]"><i class="fa-solid fa-triangle-exclamation mr-1"></i> <b>Fallo IA (Flash-Lite):</b> ${err.message}</td></tr>`;
         console.error("Gemini Debug Error:", err);
     }
 }
