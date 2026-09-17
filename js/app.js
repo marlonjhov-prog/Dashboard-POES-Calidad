@@ -1,12 +1,15 @@
 // ==========================================
-// 1. CREDENCIALES DE SUPABASE Y MATRIZ CANÓNICA
+// 1. CREDENCIALES DE SUPABASE Y GEMINI API
 // ==========================================
 const PROYECTO_URL = 'https://pemughavmbgcxxahffpn.supabase.co';
 const PUBLISHABLE_KEY = 'sb_publishable_oUVzPeOCzi89qXy7Or3GDw_JzcpuKfd';
 
 const clienteSupabase = supabase.createClient(PROYECTO_URL, PUBLISHABLE_KEY);
 
-// Matriz de Parámetros de Calidad Oficiales
+// Coloca aquí tu clave API de Gemini para habilitar el dictamen ejecutivo inteligente en tiempo real
+const GEMINI_API_KEY = 'TU_CLAVE_API_DE_GEMINI'; 
+
+// Matriz de Parámetros de Calidad Oficiales (Lácteos San Antonio)
 const PARAMETROS_TECNICOS = [
     { solucion: 'SOSA', min: 1.5, max: 2.5 },
     { solucion: 'SOSA (MADRE)', min: 35, max: 50 },
@@ -29,7 +32,7 @@ let chartTrendInstance = null;
 let chartEquiposSolucionesInstance = null;
 
 // ==========================================
-// UTILIDADES DE NORMALIZACIÓN
+// UTILIDADES DE NORMALIZACIÓN Y PARSÉO
 // ==========================================
 function normalizarTexto(texto) {
     if (!texto) return '';
@@ -83,7 +86,7 @@ function estandarizarFechaParaBD(fechaIn) {
 }
 
 // ==========================================
-// 2. INICIALIZACIÓN Y DESCARGA TOTAL (100%)
+// 2. INICIALIZACIÓN Y CARGA DE DATOS
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
     try {
@@ -292,7 +295,7 @@ function aplicarFiltrosYRenderizar() {
     document.getElementById('kpi-total').innerText = total.toLocaleString();
 
     renderizarGraficas(datosActivos, { conformes, excesoIneficiente, riesgoDeficit, total });
-    generarAlertasIA(datosActivos, { total, eficaces, riesgoDeficit, excesoIneficiente, resumenDesvios });
+    generarDictamenInteligenteIA(datosActivos, { total, eficaces, riesgoDeficit, excesoIneficiente, resumenDesvios });
     renderizarGraficoSolucionesHorizontal(datosActivos);
 }
 
@@ -325,20 +328,9 @@ function renderizarGraficas(registrosFiltrados, kpis) {
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10, weight: 'bold' } } } }, cutout: '65%' }
     });
 
-    // Asegurar que el contenedor sea siempre un canvas para la gráfica de tendencias
-    const containerTrend = document.getElementById('trendChart') ? document.getElementById('trendChart').parentNode : null;
-    if (containerTrend && containerTrend.tagName !== 'DIV') {
-        // Por seguridad si el DOM cambió
-    }
-    if (!document.getElementById('trendChart')) {
-        const wrap = document.querySelector('#trendChart')?.parentNode || document.querySelector('.tendencia-wrap') || document.getElementById('trendChart');
-        // Si el canvas fue destruido previamente, lo recreamos limpiamente
-    }
-
     const solSel = document.getElementById('filtro-solucion').value;
     let quimicoAGraficar = solSel;
 
-    // SI SELECCIONA "TODAS", seleccionamos automáticamente la solución predominante dentro del filtro actual (Mes/Equipo)
     if (solSel === 'TODAS') {
         let conteoSoluciones = {};
         registrosFiltrados.forEach(r => {
@@ -440,15 +432,16 @@ function renderizarGraficoSolucionesHorizontal(registros) {
 }
 
 // ==========================================
-// 6. ASISTENTE IA (DICTAMEN ESTRICTAMENTE FILTRADO)
+// 6. ASISTENTE IA INTEGRADO CON GEMINI API
 // ==========================================
-function generarAlertasIA(registros, metricas) {
+async function generarDictamenInteligenteIA(registros, metricas) {
     const contenedor = document.getElementById('ai-alerts-container');
     if (!contenedor) return;
 
     let pRiesgo = metricas.total > 0 ? ((metricas.riesgoDeficit / metricas.total) * 100).toFixed(1) : 0;
     let pExceso = metricas.total > 0 ? ((metricas.excesoIneficiente / metricas.total) * 100).toFixed(1) : 0;
 
+    // Resumen local base en caso de que no haya clave API configurada
     let riesgoHtml = '';
     if (metricas.riesgoDeficit === 0) {
         riesgoHtml = `<div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex gap-3 items-start"><i class="fa-solid fa-circle-check text-corporate-green text-lg mt-0.5"></i><div><h4 class="font-bold text-emerald-900 mb-1">Inocuidad Garantizada (0 Desvíos)</h4><p class="text-xs text-slate-700">No se detectan concentraciones inferiores al límite mínimo en el rango seleccionado.</p></div></div>`;
@@ -468,6 +461,43 @@ function generarAlertasIA(registros, metricas) {
     }
 
     contenedor.innerHTML = riesgoHtml + excesoHtml;
+
+    // Si se ha configurado la clave API de Gemini, realizamos la consulta inteligente para enriquecer el dictamen gerencial
+    if (GEMINI_API_KEY && GEMINI_API_KEY !== 'TU_CLAVE_API_DE_GEMINI') {
+        try {
+            const promptGemini = `Actúa como un Auditor Senior de Calidad e Inocuidad en Lácteos San Antonio (Ecuador). Analiza las siguientes métricas actuales del sistema POES:
+- Total muestras analizadas: ${metricas.total}
+- Eficacia de cumplimiento: ${metricas.eficaces > 0 ? ((metricas.eficaces/metricas.total)*100).toFixed(1) : 0}%
+- Sub-dosificaciones (Riesgo < Mín): ${metricas.riesgoDeficit} (${pRiesgo}%)
+- Sobredosificaciones (Exceso > Máx): ${metricas.excesoIneficiente} (${pExceso}%)
+- Equipos más afectados por riesgo: ${JSON.stringify(metricas.resumenDesvios.equiposRiesgo)}
+- Equipos más afectados por exceso: ${JSON.stringify(metricas.resumenDesvios.equiposExceso)}
+
+Genera un dictamen ejecutivo en formato HTML breve (máximo 2 párrafos concisos y profesionales con etiquetas <b>) enfocado en recomendaciones operativas inmediatas para el jefe de planta.`;
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: promptGemini }] }] })
+            });
+
+            const jsonRes = await response.json();
+            const textoIA = jsonRes.candidates?.[0]?.content?.parts?.[0]?.text;
+
+            if (textoIA) {
+                contenedor.innerHTML += `
+                    <div class="bg-slate-900 text-slate-100 border border-slate-800 rounded-xl p-4 flex gap-3 items-start mt-3 col-span-2 shadow-lg">
+                        <i class="fa-solid fa-robot text-emerald-400 text-lg mt-0.5"></i>
+                        <div>
+                            <h4 class="font-bold text-emerald-400 mb-1 flex items-center gap-2">Dictamen Gerencial Gemini IA <span class="text-[10px] bg-emerald-900 text-emerald-300 px-2 py-0.5 rounded-full">En Vivo</span></h4>
+                            <div class="text-xs text-slate-300 leading-relaxed">${textoIA}</div>
+                        </div>
+                    </div>`;
+            }
+        } catch (err) {
+            console.warn("Aviso: No se pudo conectar con la API de Gemini (modo offline activo).", err);
+        }
+    }
 }
 
 // ==========================================
