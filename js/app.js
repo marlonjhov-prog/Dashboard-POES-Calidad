@@ -6,7 +6,7 @@ const PUBLISHABLE_KEY = 'sb_publishable_oUVzPeOCzi89qXy7Or3GDw_JzcpuKfd';
 
 const clienteSupabase = supabase.createClient(PROYECTO_URL, PUBLISHABLE_KEY);
 
-// Matriz de Parámetros de Calidad con nombres oficiales unificados
+// Matriz de Parámetros de Calidad Oficiales
 const PARAMETROS_TECNICOS = [
     { solucion: 'SOSA', min: 1.5, max: 2.5 },
     { solucion: 'SOSA (MADRE)', min: 35, max: 50 },
@@ -29,15 +29,17 @@ let chartTrendInstance = null;
 let chartEquiposSolucionesInstance = null;
 
 // ==========================================
-// CONTROLADOR Y ESTANDARIZADOR DE NOMBRES
+// UTILIDADES DE NORMALIZACIÓN
 // ==========================================
+function normalizarTexto(texto) {
+    if (!texto) return '';
+    return String(texto).trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
 function estandarizarNombreSolucion(nombre) {
     if (!nombre) return 'S/N';
-    // Limpia espacios, pasa a mayúsculas y quita tildes provisionalmente para comparar
-    let limpio = String(nombre).trim().toUpperCase()
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, ""); 
+    let limpio = normalizarTexto(nombre);
     
-    // Mapeo estricto a nombres oficiales canónicos
     if (limpio.includes('SOSA (MADRE)')) return 'SOSA (MADRE)';
     if (limpio.includes('SOSA (CENTRO ACOPIO)')) return 'SOSA (CENTRO ACOPIO)';
     if (limpio.includes('SOSA (PASIVACION')) return 'SOSA (PASIVACIÓN)';
@@ -120,10 +122,10 @@ async function descargarTodosLosRegistrosSupabase() {
         }
     }
 
-    // Normalizar en memoria también al descargar
     listaRegistros = acumulador.map(r => ({
         ...r,
-        solucion: estandarizarNombreSolucion(r.solucion)
+        solucion: estandarizarNombreSolucion(r.solucion),
+        equipo: String(r.equipo || 'GENERAL').trim()
     }));
 
     document.getElementById('info-registros-totales').innerText = `${listaRegistros.length.toLocaleString()} registros sincronizados`;
@@ -157,8 +159,8 @@ async function importarArchivoExcel(event) {
                 fecha: estandarizarFechaParaBD(row.FECHA || row.fecha),
                 mes: normalizarTexto(row.MES || row.mes || 'N/A'),
                 hora: row.HORA || row.hora || '00:00:00',
-                solucion: estandarizarNombreSolucion(row.SOLUCION || row.solucion), // APLICA EL CONTROL AUTOMÁTICO
-                equipo: normalizarTexto(row.EQUIPO || row.equipo || 'GENERAL'),
+                solucion: estandarizarNombreSolucion(row.SOLUCION || row.solucion),
+                equipo: String(row.EQUIPO || row.equipo || 'GENERAL').trim(),
                 proceso: normalizarTexto(row.PROCESO || row.proceso || 'CIP'),
                 concen: parseConcen(row.CONCEN || row.concen),
                 operario: normalizarTexto(row.OPERARIO || row.operario || 'S/N'),
@@ -182,7 +184,7 @@ async function importarArchivoExcel(event) {
 }
 
 // ==========================================
-// 3. FILTROS Y SELECTORES DINÁMICOS
+// 3. FILTROS Y SELECTORES DINÁMICOS CORREGIDOS
 // ==========================================
 function poblarFiltrosSelectDesdeDatos() {
     const selectSolucion = document.getElementById('filtro-solucion');
@@ -231,30 +233,44 @@ function obtenerDatosFiltrados() {
     const solSel = document.getElementById('filtro-solucion').value;
     const eqSel = document.getElementById('filtro-equipo').value;
     const anioSel = document.getElementById('filtro-anio').value;
-    const mesSel = document.getElementById('filtro-mes').value;
+    const mesSel = document.getElementById('filtro-mes').value; // Puede ser "TODOS" o "Septiembre" / "09"
 
     return listaRegistros.filter(r => {
+        // 1. Filtro Solución
         let matchSol = (solSel === 'TODAS' || r.solucion === solSel);
+        
+        // 2. Filtro Equipo
         let matchEq = (eqSel === 'TODOS' || r.equipo === eqSel);
+        
+        // 3. Filtro Año
         let matchAnio = (anioSel === 'TODOS' || (r.fecha && r.fecha.substring(0, 4) === anioSel));
         
-        let mesDeRegistro = (r.fecha && r.fecha.length >= 7) ? r.fecha.substring(5, 7) : '';
+        // 4. Filtro Mes robusto (Acepta tanto número "09" como texto "Septiembre" o "SEPTIEMBRE")
         let matchMes = true;
         if (mesSel !== 'TODOS') {
-            matchMes = (mesDeRegistro === mesSel || normalizarTexto(r.mes).includes(obtenerNombreMes(mesSel)));
+            let mesBD = (r.fecha && r.fecha.length >= 7) ? r.fecha.substring(5, 7) : ''; // "09"
+            let nombreMesBD = normalizarTexto(r.mes); // "SEPTIEMBRE"
+            let mesSeleccionadoNorm = normalizarTexto(mesSel); // "SEPTIEMBRE" o "09"
+            
+            matchMes = (mesBD === mesSel || nombreMesBD.includes(mesSeleccionadoNorm) || obtenerNombreMes(mesSel) === nombreMesBD);
         }
         
         return matchSol && matchEq && matchAnio && matchMes;
     });
 }
 
-function obtenerNombreMes(numMes) {
-    const meses = { '01': 'ENERO', '02': 'FEBRERO', '03': 'MARZO', '04': 'ABRIL', '05': 'MAYO', '06': 'JUNIO', '07': 'JULIO', '08': 'AGOSTO', '09': 'SEPTIEMBRE', '10': 'OCTUBRE', '11': 'NOVIEMBRE', '12': 'DICIEMBRE' };
-    return meses[numMes] || '';
+function obtenerNombreMes(val) {
+    const mesesMap = { 
+        '01': 'ENERO', '02': 'FEBRERO', '03': 'MARZO', '04': 'ABRIL', '05': 'MAYO', '06': 'JUNIO', 
+        '07': 'JULIO', '08': 'AGOSTO', '09': 'SEPTIEMBRE', '10': 'OCTUBRE', '11': 'NOVIEMBRE', '12': 'DICIEMBRE',
+        'ENERO': 'ENERO', 'FEBRERO': 'FEBRERO', 'MARZO': 'MARZO', 'ABRIL': 'ABRIL', 'MAYO': 'MAYO', 'JUNIO': 'JUNIO',
+        'JULIO': 'JULIO', 'AGOSTO': 'AGOSTO', 'SEPTIEMBRE': 'SEPTIEMBRE', 'OCTUBRE': 'OCTUBRE', 'NOVIEMBRE': 'NOVIEMBRE', 'DICIEMBRE': 'DICIEMBRE'
+    };
+    return mesesMap[normalizarTexto(val)] || '';
 }
 
 // ==========================================
-// 4. PROCESAMIENTO ANALÍTICO
+// 4. PROCESAMIENTO ANALÍTICO Y RENDERIZADO
 // ==========================================
 function aplicarFiltrosYRenderizar() {
     const datosActivos = obtenerDatosFiltrados();
@@ -297,7 +313,7 @@ function aplicarFiltrosYRenderizar() {
 }
 
 // ==========================================
-// 5. MOTOR GRÁFICO
+// 5. MOTOR GRÁFICO DINÁMICO
 // ==========================================
 function renderizarGraficas(registros, kpis) {
     const total = kpis.total > 0 ? kpis.total : 1;
@@ -325,6 +341,7 @@ function renderizarGraficas(registros, kpis) {
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10, weight: 'bold' } } } }, cutout: '65%' }
     });
 
+    // Gráfico de Tendencia sincronizado con el filtro activo
     const solActiva = document.getElementById('filtro-solucion').value;
     const quimico = solActiva === 'TODAS' ? 'SOSA (MADRE)' : solActiva;
     document.getElementById('label-quimico-activo').innerText = quimico;
@@ -419,6 +436,7 @@ function renderizarGraficoSolucionesHorizontal(registros) {
 // ==========================================
 function generarAlertasIA(registros, metricas) {
     const contenedor = document.getElementById('ai-alerts-container');
+    if (!contenedor) return;
     let pRiesgo = metricas.total > 0 ? ((metricas.riesgoDeficit / metricas.total) * 100).toFixed(1) : 0;
     let pExceso = metricas.total > 0 ? ((metricas.excesoIneficiente / metricas.total) * 100).toFixed(1) : 0;
 
@@ -426,7 +444,7 @@ function generarAlertasIA(registros, metricas) {
     if (metricas.riesgoDeficit === 0) {
         riesgoHtml = `<div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex gap-3 items-start"><i class="fa-solid fa-circle-check text-corporate-green text-lg mt-0.5"></i><div><h4 class="font-bold text-emerald-900 mb-1">Inocuidad Garantizada (0 Desvíos)</h4><p class="text-xs text-slate-700">Validación de rangos mínima superada.</p></div></div>`;
     } else {
-        let eqCritico = Object.keys(metricas.resumenDesvios.equiposRiesgo).reduce((a, b) => metricas.resumenDesvios.equiposRiesgo[a] > metricas.resumenDesvios.equiposRiesgo[b] ? a : b);
+        let eqCritico = Object.keys(metricas.resumenDesvios.equiposRiesgo).reduce((a, b) => metricas.resumenDesvios.equiposRiesgo[a] > metricas.resumenDesvios.equiposRiesgo[b] ? a : b, 'General');
         riesgoHtml = `<div class="bg-red-50 border border-red-200 rounded-xl p-4 flex gap-3 items-start"><i class="fa-solid fa-triangle-exclamation text-danger-red text-lg mt-0.5"></i><div><h4 class="font-bold text-red-900 mb-1">Alerta Crítica: Sub-dosificación</h4><p class="text-xs text-slate-700">Validación detecta <b>${metricas.riesgoDeficit} desvíos (${pRiesgo}%)</b>. Incidencia en: <b>${eqCritico}</b>.</p></div></div>`;
     }
 
@@ -434,14 +452,14 @@ function generarAlertasIA(registros, metricas) {
     if (metricas.excesoIneficiente === 0) {
         excesoHtml = `<div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex gap-3 items-start"><i class="fa-solid fa-seedling text-corporate-green text-lg mt-0.5"></i><div><h4 class="font-bold text-emerald-900 mb-1">Eficiencia Operativa (0 Desvíos)</h4><p class="text-xs text-slate-700">Consumo químico controlado.</p></div></div>`;
     } else {
-        let eqGasto = Object.keys(metricas.resumenDesvios.equiposExceso).reduce((a, b) => metricas.resumenDesvios.equiposExceso[a] > metricas.resumenDesvios.equiposExceso[b] ? a : b);
+        let eqGasto = Object.keys(metricas.resumenDesvios.equiposExceso).reduce((a, b) => metricas.resumenDesvios.equiposExceso[a] > metricas.resumenDesvios.equiposExceso[b] ? a : b, 'General');
         excesoHtml = `<div class="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3 items-start"><i class="fa-solid fa-flask-vial text-alert-yellow text-lg mt-0.5"></i><div><h4 class="font-bold text-amber-900 mb-1">Ineficiencia: Sobredosificación Confirmada</h4><p class="text-xs text-slate-700">El sistema contabiliza <b>${metricas.excesoIneficiente} registros (${pExceso}%)</b> que superan el umbral máximo. Fuga en: <b>${eqGasto}</b>.</p></div></div>`;
     }
     contenedor.innerHTML = riesgoHtml + excesoHtml;
 }
 
 // ==========================================
-// 7. MODAL INTERACTIVO
+// 7. MODAL INTERACTIVO (DRILL-DOWN)
 // ==========================================
 function abrirModalDetalle(tipo) {
     const modal = document.getElementById('modal-detalle'); const tbody = document.getElementById('modal-tbody'); tbody.innerHTML = '';
@@ -457,7 +475,7 @@ function abrirModalDetalle(tipo) {
     }
 
     if (filtradosModal.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400 font-bold">Sin registros de desviación.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400 font-bold">Sin registros de desviación bajo el filtro actual.</td></tr>`;
     } else {
         filtradosModal.slice(0, 300).forEach(r => {
             const tr = document.createElement('tr'); tr.className = "hover:bg-slate-50 border-b border-slate-100";
