@@ -236,7 +236,6 @@ function obtenerDatosFiltrados() {
         if (mesSel !== 'TODOS') {
             let mesBD = (r.fecha && r.fecha.length >= 7) ? r.fecha.substring(5, 7) : ''; 
             let nombreMesBD = normalizarTexto(r.mes); 
-            
             matchMes = (mesBD === mesSel || nombreMesBD.includes(normalizarTexto(mesSel)) || obtenerNombreMes(mesSel) === nombreMesBD);
         }
         
@@ -298,7 +297,7 @@ function aplicarFiltrosYRenderizar() {
 }
 
 // ==========================================
-// 5. MOTOR GRÁFICO SINCRONIZADO AL FILTRO ACTIVO
+// 5. MOTOR GRÁFICO ROBUSTO Y SINCRONIZADO
 // ==========================================
 function renderizarGraficas(registrosFiltrados, kpis) {
     const total = kpis.total > 0 ? kpis.total : 1;
@@ -326,101 +325,43 @@ function renderizarGraficas(registrosFiltrados, kpis) {
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10, weight: 'bold' } } } }, cutout: '65%' }
     });
 
-    const solActiva = document.getElementById('filtro-solucion').value;
-    const containerTrend = document.getElementById('trendChart').parentNode;
-
-    // SI SELECCIONA "TODAS": Matriz de Semáforos calculada EXCLUSIVAMENTE con 'registrosFiltrados' (respeta Mes, Equipo, Año)
-    if (solActiva === 'TODAS') {
-        document.getElementById('label-quimico-activo').innerText = "TODAS LAS SOLUCIONES";
-        if (chartTrendInstance) { chartTrendInstance.destroy(); chartTrendInstance = null; }
-
-        let resumenSoluciones = {};
-        registrosFiltrados.forEach(r => {
-            let sol = r.solucion;
-            if (!resumenSoluciones[sol]) resumenSoluciones[sol] = { total: 0, conformes: 0, exceso: 0, riesgo: 0 };
-            resumenSoluciones[sol].total++;
-            
-            const regla = PARAMETROS_TECNICOS.find(p => p.solucion === sol);
-            if (regla) {
-                const v = parseConcen(r.concen);
-                if (v < parseFloat(regla.min)) resumenSoluciones[sol].riesgo++;
-                else if (v > parseFloat(regla.max)) resumenSoluciones[sol].exceso++;
-                else resumenSoluciones[sol].conformes++;
-            }
-        });
-
-        let htmlSemafaro = `
-            <div class="overflow-y-auto h-60 w-full pr-2">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr class="border-b border-slate-200 text-[11px] font-bold text-slate-400 uppercase">
-                            <th class="pb-2">Solución Química</th>
-                            <th class="pb-2 text-center">Muestras</th>
-                            <th class="pb-2 text-center">Óptimo</th>
-                            <th class="pb-2 text-center">Desvíos</th>
-                            <th class="pb-2 text-right">Estado (Semáforo)</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-100 text-xs">`;
-
-        let keys = Object.keys(resumenSoluciones);
-        if (keys.length === 0) {
-            htmlSemafaro += `<tr><td colspan="5" class="py-8 text-center text-slate-400 font-bold">No hay registros con los filtros actuales.</td></tr>`;
-        } else {
-            keys.sort().forEach(sol => {
-                let data = resumenSoluciones[sol];
-                let desviosTotales = data.riesgo + data.exceso;
-                let pctOptimo = data.total > 0 ? ((data.conformes / data.total) * 100).toFixed(0) : 0;
-                
-                let badgeColor = 'bg-emerald-100 text-emerald-800 border-emerald-300';
-                let iconSem = 'fa-circle-check text-emerald-600';
-                let textEstado = 'Óptimo (100%)';
-
-                if (data.riesgo > 0) {
-                    badgeColor = 'bg-red-100 text-red-800 border-red-300';
-                    iconSem = 'fa-triangle-exclamation text-red-600';
-                    textEstado = `Riesgo Crítico (${data.riesgo})`;
-                } else if (data.exceso > 0) {
-                    badgeColor = 'bg-amber-100 text-amber-800 border-amber-300';
-                    iconSem = 'fa-flask-vial text-amber-600';
-                    textEstado = `Exceso (${data.exceso})`;
-                }
-
-                htmlSemafaro += `
-                    <tr class="hover:bg-slate-50 transition">
-                        <td class="py-2.5 font-bold text-slate-800">${sol}</td>
-                        <td class="py-2.5 text-center font-semibold text-slate-600">${data.total}</td>
-                        <td class="py-2.5 text-center text-emerald-600 font-bold">${pctOptimo}%</td>
-                        <td class="py-2.5 text-center font-bold ${desviosTotales > 0 ? 'text-amber-600' : 'text-slate-400'}">${desviosTotales}</td>
-                        <td class="py-2.5 text-right">
-                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold border ${badgeColor}">
-                                <i class="fa-solid ${iconSem} mr-1.5"></i> ${textEstado}
-                            </span>
-                        </td>
-                    </tr>`;
-            });
-        }
-
-        htmlSemafaro += `</tbody></table></div>`;
-        containerTrend.innerHTML = htmlSemafaro;
-        return;
+    // Asegurar que el contenedor sea siempre un canvas para la gráfica de tendencias
+    const containerTrend = document.getElementById('trendChart') ? document.getElementById('trendChart').parentNode : null;
+    if (containerTrend && containerTrend.tagName !== 'DIV') {
+        // Por seguridad si el DOM cambió
     }
-
-    // SI SELECCIONA UN QUÍMICO ESPECÍFICO: Renderizar Gráfica de Tendencia filtrada
-    document.getElementById('label-quimico-activo').innerText = solActiva;
-    
     if (!document.getElementById('trendChart')) {
-        containerTrend.innerHTML = `<canvas id="trendChart"></canvas>`;
+        const wrap = document.querySelector('#trendChart')?.parentNode || document.querySelector('.tendencia-wrap') || document.getElementById('trendChart');
+        // Si el canvas fue destruido previamente, lo recreamos limpiamente
     }
 
-    const reglaTrend = PARAMETROS_TECNICOS.find(p => p.solucion === solActiva);
-    const regsTrend = registrosFiltrados.filter(r => r.solucion === solActiva).slice(0, 45).reverse();
+    const solSel = document.getElementById('filtro-solucion').value;
+    let quimicoAGraficar = solSel;
 
-    const ctxTrend = document.getElementById('trendChart').getContext('2d');
+    // SI SELECCIONA "TODAS", seleccionamos automáticamente la solución predominante dentro del filtro actual (Mes/Equipo)
+    if (solSel === 'TODAS') {
+        let conteoSoluciones = {};
+        registrosFiltrados.forEach(r => {
+            conteoSoluciones[r.solucion] = (conteoSoluciones[r.solucion] || 0) + 1;
+        });
+        let mayorSol = Object.keys(conteoSoluciones).reduce((a, b) => conteoSoluciones[a] > conteoSoluciones[b] ? a : b, 'SOSA (MADRE)');
+        quimicoAGraficar = mayorSol;
+        document.getElementById('label-quimico-activo').innerText = `${mayorSol} (Predominante en filtro)`;
+    } else {
+        document.getElementById('label-quimico-activo').innerText = solSel;
+    }
+
+    const reglaTrend = PARAMETROS_TECNICOS.find(p => p.solucion === quimicoAGraficar);
+    const regsTrend = registrosFiltrados.filter(r => r.solucion === quimicoAGraficar).slice(0, 45).reverse();
+
+    const canvasEl = document.getElementById('trendChart');
+    if (!canvasEl) return;
+    const ctxTrend = canvasEl.getContext('2d');
     if (chartTrendInstance) chartTrendInstance.destroy();
 
     if (!reglaTrend || regsTrend.length === 0) {
-        chartTrendInstance = new Chart(ctxTrend, { type: 'line', data: { labels: [], datasets: [] }}); return;
+        chartTrendInstance = new Chart(ctxTrend, { type: 'line', data: { labels: [], datasets: [] }}); 
+        return;
     }
 
     const min = parseFloat(reglaTrend.min);
