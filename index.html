@@ -31,7 +31,6 @@
         }
     </script>
     <style>
-        /* Custom Scrollbar para tablas */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
@@ -99,11 +98,15 @@
                 </div>
             </div>
 
-            <div class="flex items-center gap-2">
+            <!-- BOTONES DE ACCIÓN: IMPORTAR Y CONFIGURAR IA -->
+            <div class="flex items-center gap-3">
                 <label class="cursor-pointer bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm">
                     <i class="fa-solid fa-upload text-accent-green"></i> Importar BD
                     <input type="file" id="input-excel" accept=".xlsx, .xls, .csv" class="hidden" onchange="importarArchivoExcel(event)">
                 </label>
+                <button onclick="abrirConfigIA()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm">
+                    <i class="fa-solid fa-microchip"></i> IA Config
+                </button>
             </div>
         </div>
     </section>
@@ -111,10 +114,9 @@
     <!-- ÁREA DE PANELES PRINCIPALES -->
     <main class="p-6 space-y-6 flex-grow max-w-[1600px] mx-auto w-full">
 
-        <!-- 1. KPIs CON SPARKLINES (TENDENCIAS INTEGRADAS) -->
+        <!-- 1. KPIs CON SPARKLINES -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             
-            <!-- Eficacia -->
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-col justify-between relative overflow-hidden">
                 <div class="flex justify-between items-start mb-2 relative z-10">
                     <div>
@@ -126,7 +128,6 @@
                 <div class="h-10 w-full mt-2"><canvas id="sparkEficacia"></canvas></div>
             </div>
 
-            <!-- Riesgo Severo -->
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-col justify-between relative overflow-hidden cursor-pointer hover:border-risk-red transition" onclick="abrirModalDetalle('riesgo')">
                 <div class="flex justify-between items-start mb-2 relative z-10">
                     <div>
@@ -138,7 +139,6 @@
                 <div class="h-10 w-full mt-2"><canvas id="sparkRiesgo"></canvas></div>
             </div>
 
-            <!-- Exceso -->
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-col justify-between relative overflow-hidden cursor-pointer hover:border-warn-yellow transition" onclick="abrirModalDetalle('exceso')">
                 <div class="flex justify-between items-start mb-2 relative z-10">
                     <div>
@@ -150,7 +150,6 @@
                 <div class="h-10 w-full mt-2"><canvas id="sparkExceso"></canvas></div>
             </div>
 
-            <!-- Muestras / Inspecciones -->
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-col justify-between relative overflow-hidden">
                 <div class="flex justify-between items-start mb-2 relative z-10">
                     <div>
@@ -166,7 +165,6 @@
         <!-- 2. GRÁFICAS DE VANGUARDIA -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
-            <!-- Dispersión Dinámica (Zonas Seguras) -->
             <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col">
                 <div class="flex justify-between items-end mb-4 border-b border-slate-100 pb-3">
                     <div>
@@ -182,7 +180,6 @@
                 </div>
             </div>
 
-            <!-- Radar de Eficacia por Proceso -->
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col">
                 <div class="mb-4 border-b border-slate-100 pb-3">
                     <h2 class="text-sm font-black text-brand-dark uppercase tracking-wide flex items-center gap-2">
@@ -199,7 +196,6 @@
         <!-- 3. MAPA DE CALOR POR TURNOS Y PLAN DE ACCIÓN IA -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
-            <!-- Mapa de Calor (Horarios vs Equipos Críticos) -->
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 overflow-hidden flex flex-col">
                 <div class="mb-4 border-b border-slate-100 pb-3">
                     <h2 class="text-sm font-black text-brand-dark uppercase tracking-wide flex items-center gap-2">
@@ -212,7 +208,7 @@
                 </div>
             </div>
 
-            <!-- PLAN DE ACCIÓN AUTOMATIZADO IA (Gemini) -->
+            <!-- PLAN DE ACCIÓN AUTOMATIZADO IA -->
             <div class="bg-brand-panel text-white rounded-xl shadow-xl border border-slate-700 p-5 flex flex-col relative overflow-hidden">
                 <div class="absolute -right-20 -top-20 w-64 h-64 bg-accent-green/10 rounded-full blur-3xl pointer-events-none"></div>
                 
@@ -223,8 +219,8 @@
                         </h2>
                         <p class="text-[11px] text-slate-400 mt-1">Causas raíz y acciones sugeridas generadas por Gemini IA</p>
                     </div>
-                    <span class="bg-accent-green/20 text-accent-green text-[10px] font-bold px-3 py-1 rounded-full border border-accent-green/30 shadow-[0_0_10px_rgba(16,185,129,0.2)]">
-                        <i class="fa-solid fa-bolt mr-1"></i> IA Activa
+                    <span id="badge-ia-status" class="bg-slate-800 text-slate-400 text-[10px] font-bold px-3 py-1 rounded-full border border-slate-600">
+                        IA Inactiva (Falta Clave)
                     </span>
                 </div>
                 
@@ -239,7 +235,7 @@
                             </tr>
                         </thead>
                         <tbody id="ai-action-plan-tbody" class="divide-y divide-slate-700/50">
-                            <tr><td colspan="4" class="py-6 text-center text-slate-500 font-mono italic">Analizando datos y contactando con Gemini API...</td></tr>
+                            <tr><td colspan="4" class="py-6 text-center text-slate-500 font-mono italic">Modo offline. Configura tu API Key de Gemini en el botón superior para habilitar la predicción.</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -248,7 +244,32 @@
         </div>
     </main>
 
-    <!-- MODAL DE DETALLE -->
+    <!-- MODAL DE CONFIGURACIÓN IA -->
+    <div id="modal-config-ia" class="fixed inset-0 bg-brand-dark/90 z-[60] hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-brand-panel border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full p-6 relative overflow-hidden">
+            <div class="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-lg font-black text-white flex items-center gap-2"><i class="fa-solid fa-microchip text-accent-green"></i> Configuración IA Gemini</h3>
+                <button onclick="cerrarConfigIA()" class="text-slate-400 hover:text-white transition"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            
+            <p class="text-xs text-slate-400 mb-4">Ingresa tu clave de <b>Google Gemini API</b> para activar el motor de diagnósticos gerenciales. La clave se almacenará de forma segura en tu navegador y no se enviará a ningún servidor.</p>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Clave API (Gemini Flash)</label>
+                    <input type="password" id="input-api-key" placeholder="AIzaSyA..." class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none focus:border-emerald-500 placeholder-slate-600 transition">
+                </div>
+                
+                <div class="flex justify-end gap-3 pt-2">
+                    <button onclick="limpiarApiKey()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-bold px-4 py-2 rounded-lg transition">Borrar Clave</button>
+                    <button onclick="guardarApiKey()" class="bg-accent-green hover:bg-emerald-500 text-white text-xs font-bold px-5 py-2 rounded-lg transition shadow-md shadow-emerald-900/50">Guardar e Iniciar IA</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE DETALLE (DRILL DOWN) -->
     <div id="modal-detalle" class="fixed inset-0 bg-brand-dark/80 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
         <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[85vh] flex flex-col overflow-hidden border border-slate-200">
             <div class="bg-slate-100 border-b border-slate-200 px-6 py-4 flex justify-between items-center">
@@ -274,7 +295,6 @@
         </div>
     </div>
 
-    <!-- Script Principal -->
     <script src="js/app.js"></script>
 </body>
 </html>
