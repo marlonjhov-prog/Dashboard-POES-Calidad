@@ -1,29 +1,25 @@
 // ==========================================
-// 1. CREDENCIALES DE SUPABASE Y TABLA ESTRICTA
+// 1. CREDENCIALES DE SUPABASE Y MATRIZ CANÓNICA
 // ==========================================
 const PROYECTO_URL = 'https://pemughavmbgcxxahffpn.supabase.co';
 const PUBLISHABLE_KEY = 'sb_publishable_oUVzPeOCzi89qXy7Or3GDw_JzcpuKfd';
 
 const clienteSupabase = supabase.createClient(PROYECTO_URL, PUBLISHABLE_KEY);
 
-// Matriz de Parámetros de Calidad Exacta
+// Matriz de Parámetros de Calidad con nombres oficiales unificados
 const PARAMETROS_TECNICOS = [
     { solucion: 'SOSA', min: 1.5, max: 2.5 },
     { solucion: 'SOSA (MADRE)', min: 35, max: 50 },
-    { solucion: 'ÁCIDO NITRICO', min: 0.8, max: 2.0 },
-    { solucion: 'ACIDO NITRICO', min: 0.8, max: 2.0 }, 
-    { solucion: 'ACIDO NITRICO MADRE', min: 55, max: 65 },
+    { solucion: 'ÁCIDO NÍTRICO', min: 0.8, max: 2.0 },
+    { solucion: 'ÁCIDO NÍTRICO MADRE', min: 55, max: 65 },
     { solucion: 'AGUA ENJUAGUE', min: 6.5, max: 7.6 },
     { solucion: 'PEROXIDO', min: 35, max: 45 },
     { solucion: 'ÁCIDO PERACÉTICO', min: 200, max: 450 },
-    { solucion: 'ACIDO PERACETICO', min: 200, max: 450 }, 
     { solucion: 'BACOXIN', min: 100, max: 200 },
     { solucion: 'SOSA (CENTRO ACOPIO)', min: 20, max: 30 },
     { solucion: 'SOSA (PASIVACIÓN)', min: 2.5, max: 5 },
-    { solucion: 'SOSA (PASIVACION)', min: 2.5, max: 5 }, 
     { solucion: 'ÁCIDO (PASIVACIÓN)', min: 8, max: 15 },
-    { solucion: 'ACIDO (PASIVACION)', min: 8, max: 15 }, 
-    { solucion: 'ACIDO FOSFORICO', min: 0.8, max: 2.0 },
+    { solucion: 'ÁCIDO FOSFÓRICO', min: 0.8, max: 2.0 },
     { solucion: 'CLORO', min: 0, max: 200 }
 ];
 
@@ -33,11 +29,32 @@ let chartTrendInstance = null;
 let chartEquiposSolucionesInstance = null;
 
 // ==========================================
-// UTILIDADES DE LIMPIEZA
+// CONTROLADOR Y ESTANDARIZADOR DE NOMBRES
 // ==========================================
-function normalizarTexto(texto) {
-    if (!texto) return '';
-    return String(texto).trim().toUpperCase();
+function estandarizarNombreSolucion(nombre) {
+    if (!nombre) return 'S/N';
+    // Limpia espacios, pasa a mayúsculas y quita tildes provisionalmente para comparar
+    let limpio = String(nombre).trim().toUpperCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, ""); 
+    
+    // Mapeo estricto a nombres oficiales canónicos
+    if (limpio.includes('SOSA (MADRE)')) return 'SOSA (MADRE)';
+    if (limpio.includes('SOSA (CENTRO ACOPIO)')) return 'SOSA (CENTRO ACOPIO)';
+    if (limpio.includes('SOSA (PASIVACION')) return 'SOSA (PASIVACIÓN)';
+    if (limpio.includes('SOSA')) return 'SOSA';
+    
+    if (limpio.includes('ACIDO NITRICO MADRE')) return 'ÁCIDO NÍTRICO MADRE';
+    if (limpio.includes('ACIDO NITRICO')) return 'ÁCIDO NÍTRICO';
+    if (limpio.includes('ACIDO PERACETICO')) return 'ÁCIDO PERACÉTICO';
+    if (limpio.includes('ACIDO FOSFORICO')) return 'ÁCIDO FOSFÓRICO';
+    if (limpio.includes('ACIDO (PASIVACION')) return 'ÁCIDO (PASIVACIÓN)';
+    
+    if (limpio.includes('AGUA ENJUAGUE')) return 'AGUA ENJUAGUE';
+    if (limpio.includes('PEROXIDO')) return 'PEROXIDO';
+    if (limpio.includes('BACOXIN')) return 'BACOXIN';
+    if (limpio.includes('CLORO')) return 'CLORO';
+    
+    return String(nombre).trim().toUpperCase();
 }
 
 function parseConcen(val) {
@@ -64,7 +81,7 @@ function estandarizarFechaParaBD(fechaIn) {
 }
 
 // ==========================================
-// 2. INICIALIZACIÓN Y DESCARGA TOTAL (100% DE REGISTROS)
+// 2. INICIALIZACIÓN Y DESCARGA TOTAL (100%)
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
     try {
@@ -92,23 +109,23 @@ async function descargarTodosLosRegistrosSupabase() {
             .select('*')
             .range(offset, offset + chunkSize - 1);
 
-        if (error) {
-            console.error("Error al descargar bloque:", error);
-            break;
-        }
+        if (error) { console.error("Error al descargar bloque:", error); break; }
 
         if (data && data.length > 0) {
             acumulador = acumulador.concat(data);
             offset += chunkSize;
-            if (data.length < chunkSize) {
-                keepFetching = false;
-            }
+            if (data.length < chunkSize) keepFetching = false;
         } else {
             keepFetching = false;
         }
     }
 
-    listaRegistros = acumulador;
+    // Normalizar en memoria también al descargar
+    listaRegistros = acumulador.map(r => ({
+        ...r,
+        solucion: estandarizarNombreSolucion(r.solucion)
+    }));
+
     document.getElementById('info-registros-totales').innerText = `${listaRegistros.length.toLocaleString()} registros sincronizados`;
     
     actualizarSelectoresDinamicos();
@@ -134,18 +151,18 @@ async function importarArchivoExcel(event) {
 
             if (filasJson.length === 0) { alert("El archivo está vacío."); return; }
 
-            alert(`Procesando e importando ${filasJson.length} muestras a Supabase...`);
+            alert(`Procesando y normalizando ${filasJson.length} muestras para Supabase...`);
 
             let nuevosRegistros = filasJson.map(row => ({
                 fecha: estandarizarFechaParaBD(row.FECHA || row.fecha),
                 mes: normalizarTexto(row.MES || row.mes || 'N/A'),
                 hora: row.HORA || row.hora || '00:00:00',
-                solucion: normalizarTexto(row.SOLUCION || row.solucion || 'S/N'),
-                equipo: row.EQUIPO || row.equipo || 'GENERAL',
-                proceso: row.PROCESO || row.proceso || 'CIP',
+                solucion: estandarizarNombreSolucion(row.SOLUCION || row.solucion), // APLICA EL CONTROL AUTOMÁTICO
+                equipo: normalizarTexto(row.EQUIPO || row.equipo || 'GENERAL'),
+                proceso: normalizarTexto(row.PROCESO || row.proceso || 'CIP'),
                 concen: parseConcen(row.CONCEN || row.concen),
-                operario: row.OPERARIO || row.operario || 'S/N',
-                laboratorista: row.LABORATORISTA || row.laboratorista || 'S/N'
+                operario: normalizarTexto(row.OPERARIO || row.operario || 'S/N'),
+                laboratorista: normalizarTexto(row.LABORATORISTA || row.laboratorista || 'S/N')
             }));
 
             let tamañoLoteSubida = 500;
@@ -154,7 +171,7 @@ async function importarArchivoExcel(event) {
                 await clienteSupabase.from('registros_limpieza').insert(lote);
             }
 
-            alert("¡Importación masiva finalizada con éxito!");
+            alert("¡Importación y normalización finalizadas con éxito!");
             await descargarTodosLosRegistrosSupabase();
         } catch (err) {
             console.error("Fallo de importación Excel:", err);
@@ -169,6 +186,7 @@ async function importarArchivoExcel(event) {
 // ==========================================
 function poblarFiltrosSelectDesdeDatos() {
     const selectSolucion = document.getElementById('filtro-solucion');
+    selectSolucion.innerHTML = `<option value="TODAS">Todas</option>`;
     const solucionesUnicas = [...new Set(PARAMETROS_TECNICOS.map(p => p.solucion))];
     solucionesUnicas.forEach(sol => {
         const opt = document.createElement('option'); opt.value = sol; opt.innerText = sol;
@@ -216,11 +234,10 @@ function obtenerDatosFiltrados() {
     const mesSel = document.getElementById('filtro-mes').value;
 
     return listaRegistros.filter(r => {
-        let matchSol = (solSel === 'TODAS' || normalizarTexto(r.solucion) === solSel);
+        let matchSol = (solSel === 'TODAS' || r.solucion === solSel);
         let matchEq = (eqSel === 'TODOS' || r.equipo === eqSel);
         let matchAnio = (anioSel === 'TODOS' || (r.fecha && r.fecha.substring(0, 4) === anioSel));
         
-        // FILTRADO DE MES ROBUSTO (Compara tanto el número de mes YYYY-MM como el texto del mes)
         let mesDeRegistro = (r.fecha && r.fecha.length >= 7) ? r.fecha.substring(5, 7) : '';
         let matchMes = true;
         if (mesSel !== 'TODOS') {
@@ -246,8 +263,7 @@ function aplicarFiltrosYRenderizar() {
     let resumenDesvios = { equiposRiesgo: {}, equiposExceso: {} };
 
     datosActivos.forEach(fila => {
-        const solFila = normalizarTexto(fila.solucion);
-        const regla = PARAMETROS_TECNICOS.find(p => p.solucion === solFila);
+        const regla = PARAMETROS_TECNICOS.find(p => p.solucion === fila.solucion);
         
         if (regla) {
             const val = parseConcen(fila.concen);
@@ -313,8 +329,8 @@ function renderizarGraficas(registros, kpis) {
     const quimico = solActiva === 'TODAS' ? 'SOSA (MADRE)' : solActiva;
     document.getElementById('label-quimico-activo').innerText = quimico;
 
-    const reglaTrend = PARAMETROS_TECNICOS.find(p => p.solucion === normalizarTexto(quimico));
-    const regsTrend = registros.filter(r => normalizarTexto(r.solucion) === normalizarTexto(quimico)).slice(0, 45).reverse();
+    const reglaTrend = PARAMETROS_TECNICOS.find(p => p.solucion === quimico);
+    const regsTrend = registros.filter(r => r.solucion === quimico).slice(0, 45).reverse();
 
     const ctxTrend = document.getElementById('trendChart').getContext('2d');
     if (chartTrendInstance) chartTrendInstance.destroy();
@@ -372,7 +388,7 @@ function renderizarGraficoSolucionesHorizontal(registros) {
 
     let conteoEqSol = {}; let solucionesUnicas = new Set();
     registros.forEach(r => {
-        let eq = r.equipo || 'SIN EQUIPO'; let sol = normalizarTexto(r.solucion) || 'OTRA';
+        let eq = r.equipo || 'SIN EQUIPO'; let sol = r.solucion || 'OTRA';
         solucionesUnicas.add(sol);
         if (!conteoEqSol[eq]) conteoEqSol[eq] = { total: 0 };
         conteoEqSol[eq][sol] = (conteoEqSol[eq][sol] || 0) + 1; conteoEqSol[eq].total++;
@@ -433,10 +449,10 @@ function abrirModalDetalle(tipo) {
     let filtradosModal = [];
 
     if (tipo === 'riesgo') {
-        filtradosModal = datosActivos.filter(fila => { const r = PARAMETROS_TECNICOS.find(p => p.solucion === normalizarTexto(fila.solucion)); return r && parseConcen(fila.concen) < parseFloat(r.min); });
+        filtradosModal = datosActivos.filter(fila => { const r = PARAMETROS_TECNICOS.find(p => p.solucion === fila.solucion); return r && parseConcen(fila.concen) < parseFloat(r.min); });
         document.getElementById('modal-titulo').innerText = "Desglose de Desvíos por Riesgo (< Mínimo)";
     } else if (tipo === 'exceso') {
-        filtradosModal = datosActivos.filter(fila => { const r = PARAMETROS_TECNICOS.find(p => p.solucion === normalizarTexto(fila.solucion)); return r && parseConcen(fila.concen) > parseFloat(r.max); });
+        filtradosModal = datosActivos.filter(fila => { const r = PARAMETROS_TECNICOS.find(p => p.solucion === fila.solucion); return r && parseConcen(fila.concen) > parseFloat(r.max); });
         document.getElementById('modal-titulo').innerText = "Desglose de Desvíos por Sobredosificación (> Máximo)";
     }
 
