@@ -353,7 +353,7 @@ async function generarPlanAccionIA(desviosList) {
         // Este bloque captura el error exacto si Google rechaza la clave
         if (!res.ok) {
             const errorData = await res.json();
-            throw new Error(`Google Error (${res.status}): ${errorData.error?.message || 'Error desconocido'}`);
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {`);
         }
 
         const jsonRes = await res.json();
