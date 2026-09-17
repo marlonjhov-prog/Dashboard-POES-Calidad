@@ -6,7 +6,7 @@ const PUBLISHABLE_KEY = 'sb_publishable_oUVzPeOCzi89qXy7Or3GDw_JzcpuKfd';
 
 const clienteSupabase = supabase.createClient(PROYECTO_URL, PUBLISHABLE_KEY);
 
-// Coloca aquí tu clave API de Gemini para habilitar el dictamen ejecutivo inteligente en tiempo real
+// Ingresa tu API Key de Gemini para activar el dictamen gerencial en vivo
 const GEMINI_API_KEY = 'TU_CLAVE_API_DE_GEMINI'; 
 
 // Matriz de Parámetros de Calidad Oficiales (Lácteos San Antonio)
@@ -441,28 +441,26 @@ async function generarDictamenInteligenteIA(registros, metricas) {
     let pRiesgo = metricas.total > 0 ? ((metricas.riesgoDeficit / metricas.total) * 100).toFixed(1) : 0;
     let pExceso = metricas.total > 0 ? ((metricas.excesoIneficiente / metricas.total) * 100).toFixed(1) : 0;
 
-    // Resumen local base en caso de que no haya clave API configurada
     let riesgoHtml = '';
     if (metricas.riesgoDeficit === 0) {
-        riesgoHtml = `<div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex gap-3 items-start"><i class="fa-solid fa-circle-check text-corporate-green text-lg mt-0.5"></i><div><h4 class="font-bold text-emerald-900 mb-1">Inocuidad Garantizada (0 Desvíos)</h4><p class="text-xs text-slate-700">No se detectan concentraciones inferiores al límite mínimo en el rango seleccionado.</p></div></div>`;
+        riesgoHtml = `<div class="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 flex gap-3 items-start"><i class="fa-solid fa-circle-check text-emerald-400 text-lg mt-0.5"></i><div><h4 class="font-bold text-emerald-300 mb-1">Inocuidad Garantizada (0 Desvíos)</h4><p class="text-xs text-slate-300">No se detectan concentraciones inferiores al límite mínimo en el rango seleccionado.</p></div></div>`;
     } else {
         let keysRiesgo = Object.keys(metricas.resumenDesvios.equiposRiesgo);
         let eqCritico = keysRiesgo.length > 0 ? keysRiesgo.reduce((a, b) => metricas.resumenDesvios.equiposRiesgo[a] > metricas.resumenDesvios.equiposRiesgo[b] ? a : b) : 'General';
-        riesgoHtml = `<div class="bg-red-50 border border-red-200 rounded-xl p-4 flex gap-3 items-start"><i class="fa-solid fa-triangle-exclamation text-danger-red text-lg mt-0.5"></i><div><h4 class="font-bold text-red-900 mb-1">Alerta Crítica: Sub-dosificación</h4><p class="text-xs text-slate-700">Validación detecta <b>${metricas.riesgoDeficit.toLocaleString()} desvíos (${pRiesgo}%)</b> bajo el límite. Mayor incidencia en: <b>${eqCritico}</b>.</p></div></div>`;
+        riesgoHtml = `<div class="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex gap-3 items-start"><i class="fa-solid fa-triangle-exclamation text-red-400 text-lg mt-0.5"></i><div><h4 class="font-bold text-red-300 mb-1">Alerta Crítica: Sub-dosificación</h4><p class="text-xs text-slate-300">Validación detecta <b>${metricas.riesgoDeficit.toLocaleString()} desvíos (${pRiesgo}%)</b> bajo el límite. Mayor incidencia en: <b>${eqCritico}</b>.</p></div></div>`;
     }
 
     let excesoHtml = '';
     if (metricas.excesoIneficiente === 0) {
-        excesoHtml = `<div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex gap-3 items-start"><i class="fa-solid fa-seedling text-corporate-green text-lg mt-0.5"></i><div><h4 class="font-bold text-emerald-900 mb-1">Eficiencia Operativa (0 Desvíos)</h4><p class="text-xs text-slate-700">Consumo químico controlado sin excesos en el periodo.</p></div></div>`;
+        excesoHtml = `<div class="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 flex gap-3 items-start"><i class="fa-solid fa-seedling text-emerald-400 text-lg mt-0.5"></i><div><h4 class="font-bold text-emerald-300 mb-1">Eficiencia Operativa (0 Desvíos)</h4><p class="text-xs text-slate-300">Consumo químico controlado sin excesos en el periodo.</p></div></div>`;
     } else {
         let keysExceso = Object.keys(metricas.resumenDesvios.equiposExceso);
         let eqGasto = keysExceso.length > 0 ? keysExceso.reduce((a, b) => metricas.resumenDesvios.equiposExceso[a] > metricas.resumenDesvios.equiposExceso[b] ? a : b) : 'General';
-        excesoHtml = `<div class="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3 items-start"><i class="fa-solid fa-flask-vial text-alert-yellow text-lg mt-0.5"></i><div><h4 class="font-bold text-amber-900 mb-1">Ineficiencia: Sobredosificación Confirmada</h4><p class="text-xs text-slate-700">El sistema contabiliza <b>${metricas.excesoIneficiente.toLocaleString()} registros (${pExceso}%)</b> sobre el umbral máximo. Mayor fuga en: <b>${eqGasto}</b>.</p></div></div>`;
+        excesoHtml = `<div class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex gap-3 items-start"><i class="fa-solid fa-flask-vial text-amber-400 text-lg mt-0.5"></i><div><h4 class="font-bold text-amber-300 mb-1">Ineficiencia: Sobredosificación Confirmada</h4><p class="text-xs text-slate-300">El sistema contabiliza <b>${metricas.excesoIneficiente.toLocaleString()} registros (${pExceso}%)</b> sobre el umbral máximo. Mayor fuga en: <b>${eqGasto}</b>.</p></div></div>`;
     }
 
     contenedor.innerHTML = riesgoHtml + excesoHtml;
 
-    // Si se ha configurado la clave API de Gemini, realizamos la consulta inteligente para enriquecer el dictamen gerencial
     if (GEMINI_API_KEY && GEMINI_API_KEY !== 'TU_CLAVE_API_DE_GEMINI') {
         try {
             const promptGemini = `Actúa como un Auditor Senior de Calidad e Inocuidad en Lácteos San Antonio (Ecuador). Analiza las siguientes métricas actuales del sistema POES:
@@ -486,10 +484,10 @@ Genera un dictamen ejecutivo en formato HTML breve (máximo 2 párrafos concisos
 
             if (textoIA) {
                 contenedor.innerHTML += `
-                    <div class="bg-slate-900 text-slate-100 border border-slate-800 rounded-xl p-4 flex gap-3 items-start mt-3 col-span-2 shadow-lg">
+                    <div class="bg-slate-950 border border-emerald-500/30 rounded-xl p-4 flex gap-3 items-start mt-3 md:col-span-2 shadow-inner">
                         <i class="fa-solid fa-robot text-emerald-400 text-lg mt-0.5"></i>
                         <div>
-                            <h4 class="font-bold text-emerald-400 mb-1 flex items-center gap-2">Dictamen Gerencial Gemini IA <span class="text-[10px] bg-emerald-900 text-emerald-300 px-2 py-0.5 rounded-full">En Vivo</span></h4>
+                            <h4 class="font-bold text-emerald-400 mb-1 flex items-center gap-2">Dictamen Gerencial Gemini IA <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">En Vivo</span></h4>
                             <div class="text-xs text-slate-300 leading-relaxed">${textoIA}</div>
                         </div>
                     </div>`;
