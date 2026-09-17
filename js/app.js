@@ -184,7 +184,7 @@ async function importarArchivoExcel(event) {
 }
 
 // ==========================================
-// 3. FILTROS Y SELECTORES DINÁMICOS CORREGIDOS
+// 3. FILTROS Y SELECTORES DINÁMICOS
 // ==========================================
 function poblarFiltrosSelectDesdeDatos() {
     const selectSolucion = document.getElementById('filtro-solucion');
@@ -233,26 +233,18 @@ function obtenerDatosFiltrados() {
     const solSel = document.getElementById('filtro-solucion').value;
     const eqSel = document.getElementById('filtro-equipo').value;
     const anioSel = document.getElementById('filtro-anio').value;
-    const mesSel = document.getElementById('filtro-mes').value; // Puede ser "TODOS" o "Septiembre" / "09"
+    const mesSel = document.getElementById('filtro-mes').value;
 
     return listaRegistros.filter(r => {
-        // 1. Filtro Solución
         let matchSol = (solSel === 'TODAS' || r.solucion === solSel);
-        
-        // 2. Filtro Equipo
         let matchEq = (eqSel === 'TODOS' || r.equipo === eqSel);
-        
-        // 3. Filtro Año
         let matchAnio = (anioSel === 'TODOS' || (r.fecha && r.fecha.substring(0, 4) === anioSel));
         
-        // 4. Filtro Mes robusto (Acepta tanto número "09" como texto "Septiembre" o "SEPTIEMBRE")
+        let mesDeRegistro = (r.fecha && r.fecha.length >= 7) ? r.fecha.substring(5, 7) : '';
         let matchMes = true;
         if (mesSel !== 'TODOS') {
-            let mesBD = (r.fecha && r.fecha.length >= 7) ? r.fecha.substring(5, 7) : ''; // "09"
-            let nombreMesBD = normalizarTexto(r.mes); // "SEPTIEMBRE"
-            let mesSeleccionadoNorm = normalizarTexto(mesSel); // "SEPTIEMBRE" o "09"
-            
-            matchMes = (mesBD === mesSel || nombreMesBD.includes(mesSeleccionadoNorm) || obtenerNombreMes(mesSel) === nombreMesBD);
+            let mesSeleccionadoNorm = normalizarTexto(mesSel);
+            matchMes = (mesDeRegistro === mesSel || normalizarTexto(r.mes).includes(mesSeleccionadoNorm) || obtenerNombreMes(mesSel) === normalizarTexto(r.mes));
         }
         
         return matchSol && matchEq && matchAnio && matchMes;
@@ -313,7 +305,7 @@ function aplicarFiltrosYRenderizar() {
 }
 
 // ==========================================
-// 5. MOTOR GRÁFICO DINÁMICO
+// 5. MOTOR GRÁFICO (TENDENCIA O MATRIZ DE SEMÁFOROS)
 // ==========================================
 function renderizarGraficas(registros, kpis) {
     const total = kpis.total > 0 ? kpis.total : 1;
@@ -341,13 +333,98 @@ function renderizarGraficas(registros, kpis) {
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10, weight: 'bold' } } } }, cutout: '65%' }
     });
 
-    // Gráfico de Tendencia sincronizado con el filtro activo
     const solActiva = document.getElementById('filtro-solucion').value;
-    const quimico = solActiva === 'TODAS' ? 'SOSA (MADRE)' : solActiva;
-    document.getElementById('label-quimico-activo').innerText = quimico;
+    const containerTrend = document.getElementById('trendChart').parentNode;
 
-    const reglaTrend = PARAMETROS_TECNICOS.find(p => p.solucion === quimico);
-    const regsTrend = registros.filter(r => r.solucion === quimico).slice(0, 45).reverse();
+    // SI SELECCIONA "TODAS" LAS SOLUCIONES: Mostrar Matriz de Semáforos Ejecutivos
+    if (solActiva === 'TODAS') {
+        document.getElementById('label-quimico-activo').innerText = "TODAS LAS SOLUCIONES";
+        if (chartTrendInstance) { chartTrendInstance.destroy(); chartTrendInstance = null; }
+
+        // Agrupar métricas por cada solución presente en los registros filtrados
+        let resumenSoluciones = {};
+        registros.forEach(r => {
+            let sol = r.solucion;
+            if (!resumenSoluciones[sol]) resumenSoluciones[sol] = { total: 0, conformes: 0, exceso: 0, riesgo: 0 };
+            resumenSoluciones[sol].total++;
+            
+            const regla = PARAMETROS_TECNICOS.find(p => p.solucion === sol);
+            if (regla) {
+                const v = parseConcen(r.concen);
+                if (v < parseFloat(regla.min)) resumenSoluciones[sol].riesgo++;
+                else if (v > parseFloat(regla.max)) resumenSoluciones[sol].exceso++;
+                else resumenSoluciones[sol].conformes++;
+            }
+        });
+
+        let htmlSemafaro = `
+            <div class="overflow-y-auto h-60 w-full pr-2">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="border-b border-slate-200 text-[11px] font-bold text-slate-400 uppercase">
+                            <th class="pb-2">Solución Química</th>
+                            <th class="pb-2 text-center">Muestras</th>
+                            <th class="pb-2 text-center">Óptimo</th>
+                            <th class="pb-2 text-center">Desvíos</th>
+                            <th class="pb-2 text-right">Estado (Semáforo)</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 text-xs">`;
+
+        let keys = Object.keys(resumenSoluciones);
+        if (keys.length === 0) {
+            htmlSemafaro += `<tr><td colspan="5" class="py-8 text-center text-slate-400 font-bold">No hay registros con los filtros actuales.</td></tr>`;
+        } else {
+            keys.sort().forEach(sol => {
+                let data = resumenSoluciones[sol];
+                let desviosTotales = data.riesgo + data.exceso;
+                let pctOptimo = data.total > 0 ? ((data.conformes / data.total) * 100).toFixed(0) : 0;
+                
+                // Definición del Semáforo
+                let badgeColor = 'bg-emerald-100 text-emerald-800 border-emerald-300';
+                let iconSem = 'fa-circle-check text-emerald-600';
+                let textEstado = 'Óptimo (100%)';
+
+                if (data.riesgo > 0) {
+                    badgeColor = 'bg-red-100 text-red-800 border-red-300';
+                    iconSem = 'fa-triangle-exclamation text-red-600';
+                    textEstado = `Riesgo Crítico (${data.riesgo})`;
+                } else if (data.exceso > 0) {
+                    badgeColor = 'bg-amber-100 text-amber-800 border-amber-300';
+                    iconSem = 'fa-flask-vial text-amber-600';
+                    textEstado = `Exceso / Sobredosificación (${data.exceso})`;
+                }
+
+                htmlSemafaro += `
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="py-2.5 font-bold text-slate-800">${sol}</td>
+                        <td class="py-2.5 text-center font-semibold text-slate-600">${data.total}</td>
+                        <td class="py-2.5 text-center text-emerald-600 font-bold">${pctOptimo}%</td>
+                        <td class="py-2.5 text-center font-bold ${desviosTotales > 0 ? 'text-amber-600' : 'text-slate-400'}">${desviosTotales}</td>
+                        <td class="py-2.5 text-right">
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold border ${badgeColor}">
+                                <i class="fa-solid ${iconSem} mr-1.5"></i> ${textEstado}
+                            </span>
+                        </td>
+                    </tr>`;
+            });
+        }
+
+        htmlSemafaro += `</tbody></table></div>`;
+        containerTrend.innerHTML = htmlSemafaro;
+        return;
+    }
+
+    // SI SELECCIONA UN QUÍMICO ESPECÍFICO: Renderizar Gráfica de Tendencia Inteligente
+    document.getElementById('label-quimico-activo').innerText = solActiva;
+    
+    // Restaurar canvas si fue reemplazado por la tabla anterior
+    if (!document.getElementById('trendChart')) {
+        containerTrend.innerHTML = `<canvas id="trendChart"></canvas>`;
+    }
+
+    const reglaTrend = PARAMETROS_TECNICOS.find(p => p.solucion === solActiva);
+    const regsTrend = registros.filter(r => r.solucion === solActiva).slice(0, 45).reverse();
 
     const ctxTrend = document.getElementById('trendChart').getContext('2d');
     if (chartTrendInstance) chartTrendInstance.destroy();
