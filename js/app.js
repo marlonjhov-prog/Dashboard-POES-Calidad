@@ -74,7 +74,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById(id).addEventListener('change', renderizarCore);
         });
 
-        // Solución robusta al error "Cannot read properties of null" (Línea 76)
         const loader = document.getElementById('loader');
         const content = document.getElementById('dashboard-content');
         
@@ -202,7 +201,6 @@ function renderizarCore() {
     drawRadar(datos);
     drawHeatmap(datos, stats.desviosList);
     
-    // Llamada segura a la IA
     generarPlanAccionIA(stats.desviosList);
 }
 
@@ -342,7 +340,7 @@ function drawHeatmap(datos, desviosList) {
 }
 
 // ==========================================
-// 8. ASISTENTE IA GEMINI (ACTUALIZADO A MODELO UNIVERSAL)
+// 8. ASISTENTE IA GEMINI (FLASH LITE)
 // ==========================================
 function obtenerApiKeySegura() {
     return localStorage.getItem('poes_gemini_key') || '';
@@ -383,8 +381,8 @@ async function generarPlanAccionIA(desviosList) {
     const prompt = `Eres un Auditor Jefe de POES. Analiza estos desvíos en planta láctea:\n${muestraIA.join('\n')}\n\nGenera un "Plan de Acciones Correctivas" en formato JSON estricto, sin markdown adicional, con un arreglo de objetos. Usa esta estructura exacta:\n[{"hallazgo": "Resumen del desvío", "causa_raiz": "Causa técnica probable", "accion": "Acción inmediata", "responsable": "Rol o nombre del operador/técnico"}]\nDevuelve máximo 4 acciones críticas consolidadas.`;
 
     try {
-        // ACTUALIZADO: Usamos gemini-1.5-pro-latest para evitar el error 404 globalmente
-        const modeloIA = 'gemini-1.5-pro-latest';
+        // ACTUALIZADO: El modelo EXACTO para 3.5 Flash-Lite (gemini-1.5-flash-8b) 
+        const modeloIA = 'gemini-1.5-flash-8b';
         
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modeloIA}:generateContent?key=${apiKey}`, {
             method: 'POST',
