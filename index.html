@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard POES Gerencial - Lácteos San Antonio</title>
+    <title>Dashboard POES Gerencial PRO - Lácteos San Antonio</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome para Iconos Modernos -->
+    <!-- FontAwesome para Iconos -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Chart.js para las Gráficas -->
+    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- SheetJS para lectura de Excel -->
+    <!-- SheetJS para Excel -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- Supabase JS Client -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -20,11 +20,12 @@
             theme: {
                 extend: {
                     colors: {
-                        'corporate-dark': '#0f172a',
-                        'corporate-green': '#10b981',
+                        'exec-dark': '#0b1329',
+                        'exec-card': '#ffffff',
+                        'exec-border': '#e2e8f0',
+                        'corporate-green': '#059669',
                         'danger-red': '#dc2626',
-                        'alert-yellow': '#f59e0b',
-                        'card-bg': '#ffffff'
+                        'alert-yellow': '#d97706'
                     }
                 }
             }
@@ -33,44 +34,44 @@
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans antialiased min-h-screen">
 
-    <!-- Pantalla de Carga (Loader) -->
-    <div id="loader" class="fixed inset-0 bg-slate-900 z-50 flex flex-col items-center justify-center text-white transition-opacity duration-300">
-        <i class="fa-solid fa-shield-halved text-5xl text-emerald-400 animate-bounce mb-4"></i>
-        <h2 class="text-xl font-bold tracking-wide">Cargando Dashboard Gerencial POES...</h2>
-        <p class="text-xs text-slate-400 mt-2">Sincronizando registros y parámetros desde Supabase</p>
+    <!-- Loader -->
+    <div id="loader" class="fixed inset-0 bg-exec-dark z-50 flex flex-col items-center justify-center text-white transition-opacity duration-300">
+        <i class="fa-solid fa-shield-halved text-5xl text-emerald-400 animate-pulse mb-4"></i>
+        <h2 class="text-xl font-bold tracking-wide">Cargando Centro de Control POES PRO...</h2>
+        <p class="text-xs text-slate-400 mt-2">Inicializando motores analíticos y Supabase</p>
     </div>
 
-    <!-- Contenedor Principal del Dashboard -->
+    <!-- Contenedor Principal -->
     <div id="dashboard-content" class="opacity-0 transition-opacity duration-700 flex flex-col min-h-screen">
 
-        <!-- HEADER INSTITUCIONAL -->
-        <header class="bg-corporate-dark text-white px-6 py-4 shadow-md flex flex-wrap justify-between items-center border-b border-slate-800">
-            <div class="flex items-center gap-3">
-                <div class="bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20">
-                    <i class="fa-solid fa-chart-line text-emerald-400 text-xl"></i>
+        <!-- HEADER GERENCIAL ESTILO INDUSTRIAL -->
+        <header class="bg-exec-dark text-white px-6 py-4 shadow-lg flex flex-wrap justify-between items-center border-b border-slate-800">
+            <div class="flex items-center gap-4">
+                <div class="bg-emerald-500/10 p-3 rounded-2xl border border-emerald-500/20 shadow-inner">
+                    <i class="fa-solid fa-industry text-emerald-400 text-2xl"></i>
                 </div>
                 <div>
-                    <h1 class="text-lg font-black tracking-tight text-white flex items-center gap-2">
-                        DASHBOARD POES GERENCIAL <span class="text-[10px] bg-emerald-500 text-slate-950 font-bold px-2 py-0.5 rounded-full">PROD</span>
-                    </h1>
-                    <p class="text-xs text-slate-400">Control CIP & Análisis Bromatológico | Planta Lácteos San Antonio</p>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-xl font-black tracking-tight text-white">DASHBOARD POES GERENCIAL</h1>
+                        <span class="text-[10px] bg-emerald-500 text-slate-950 font-black px-2 py-0.5 rounded-md shadow">PRO</span>
+                    </div>
+                    <p class="text-xs text-slate-400 font-medium">Control CIP & Análisis Bromatológico Integral | Planta Lácteos San Antonio</p>
                 </div>
             </div>
-            <div class="flex items-center gap-4 mt-2 sm:mt-0">
+            <div class="flex items-center gap-4 mt-2 sm:mt-0 bg-slate-900/80 px-4 py-2 rounded-xl border border-slate-800">
                 <div class="text-right">
-                    <span id="info-registros-totales" class="text-xs font-bold text-slate-300 block">Sincronizando...</span>
-                    <span class="text-[10px] text-emerald-400 flex items-center justify-end gap-1 font-semibold"><span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> En Línea</span>
+                    <span id="info-registros-totales" class="text-xs font-bold text-slate-200 block">Sincronizando...</span>
+                    <span class="text-[10px] text-emerald-400 flex items-center justify-end gap-1 font-semibold"><span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> Sistema Conectado</span>
                 </div>
             </div>
         </header>
 
-        <!-- BARRA DE FILTROS DINÁMICOS -->
+        <!-- BARRA DE FILTROS SUPERIOR -->
         <section class="bg-white border-b border-slate-200 px-6 py-3.5 shadow-sm">
             <div class="flex flex-wrap items-center justify-between gap-4">
                 <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-                    <span class="text-xs font-black uppercase text-slate-500 tracking-wider flex items-center gap-1.5"><i class="fa-solid fa-filter text-emerald-600"></i> Filtros:</span>
+                    <span class="text-xs font-black uppercase text-slate-500 tracking-wider flex items-center gap-1.5"><i class="fa-solid fa-sliders text-emerald-600"></i> Filtros Globales:</span>
                     
-                    <!-- Filtro Solución -->
                     <div class="flex flex-col">
                         <label class="text-[10px] font-bold text-slate-400 uppercase">Solución</label>
                         <select id="filtro-solucion" class="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-1.5 font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none">
@@ -78,7 +79,6 @@
                         </select>
                     </div>
 
-                    <!-- Filtro Equipo -->
                     <div class="flex flex-col">
                         <label class="text-[10px] font-bold text-slate-400 uppercase">Equipo</label>
                         <select id="filtro-equipo" class="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-1.5 font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none">
@@ -86,7 +86,6 @@
                         </select>
                     </div>
 
-                    <!-- Filtro Año -->
                     <div class="flex flex-col">
                         <label class="text-[10px] font-bold text-slate-400 uppercase">Año</label>
                         <select id="filtro-anio" class="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-1.5 font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none">
@@ -94,7 +93,6 @@
                         </select>
                     </div>
 
-                    <!-- Filtro Mes -->
                     <div class="flex flex-col">
                         <label class="text-[10px] font-bold text-slate-400 uppercase">Mes</label>
                         <select id="filtro-mes" class="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-1.5 font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none">
@@ -107,7 +105,7 @@
                             <option value="06">Junio</option>
                             <option value="07">Julio</option>
                             <option value="08">Agosto</option>
-                            <option value="09">Septiembre</option>
+                            <option value="09" selected>Septiembre</option>
                             <option value="10">Octubre</option>
                             <option value="11">Noviembre</option>
                             <option value="12">Diciembre</option>
@@ -115,7 +113,6 @@
                     </div>
                 </div>
 
-                <!-- Botones de Acción -->
                 <div class="flex items-center gap-3">
                     <label class="cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-sm transition flex items-center gap-2">
                         <i class="fa-solid fa-file-excel"></i> Importar Excel
@@ -128,100 +125,103 @@
             </div>
         </section>
 
-        <!-- CONTENIDO PRINCIPAL -->
+        <!-- CUERPO DEL DASHBOARD -->
         <main class="p-6 space-y-6 flex-grow">
 
-            <!-- TARJETAS KPI MODERNIZADAS -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <!-- BLOQUE 1: BANNER DE KPIs EJECUTIVOS (5 Indicadores Clave en Fila) -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 
-                <!-- KPI 1: Eficacia General -->
-                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden flex flex-col justify-between">
+                <!-- KPI 1 -->
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between relative overflow-hidden">
                     <div class="absolute top-0 left-0 bottom-0 w-1.5 bg-emerald-500"></div>
-                    <div class="flex justify-between items-start mb-3">
+                    <div class="flex justify-between items-start">
                         <div>
-                            <span class="text-[11px] font-black uppercase text-slate-400 tracking-wider">Eficacia General</span>
-                            <h3 class="text-3xl font-black text-slate-900 mt-1" id="kpi-eficacia">0.0%</h3>
+                            <span class="text-[10px] font-black uppercase text-slate-400 tracking-wider">Eficacia General</span>
+                            <h3 class="text-2xl font-black text-slate-900 mt-1" id="kpi-eficacia">0.0%</h3>
                         </div>
-                        <div class="bg-emerald-50 p-2.5 rounded-xl border border-emerald-100">
-                            <i class="fa-solid fa-shield-check text-emerald-600 text-lg"></i>
-                        </div>
+                        <div class="bg-emerald-50 p-2 rounded-xl border border-emerald-100 text-emerald-600"><i class="fa-solid fa-shield-check"></i></div>
                     </div>
-                    <p class="text-[11px] text-slate-500 font-medium">Cumplimiento estricto de inocuidad</p>
+                    <p class="text-[10px] text-slate-400 font-semibold mt-2">Objetivo $\ge$ 95%</p>
                 </div>
 
-                <!-- KPI 2: Riesgo Deficit -->
-                <div onclick="abrirModalDetalle('riesgo')" class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden flex flex-col justify-between cursor-pointer hover:border-red-300 transition group">
+                <!-- KPI 2 -->
+                <div onclick="abrirModalDetalle('riesgo')" class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between relative overflow-hidden cursor-pointer hover:border-red-300 transition group">
                     <div class="absolute top-0 left-0 bottom-0 w-1.5 bg-red-600"></div>
-                    <div class="flex justify-between items-start mb-3">
+                    <div class="flex justify-between items-start">
                         <div>
-                            <span class="text-[11px] font-black uppercase text-slate-400 tracking-wider">Riesgo (&lt; Min)</span>
-                            <h3 class="text-3xl font-black text-red-600 mt-1" id="kpi-desvios">0</h3>
+                            <span class="text-[10px] font-black uppercase text-slate-400 tracking-wider">Riesgo (&lt; Min)</span>
+                            <h3 class="text-2xl font-black text-red-600 mt-1" id="kpi-desvios">0</h3>
                         </div>
-                        <div class="bg-red-50 p-2.5 rounded-xl border border-red-100">
-                            <i class="fa-solid fa-triangle-exclamation text-red-600 text-lg"></i>
-                        </div>
+                        <div class="bg-red-50 p-2 rounded-xl border border-red-100 text-red-600"><i class="fa-solid fa-triangle-exclamation"></i></div>
                     </div>
-                    <div class="flex justify-between items-center text-[11px] text-red-600 font-bold group-hover:underline">
-                        <span>Ver equipos afectados</span>
-                        <i class="fa-solid fa-arrow-right"></i>
+                    <div class="flex justify-between items-center text-[10px] text-red-600 font-bold mt-2">
+                        <span>Ver equipos</span> <i class="fa-solid fa-arrow-right"></i>
                     </div>
                 </div>
 
-                <!-- KPI 3: Sobredosificación -->
-                <div onclick="abrirModalDetalle('exceso')" class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden flex flex-col justify-between cursor-pointer hover:border-amber-300 transition group">
+                <!-- KPI 3 -->
+                <div onclick="abrirModalDetalle('exceso')" class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between relative overflow-hidden cursor-pointer hover:border-amber-300 transition group">
                     <div class="absolute top-0 left-0 bottom-0 w-1.5 bg-amber-500"></div>
-                    <div class="flex justify-between items-start mb-3">
+                    <div class="flex justify-between items-start">
                         <div>
-                            <span class="text-[11px] font-black uppercase text-slate-400 tracking-wider">Sobredosificación (&gt; Max)</span>
-                            <h3 class="text-3xl font-black text-amber-600 mt-1" id="kpi-excesos">0</h3>
+                            <span class="text-[10px] font-black uppercase text-slate-400 tracking-wider">Sobredosificación</span>
+                            <h3 class="text-2xl font-black text-amber-600 mt-1" id="kpi-excesos">0</h3>
                         </div>
-                        <div class="bg-amber-50 p-2.5 rounded-xl border border-amber-100">
-                            <i class="fa-solid fa-flask-vial text-amber-600 text-lg"></i>
-                        </div>
+                        <div class="bg-amber-50 p-2 rounded-xl border border-amber-100 text-amber-600"><i class="fa-solid fa-flask-vial"></i></div>
                     </div>
-                    <div class="flex justify-between items-center text-[11px] text-amber-600 font-bold group-hover:underline">
-                        <span>Ver desvíos de exceso</span>
-                        <i class="fa-solid fa-arrow-right"></i>
+                    <div class="flex justify-between items-center text-[10px] text-amber-600 font-bold mt-2">
+                        <span>Ver desvíos</span> <i class="fa-solid fa-arrow-right"></i>
                     </div>
                 </div>
 
-                <!-- KPI 4: Muestras Analizadas -->
-                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden flex flex-col justify-between">
+                <!-- KPI 4 -->
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between relative overflow-hidden">
                     <div class="absolute top-0 left-0 bottom-0 w-1.5 bg-blue-600"></div>
-                    <div class="flex justify-between items-start mb-3">
+                    <div class="flex justify-between items-start">
                         <div>
-                            <span class="text-[11px] font-black uppercase text-slate-400 tracking-wider">Muestras Analizadas</span>
-                            <h3 class="text-3xl font-black text-slate-900 mt-1" id="kpi-total">0</h3>
+                            <span class="text-[10px] font-black uppercase text-slate-400 tracking-wider">Muestras Analizadas</span>
+                            <h3 class="text-2xl font-black text-slate-900 mt-1" id="kpi-total">0</h3>
                         </div>
-                        <div class="bg-blue-50 p-2.5 rounded-xl border border-blue-100">
-                            <i class="fa-solid fa-database text-blue-600 text-lg"></i>
-                        </div>
+                        <div class="bg-blue-50 p-2 rounded-xl border border-blue-100 text-blue-600"><i class="fa-solid fa-database"></i></div>
                     </div>
-                    <p class="text-[11px] text-slate-500 font-medium">Filtros dinámicos aplicados</p>
+                    <p class="text-[10px] text-slate-400 font-semibold mt-2">Registros filtrados</p>
+                </div>
+
+                <!-- ESTADO GENERAL (Semáforo Lateral Estilo Referencia) -->
+                <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white p-4 rounded-2xl shadow-sm border border-slate-700 flex flex-col justify-between">
+                    <div class="flex justify-between items-center">
+                        <span class="text-[10px] font-black uppercase text-slate-400 tracking-wider">Estado Actual</span>
+                        <span class="w-3 h-3 rounded-full bg-emerald-400 animate-ping"></span>
+                    </div>
+                    <div class="my-1">
+                        <span class="text-sm font-black text-emerald-400 block tracking-wider uppercase">ACEPTABLE</span>
+                        <span class="text-[9px] text-slate-300">Mantener y fortalecer controles</span>
+                    </div>
+                    <div class="text-[9px] text-slate-400 font-mono">ISO / Codex Alimentarius</div>
                 </div>
 
             </div>
 
-            <!-- SECCIÓN DE GRÁFICAS PRINCIPALES -->
+            <!-- BLOQUE 2: GRÁFICAS PRINCIPALES (Tendencia + Dona Global) -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
-                <!-- Gráfica de Tendencia / Matriz (2 columnas) -->
+                <!-- Tendencia de Concentración (2 Columnas) -->
                 <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
                     <div class="flex justify-between items-center mb-4">
                         <div>
                             <h3 class="text-sm font-black text-slate-900 uppercase tracking-wide flex items-center gap-2">
                                 <i class="fa-solid fa-chart-line text-emerald-600"></i> Tendencia de Concentración vs. Rangos
                             </h3>
-                            <p class="text-xs text-slate-400">Comportamiento bromatológico histórico del periodo</p>
+                            <p class="text-xs text-slate-400">Comportamiento bromatológico histórico del periodo seleccionado</p>
                         </div>
-                        <span id="label-quimico-activo" class="bg-slate-100 text-slate-700 font-bold text-xs px-3 py-1 rounded-lg border border-slate-200">TODAS LAS SOLUCIONES</span>
+                        <span id="label-quimico-activo" class="bg-emerald-50 text-emerald-700 font-extrabold text-xs px-3 py-1 rounded-lg border border-emerald-100">SOSA (Predominante en filtro)</span>
                     </div>
                     <div class="relative h-72 w-full flex items-center justify-center">
                         <canvas id="trendChart"></canvas>
                     </div>
                 </div>
 
-                <!-- Distribución Global (1 columna) -->
+                <!-- Distribución Global (1 Columna) -->
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
                     <div>
                         <h3 class="text-sm font-black text-slate-900 uppercase tracking-wide flex items-center gap-2 mb-1">
@@ -241,7 +241,7 @@
 
             </div>
 
-            <!-- SECCIÓN SECUNDARIA: DISTRIBUCIÓN POR EQUIPOS -->
+            <!-- BLOQUE 3: DISTRIBUCIÓN POR EQUIPO (%) -->
             <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                 <div class="flex justify-between items-center mb-4">
                     <div>
@@ -250,31 +250,32 @@
                         </h3>
                         <p class="text-xs text-slate-400">Participación porcentual de químicos aplicados en el área seleccionada</p>
                     </div>
-                    <span class="text-xs font-bold bg-emerald-50 text-emerald-700 px-3 py-1 rounded-lg border border-emerald-100">Proporción 100%</span>
+                    <span class="text-xs font-bold bg-slate-100 text-slate-700 px-3 py-1 rounded-lg border border-slate-200">Proporción 100%</span>
                 </div>
                 <div class="relative h-80 w-full">
                     <canvas id="equiposSolucionesChart"></canvas>
                 </div>
             </div>
 
-            <!-- ASISTENTE IA: DICTAMEN GERENCIAL -->
-            <div class="bg-corporate-dark text-white p-6 rounded-2xl shadow-md border border-slate-800">
-                <div class="flex justify-between items-center mb-4">
+            <!-- BLOQUE 4: ASISTENTE IA GERENCIAL (Diseño Oscuro Premium con Gemini API) -->
+            <div class="bg-exec-dark text-white p-6 rounded-2xl shadow-xl border border-slate-800 relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none"></div>
+                <div class="flex justify-between items-center mb-4 relative z-10">
                     <div class="flex items-center gap-3">
-                        <div class="bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20">
-                            <i class="fa-solid fa-brain text-emerald-400 text-lg"></i>
+                        <div class="bg-emerald-500/20 p-3 rounded-2xl border border-emerald-500/30 text-emerald-400 shadow-inner">
+                            <i class="fa-solid fa-brain text-xl"></i>
                         </div>
                         <div>
-                            <h3 class="text-sm font-black text-white uppercase tracking-wide">Asistente IA: Dictamen Técnico y Reglas de Negocio</h3>
-                            <p class="text-xs text-slate-400">Análisis inteligente automatizado en base a concentraciones y frecuencias</p>
+                            <h3 class="text-base font-black text-white uppercase tracking-wide">ASISTENTE IA: DICTAMEN TÉCNICO Y REGLAS DE NEGOCIO</h3>
+                            <p class="text-xs text-slate-400">Análisis inteligente automatizado en base a concentraciones y frecuencias en vivo</p>
                         </div>
                     </div>
                     <span class="bg-emerald-500/10 text-emerald-400 text-xs font-bold px-3 py-1 rounded-full border border-emerald-500/20 flex items-center gap-1.5">
-                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> IA Activa
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> IA Activa (Gemini)
                     </span>
                 </div>
-                <div id="ai-alerts-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <!-- Inyectado dinámicamente -->
+                <div id="ai-alerts-container" class="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
+                    <!-- Contenido inyectado dinámicamente -->
                 </div>
             </div>
 
@@ -282,13 +283,13 @@
 
         <!-- FOOTER -->
         <footer class="bg-white border-t border-slate-200 py-4 px-6 text-center text-xs text-slate-400 font-medium">
-            Dashboard POES Gerencial &copy; 2026 — Lácteos San Antonio &quot;Nutri&quot;. Todos los derechos reservados.
+            Dashboard POES Gerencial PRO &copy; 2026 — Lácteos San Antonio &quot;Nutri&quot;. Todos los derechos reservados.
         </footer>
     </div>
 
-    <!-- MODAL DE DETALLE / DRILL-DOWN -->
-    <div id="modal-detalle" class="fixed inset-0 bg-slate-900/60 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
-        <div class="bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[85vh] flex flex-col overflow-hidden border border-slate-200">
+    <!-- MODAL DE DETALLE -->
+    <div id="modal-detalle" class="fixed inset-0 bg-slate-900/70 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[85vh] flex flex-col overflow-hidden border border-slate-200">
             <div class="bg-slate-900 text-white px-6 py-4 flex justify-between items-center">
                 <h3 id="modal-titulo" class="text-sm font-black uppercase tracking-wide text-white">Desglose de Desvíos</h3>
                 <button onclick="cerrarModalDetalle()" class="text-slate-400 hover:text-white transition text-lg"><i class="fa-solid fa-xmark"></i></button>
@@ -305,7 +306,7 @@
                         </tr>
                     </thead>
                     <tbody id="modal-tbody" class="divide-y divide-slate-100 text-xs font-medium">
-                        <!-- Inyectado dinámicamente -->
+                        <!-- Dinámico -->
                     </tbody>
                 </table>
             </div>
@@ -315,7 +316,7 @@
         </div>
     </div>
 
-    <!-- Script Principal del Dashboard -->
+    <!-- Script Principal -->
     <script src="js/app.js"></script>
 </body>
 </html>
