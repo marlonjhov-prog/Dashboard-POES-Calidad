@@ -97,9 +97,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function descargarTodosLosRegistrosSupabase() {
-    const btnCargar = document.getElementById('btn-cargar-mas');
-    if (btnCargar) { btnCargar.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i> Sincronizando todo...`; btnCargar.disabled = true; }
-
     let chunkSize = 1000;
     let offset = 0;
     let keepFetching = true;
@@ -132,11 +129,6 @@ async function descargarTodosLosRegistrosSupabase() {
     
     actualizarSelectoresDinamicos();
     aplicarFiltrosYRenderizar();
-
-    if (btnCargar) {
-        btnCargar.innerHTML = `<i class="fa-solid fa-check mr-2"></i> Base Completa`;
-        btnCargar.classList.replace('bg-blue-600', 'bg-slate-700');
-    }
 }
 
 async function importarArchivoExcel(event) {
@@ -240,11 +232,13 @@ function obtenerDatosFiltrados() {
         let matchEq = (eqSel === 'TODOS' || r.equipo === eqSel);
         let matchAnio = (anioSel === 'TODOS' || (r.fecha && r.fecha.substring(0, 4) === anioSel));
         
-        let mesDeRegistro = (r.fecha && r.fecha.length >= 7) ? r.fecha.substring(5, 7) : '';
         let matchMes = true;
         if (mesSel !== 'TODOS') {
-            let mesSeleccionadoNorm = normalizarTexto(mesSel);
-            matchMes = (mesDeRegistro === mesSel || normalizarTexto(r.mes).includes(mesSeleccionadoNorm) || obtenerNombreMes(mesSel) === normalizarTexto(r.mes));
+            let mesBD = (r.fecha && r.fecha.length >= 7) ? r.fecha.substring(5, 7) : ''; 
+            let nombreMesBD = normalizarTexto(r.mes); 
+            let mesSelNorm = normalizarTexto(mesSel);
+            
+            matchMes = (mesBD === mesSel || nombreMesBD.includes(mesSelNorm) || obtenerNombreMes(mesSel) === nombreMesBD);
         }
         
         return matchSol && matchEq && matchAnio && matchMes;
@@ -336,12 +330,11 @@ function renderizarGraficas(registros, kpis) {
     const solActiva = document.getElementById('filtro-solucion').value;
     const containerTrend = document.getElementById('trendChart').parentNode;
 
-    // SI SELECCIONA "TODAS" LAS SOLUCIONES: Mostrar Matriz de Semáforos Ejecutivos
+    // SI SELECCIONA "TODAS" LAS SOLUCIONES: Mostrar Matriz de Semáforos Ejecutivos basada en los datos filtrados
     if (solActiva === 'TODAS') {
         document.getElementById('label-quimico-activo').innerText = "TODAS LAS SOLUCIONES";
         if (chartTrendInstance) { chartTrendInstance.destroy(); chartTrendInstance = null; }
 
-        // Agrupar métricas por cada solución presente en los registros filtrados
         let resumenSoluciones = {};
         registros.forEach(r => {
             let sol = r.solucion;
@@ -380,7 +373,6 @@ function renderizarGraficas(registros, kpis) {
                 let desviosTotales = data.riesgo + data.exceso;
                 let pctOptimo = data.total > 0 ? ((data.conformes / data.total) * 100).toFixed(0) : 0;
                 
-                // Definición del Semáforo
                 let badgeColor = 'bg-emerald-100 text-emerald-800 border-emerald-300';
                 let iconSem = 'fa-circle-check text-emerald-600';
                 let textEstado = 'Óptimo (100%)';
@@ -392,7 +384,7 @@ function renderizarGraficas(registros, kpis) {
                 } else if (data.exceso > 0) {
                     badgeColor = 'bg-amber-100 text-amber-800 border-amber-300';
                     iconSem = 'fa-flask-vial text-amber-600';
-                    textEstado = `Exceso / Sobredosificación (${data.exceso})`;
+                    textEstado = `Exceso (${data.exceso})`;
                 }
 
                 htmlSemafaro += `
@@ -415,10 +407,9 @@ function renderizarGraficas(registros, kpis) {
         return;
     }
 
-    // SI SELECCIONA UN QUÍMICO ESPECÍFICO: Renderizar Gráfica de Tendencia Inteligente
+    // SI SELECCIONA UN QUÍMICO ESPECÍFICO: Renderizar Gráfica de Tendencia sincronizada con el mes y equipo filtrado
     document.getElementById('label-quimico-activo').innerText = solActiva;
     
-    // Restaurar canvas si fue reemplazado por la tabla anterior
     if (!document.getElementById('trendChart')) {
         containerTrend.innerHTML = `<canvas id="trendChart"></canvas>`;
     }
@@ -509,29 +500,33 @@ function renderizarGraficoSolucionesHorizontal(registros) {
 }
 
 // ==========================================
-// 6. ASISTENTE IA
+// 6. ASISTENTE IA (DICTAMEN ESTRICTAMENTE FILTRADO)
 // ==========================================
 function generarAlertasIA(registros, metricas) {
     const contenedor = document.getElementById('ai-alerts-container');
     if (!contenedor) return;
+
     let pRiesgo = metricas.total > 0 ? ((metricas.riesgoDeficit / metricas.total) * 100).toFixed(1) : 0;
     let pExceso = metricas.total > 0 ? ((metricas.excesoIneficiente / metricas.total) * 100).toFixed(1) : 0;
 
     let riesgoHtml = '';
     if (metricas.riesgoDeficit === 0) {
-        riesgoHtml = `<div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex gap-3 items-start"><i class="fa-solid fa-circle-check text-corporate-green text-lg mt-0.5"></i><div><h4 class="font-bold text-emerald-900 mb-1">Inocuidad Garantizada (0 Desvíos)</h4><p class="text-xs text-slate-700">Validación de rangos mínima superada.</p></div></div>`;
+        riesgoHtml = `<div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex gap-3 items-start"><i class="fa-solid fa-circle-check text-corporate-green text-lg mt-0.5"></i><div><h4 class="font-bold text-emerald-900 mb-1">Inocuidad Garantizada (0 Desvíos)</h4><p class="text-xs text-slate-700">No se detectan concentraciones inferiores al límite mínimo en el rango seleccionado.</p></div></div>`;
     } else {
-        let eqCritico = Object.keys(metricas.resumenDesvios.equiposRiesgo).reduce((a, b) => metricas.resumenDesvios.equiposRiesgo[a] > metricas.resumenDesvios.equiposRiesgo[b] ? a : b, 'General');
-        riesgoHtml = `<div class="bg-red-50 border border-red-200 rounded-xl p-4 flex gap-3 items-start"><i class="fa-solid fa-triangle-exclamation text-danger-red text-lg mt-0.5"></i><div><h4 class="font-bold text-red-900 mb-1">Alerta Crítica: Sub-dosificación</h4><p class="text-xs text-slate-700">Validación detecta <b>${metricas.riesgoDeficit} desvíos (${pRiesgo}%)</b>. Incidencia en: <b>${eqCritico}</b>.</p></div></div>`;
+        let keysRiesgo = Object.keys(metricas.resumenDesvios.equiposRiesgo);
+        let eqCritico = keysRiesgo.length > 0 ? keysRiesgo.reduce((a, b) => metricas.resumenDesvios.equiposRiesgo[a] > metricas.resumenDesvios.equiposRiesgo[b] ? a : b) : 'General';
+        riesgoHtml = `<div class="bg-red-50 border border-red-200 rounded-xl p-4 flex gap-3 items-start"><i class="fa-solid fa-triangle-exclamation text-danger-red text-lg mt-0.5"></i><div><h4 class="font-bold text-red-900 mb-1">Alerta Crítica: Sub-dosificación</h4><p class="text-xs text-slate-700">Validación detecta <b>${metricas.riesgoDeficit.toLocaleString()} desvíos (${pRiesgo}%)</b> bajo el límite. Mayor incidencia en: <b>${eqCritico}</b>.</p></div></div>`;
     }
 
     let excesoHtml = '';
     if (metricas.excesoIneficiente === 0) {
-        excesoHtml = `<div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex gap-3 items-start"><i class="fa-solid fa-seedling text-corporate-green text-lg mt-0.5"></i><div><h4 class="font-bold text-emerald-900 mb-1">Eficiencia Operativa (0 Desvíos)</h4><p class="text-xs text-slate-700">Consumo químico controlado.</p></div></div>`;
+        excesoHtml = `<div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex gap-3 items-start"><i class="fa-solid fa-seedling text-corporate-green text-lg mt-0.5"></i><div><h4 class="font-bold text-emerald-900 mb-1">Eficiencia Operativa (0 Desvíos)</h4><p class="text-xs text-slate-700">Consumo químico controlado sin excesos en el periodo.</p></div></div>`;
     } else {
-        let eqGasto = Object.keys(metricas.resumenDesvios.equiposExceso).reduce((a, b) => metricas.resumenDesvios.equiposExceso[a] > metricas.resumenDesvios.equiposExceso[b] ? a : b, 'General');
-        excesoHtml = `<div class="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3 items-start"><i class="fa-solid fa-flask-vial text-alert-yellow text-lg mt-0.5"></i><div><h4 class="font-bold text-amber-900 mb-1">Ineficiencia: Sobredosificación Confirmada</h4><p class="text-xs text-slate-700">El sistema contabiliza <b>${metricas.excesoIneficiente} registros (${pExceso}%)</b> que superan el umbral máximo. Fuga en: <b>${eqGasto}</b>.</p></div></div>`;
+        let keysExceso = Object.keys(metricas.resumenDesvios.equiposExceso);
+        let eqGasto = keysExceso.length > 0 ? keysExceso.reduce((a, b) => metricas.resumenDesvios.equiposExceso[a] > metricas.resumenDesvios.equiposExceso[b] ? a : b) : 'General';
+        excesoHtml = `<div class="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3 items-start"><i class="fa-solid fa-flask-vial text-alert-yellow text-lg mt-0.5"></i><div><h4 class="font-bold text-amber-900 mb-1">Ineficiencia: Sobredosificación Confirmada</h4><p class="text-xs text-slate-700">El sistema contabiliza <b>${metricas.excesoIneficiente.toLocaleString()} registros (${pExceso}%)</b> sobre el umbral máximo. Mayor fuga en: <b>${eqGasto}</b>.</p></div></div>`;
     }
+
     contenedor.innerHTML = riesgoHtml + excesoHtml;
 }
 
@@ -552,7 +547,7 @@ function abrirModalDetalle(tipo) {
     }
 
     if (filtradosModal.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400 font-bold">Sin registros de desviación bajo el filtro actual.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400 font-bold">Sin registros de desviación bajo los filtros actuales.</td></tr>`;
     } else {
         filtradosModal.slice(0, 300).forEach(r => {
             const tr = document.createElement('tr'); tr.className = "hover:bg-slate-50 border-b border-slate-100";
