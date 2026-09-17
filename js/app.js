@@ -6,23 +6,23 @@ const PUBLISHABLE_KEY = 'sb_publishable_oUVzPeOCzi89qXy7Or3GDw_JzcpuKfd';
 
 const clienteSupabase = supabase.createClient(PROYECTO_URL, PUBLISHABLE_KEY);
 
-// Tabla dura de rangos para garantizar precisión analítica exacta (Single Source of Truth)
+// Tabla dura de rangos para garantizar precisión analítica exacta
 const PARAMETROS_TECNICOS = [
     { solucion: 'SOSA', min: 1.5, max: 2.5 },
     { solucion: 'SOSA (MADRE)', min: 35, max: 50 },
     { solucion: 'ÁCIDO NITRICO', min: 0.8, max: 2.0 },
-    { solucion: 'ACIDO NITRICO', min: 0.8, max: 2.0 }, // Variante sin tilde por si acaso
+    { solucion: 'ACIDO NITRICO', min: 0.8, max: 2.0 }, 
     { solucion: 'ACIDO NITRICO MADRE', min: 55, max: 65 },
     { solucion: 'AGUA ENJUAGUE', min: 6.5, max: 7.6 },
     { solucion: 'PEROXIDO', min: 35, max: 45 },
     { solucion: 'ÁCIDO PERACÉTICO', min: 200, max: 450 },
-    { solucion: 'ACIDO PERACETICO', min: 200, max: 450 }, // Variante sin tilde
+    { solucion: 'ACIDO PERACETICO', min: 200, max: 450 }, 
     { solucion: 'BACOXIN', min: 100, max: 200 },
     { solucion: 'SOSA (CENTRO ACOPIO)', min: 20, max: 30 },
     { solucion: 'SOSA (PASIVACIÓN)', min: 2.5, max: 5 },
-    { solucion: 'SOSA (PASIVACION)', min: 2.5, max: 5 }, // Variante sin tilde
+    { solucion: 'SOSA (PASIVACION)', min: 2.5, max: 5 }, 
     { solucion: 'ÁCIDO (PASIVACIÓN)', min: 8, max: 15 },
-    { solucion: 'ACIDO (PASIVACION)', min: 8, max: 15 }, // Variante sin tilde
+    { solucion: 'ACIDO (PASIVACION)', min: 8, max: 15 }, 
     { solucion: 'ACIDO FOSFORICO', min: 0.8, max: 2.0 },
     { solucion: 'CLORO', min: 0, max: 200 }
 ];
@@ -35,17 +35,26 @@ let chartStatusInstance = null;
 let chartTrendInstance = null;
 let chartEquiposSolucionesInstance = null;
 
-// Normalizador de texto para asegurar coincidencias exactas
+// ==========================================
+// FUNCIONES AUXILIARES DE LIMPIEZA DE DATOS
+// ==========================================
 function normalizarTexto(texto) {
     if (!texto) return '';
     return texto.trim().toUpperCase();
+}
+
+// CORRECCIÓN CRÍTICA: Convierte comas a puntos para evitar que 50,64 se lea como 50
+function parseConcen(val) {
+    if (val === null || val === undefined || val === '') return 0;
+    const num = parseFloat(String(val).replace(',', '.'));
+    return isNaN(num) ? 0 : num;
 }
 
 // ==========================================
 // 2. INICIALIZACIÓN
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log("Iniciando motor analítico con validación estricta de rangos...");
+    console.log("Iniciando motor analítico con sanitización decimal...");
     try {
         await cargarMasDatosSupabase();
         poblarFiltrosSelectDesdeDatos();
@@ -64,7 +73,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // ==========================================
-// 3. CARGA DESDE SUPABASE Y EXCEL (INTACTO)
+// 3. CARGA DESDE SUPABASE Y EXCEL
 // ==========================================
 async function cargarMasDatosSupabase() {
     const btnCargar = document.getElementById('btn-cargar-mas');
@@ -135,7 +144,7 @@ async function importarArchivoExcel(event) {
                 solucion: row.SOLUCION || row.solucion || 'SOSA',
                 equipo: row.EQUIPO || row.equipo || 'GENERAL',
                 proceso: row.PROCESO || row.proceso || 'CIP',
-                concen: parseFloat(row.CONCEN || row.concen || 0),
+                concen: parseConcen(row.CONCEN || row.concen),
                 operario: row.OPERARIO || row.operario || 'S/N',
                 laboratorista: row.LABORATORISTA || row.laboratorista || 'S/N'
             }));
@@ -242,7 +251,7 @@ function aplicarFiltrosYRenderizar() {
         const regla = PARAMETROS_TECNICOS.find(p => p.solucion === solFila);
         
         if (regla) {
-            const val = parseFloat(fila.concen);
+            const val = parseConcen(fila.concen);
             const min = parseFloat(regla.min);
             const max = parseFloat(regla.max);
 
@@ -311,7 +320,7 @@ function renderizarGraficas(registros, kpis) {
 
     // Gráfico Líneas (Tendencia Inteligente)
     const solActiva = document.getElementById('filtro-solucion').value;
-    const quimico = solActiva === 'TODAS' ? 'SOSA (MADRE)' : solActiva; // Fallback por defecto si no hay filtro
+    const quimico = solActiva === 'TODAS' ? 'SOSA (MADRE)' : solActiva;
     document.getElementById('label-quimico-activo').innerText = quimico;
 
     const reglaTrend = PARAMETROS_TECNICOS.find(p => p.solucion === normalizarTexto(quimico));
@@ -321,7 +330,6 @@ function renderizarGraficas(registros, kpis) {
     if (chartTrendInstance) chartTrendInstance.destroy();
 
     if (!reglaTrend || regsTrend.length === 0) {
-        // Limpiar canvas si no hay datos
         chartTrendInstance = new Chart(ctxTrend, { type: 'line', data: { labels: [], datasets: [] }});
         return;
     }
@@ -329,17 +337,17 @@ function renderizarGraficas(registros, kpis) {
     const min = parseFloat(reglaTrend.min);
     const max = parseFloat(reglaTrend.max);
 
-    // Mapeo dinámico de colores y tamaños según desvío
+    // Mapeo dinámico de colores y tamaños asegurando la conversión a punto decimal
     const coloresFondoPunto = regsTrend.map(r => {
-        const v = parseFloat(r.concen);
+        const v = parseConcen(r.concen);
         if (v < min) return '#dc2626'; // Rojo (Riesgo)
         if (v > max) return '#f59e0b'; // Naranja (Exceso)
         return '#10b981'; // Verde (Óptimo)
     });
 
     const tamañosPunto = regsTrend.map(r => {
-        const v = parseFloat(r.concen);
-        return (v < min || v > max) ? 7 : 4; // Resaltar valores atípicos
+        const v = parseConcen(r.concen);
+        return (v < min || v > max) ? 7 : 4; 
     });
 
     chartTrendInstance = new Chart(ctxTrend, {
@@ -349,7 +357,7 @@ function renderizarGraficas(registros, kpis) {
             datasets: [
                 {
                     label: 'Concentración Real',
-                    data: regsTrend.map(r => parseFloat(r.concen)),
+                    data: regsTrend.map(r => parseConcen(r.concen)),
                     borderColor: '#94a3b8',
                     backgroundColor: 'rgba(148, 163, 184, 0.1)',
                     borderWidth: 2,
@@ -533,13 +541,13 @@ function abrirModalDetalle(tipo) {
         titulo.innerText = "Desglose de Desvíos por Riesgo (< Mínimo)";
         filtradosModal = datosActivos.filter(fila => {
             const regla = PARAMETROS_TECNICOS.find(p => p.solucion === normalizarTexto(fila.solucion));
-            return regla && parseFloat(fila.concen) < parseFloat(regla.min);
+            return regla && parseConcen(fila.concen) < parseFloat(regla.min);
         });
     } else if (tipo === 'exceso') {
         titulo.innerText = "Desglose de Desvíos por Sobredosificación (> Máximo)";
         filtradosModal = datosActivos.filter(fila => {
             const regla = PARAMETROS_TECNICOS.find(p => p.solucion === normalizarTexto(fila.solucion));
-            return regla && parseFloat(fila.concen) > parseFloat(regla.max);
+            return regla && parseConcen(fila.concen) > parseFloat(regla.max);
         });
     }
 
