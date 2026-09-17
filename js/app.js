@@ -91,7 +91,6 @@ async function cargarMasDatosSupabase() {
     }
 }
 
-// Importar Excel o CSV directamente
 async function importarArchivoExcel(event) {
     const archivo = event.target.files[0];
     if (!archivo) return;
@@ -203,13 +202,12 @@ function obtenerDatosFiltrados() {
         let matchEq = (eqSel === 'TODOS' || r.equipo === eqSel);
         let matchAnio = (anioSel === 'TODOS' || (r.fecha && r.fecha.substring(0, 4) === anioSel));
         let matchMes = (mesSel === 'TODOS' || (r.fecha && r.fecha.substring(5, 7) === mesSel));
-
         return matchSol && matchEq && matchAnio && matchMes;
     });
 }
 
 // ==========================================
-// 5. PROCESAMIENTO ANALÍTICO Y KPIS
+// 5. PROCESAMIENTO ANALÍTICO
 // ==========================================
 function aplicarFiltrosYRenderizar() {
     const datosActivos = obtenerDatosFiltrados();
@@ -217,6 +215,7 @@ function aplicarFiltrosYRenderizar() {
     let conformes = 0;
     let riesgoDeficit = 0;   
     let excesoIneficiente = 0; 
+    let resumenDesvios = { equiposRiesgo: {}, equiposExceso: {} };
 
     datosActivos.forEach(fila => {
         const regla = listaParametros.find(p => p.solucion === fila.solucion);
@@ -225,9 +224,15 @@ function aplicarFiltrosYRenderizar() {
             const min = parseFloat(regla.rango_min);
             const max = parseFloat(regla.rango_max);
 
-            if (val < min) riesgoDeficit++;
-            else if (val > max) excesoIneficiente++;
-            else conformes++;
+            if (val < min) {
+                riesgoDeficit++;
+                resumenDesvios.equiposRiesgo[fila.equipo] = (resumenDesvios.equiposRiesgo[fila.equipo] || 0) + 1;
+            } else if (val > max) {
+                excesoIneficiente++;
+                resumenDesvios.equiposExceso[fila.equipo] = (resumenDesvios.equiposExceso[fila.equipo] || 0) + 1;
+            } else {
+                conformes++;
+            }
         }
     });
 
@@ -241,12 +246,12 @@ function aplicarFiltrosYRenderizar() {
     document.getElementById('kpi-total').innerText = total.toLocaleString();
 
     renderizarGraficas(datosActivos, { conformes, excesoIneficiente, riesgoDeficit, total });
-    generarAlertasIA(datosActivos, { total, eficaces, riesgoDeficit, excesoIneficiente });
-    renderizarGraficoSolucionesPorEquipo(datosActivos);
+    generarAlertasIA(datosActivos, { total, eficaces, riesgoDeficit, excesoIneficiente, resumenDesvios });
+    renderizarGraficoSolucionesHorizontal(datosActivos);
 }
 
 // ==========================================
-// 6. MOTOR GRÁFICO AVANZADO
+// 6. MOTOR GRÁFICO (DONA, TENDENCIA, BARRAS HORIZONTALES)
 // ==========================================
 function renderizarGraficas(registros, kpis) {
     const total = kpis.total > 0 ? kpis.total : 1;
@@ -269,20 +274,20 @@ function renderizarGraficas(registros, kpis) {
             datasets: [{
                 data: [kpis.conformes, kpis.excesoIneficiente, kpis.riesgoDeficit],
                 backgroundColor: ['#1f8c22', '#f59e0b', '#dc2626'],
-                borderWidth: 3,
+                borderWidth: 2,
                 borderColor: '#ffffff',
-                hoverOffset: 6
+                hoverOffset: 4
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10, weight: 'bold' } } } },
-            cutout: '70%'
+            cutout: '65%'
         }
     });
 
-    // Gráfico Líneas (Tendencia acotada a datos reales)
+    // Gráfico Líneas (Tendencia)
     const solActiva = document.getElementById('filtro-solucion').value;
     const quimico = solActiva === 'TODAS' ? 'SOSA' : solActiva;
     document.getElementById('label-quimico-activo').innerText = quimico;
@@ -305,8 +310,8 @@ function renderizarGraficas(registros, kpis) {
                     data: regsTrend.map(r => parseFloat(r.concen)),
                     borderColor: '#3b82f6',
                     backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                    borderWidth: 3,
-                    tension: 0.35,
+                    borderWidth: 2,
+                    tension: 0.3,
                     fill: true,
                     pointRadius: 3
                 },
@@ -328,44 +333,51 @@ function renderizarGraficas(registros, kpis) {
             plugins: { legend: { position: 'top' }, tooltip: { mode: 'index', intersect: false } },
             scales: {
                 y: { grid: { color: '#f1f5f9' }, suggestedMin: parseFloat(reglaTrend.rango_min) - 0.4, suggestedMax: parseFloat(reglaTrend.rango_max) + 0.4 },
-                x: { grid: { display: false } }
+                x: { grid: { display: false }, ticks: { maxRotation: 45, minRotation: 45, font: { size: 9 } } }
             }
         }
     });
 }
 
-// Gráfico de Soluciones por Equipo (Porcentaje de participación)
-function renderizarGraficoSolucionesPorEquipo(registros) {
+// BARRAS HORIZONTALES 100% APILADAS POR EQUIPO (Estilo Imagen Referencia)
+function renderizarGraficoSolucionesHorizontal(registros) {
     const ctx = document.getElementById('equiposSolucionesChart').getContext('2d');
     if (chartEquiposSolucionesInstance) chartEquiposSolucionesInstance.destroy();
 
-    // Agrupar soluciones por equipo
-    let conteoSoluciones = {};
+    let conteoEqSol = {};
     let solucionesUnicas = new Set();
 
     registros.forEach(r => {
-        let eq = r.equipo || 'GENERAL';
+        let eq = r.equipo || 'SIN EQUIPO';
         let sol = r.solucion || 'OTRA';
         solucionesUnicas.add(sol);
-        if (!conteoSoluciones[eq]) conteoSoluciones[eq] = {};
-        conteoSoluciones[eq][sol] = (conteoSoluciones[eq][sol] || 0) + 1;
+        
+        if (!conteoEqSol[eq]) conteoEqSol[eq] = { total: 0 };
+        conteoEqSol[eq][sol] = (conteoEqSol[eq][sol] || 0) + 1;
+        conteoEqSol[eq].total++;
     });
 
-    let equiposLabels = Object.keys(conteoSoluciones).slice(0, 8); // Top 8 equipos
+    let equiposLabels = Object.keys(conteoEqSol);
+    // Limitar a 10 equipos para legibilidad si no hay filtro de equipo específico
+    if (document.getElementById('filtro-equipo').value === 'TODOS') {
+        equiposLabels = equiposLabels.slice(0, 10);
+    }
+    
     let solsArray = Array.from(solucionesUnicas);
-    let coloresPalette = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899'];
+    let coloresPalette = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f43f5e'];
 
     let datasets = solsArray.map((sol, index) => {
         let dataPorEquipo = equiposLabels.map(eq => {
-            let totalEq = Object.values(conteoSoluciones[eq]).reduce((a, b) => a + b, 0);
-            let countSol = conteoSoluciones[eq][sol] || 0;
-            return totalEq > 0 ? ((countSol / totalEq) * 100).toFixed(1) : 0;
+            let totalEq = conteoEqSol[eq].total;
+            let countSol = conteoEqSol[eq][sol] || 0;
+            return totalEq > 0 ? parseFloat(((countSol / totalEq) * 100).toFixed(1)) : 0;
         });
         return {
             label: sol,
             data: dataPorEquipo,
             backgroundColor: coloresPalette[index % coloresPalette.length],
-            borderRadius: 4
+            borderWidth: 1,
+            borderColor: '#ffffff'
         };
     });
 
@@ -373,45 +385,80 @@ function renderizarGraficoSolucionesPorEquipo(registros) {
         type: 'bar',
         data: { labels: equiposLabels, datasets: datasets },
         options: {
+            indexAxis: 'y', // Barra Horizontal
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { position: 'top' } },
+            plugins: { 
+                legend: { position: 'top', labels: { font: { size: 10, weight: 'bold' } } },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) { return ` ${context.dataset.label}: ${context.parsed.x}%`; }
+                    }
+                }
+            },
             scales: {
-                x: { stacked: true, grid: { display: false } },
-                y: { stacked: true, max: 100, ticks: { callback: v => v + '%' }, grid: { color: '#f1f5f9' } }
+                x: { stacked: true, max: 100, ticks: { callback: v => v + '%' }, grid: { color: '#f1f5f9' } },
+                y: { stacked: true, grid: { display: false }, ticks: { font: { size: 11, weight: 'bold' } } }
             }
         }
     });
 }
 
 // ==========================================
-// 7. ASISTENTE IA (SIN REPETICIONES)
+// 7. ASISTENTE IA (LÓGICA CONTEXTUAL)
 // ==========================================
 function generarAlertasIA(registros, metricas) {
     const contenedor = document.getElementById('ai-alerts-container');
     let pRiesgo = metricas.total > 0 ? ((metricas.riesgoDeficit / metricas.total) * 100).toFixed(1) : 0;
     let pExceso = metricas.total > 0 ? ((metricas.excesoIneficiente / metricas.total) * 100).toFixed(1) : 0;
 
-    contenedor.innerHTML = `
-        <div class="bg-red-50 border border-red-200 rounded-xl p-5">
-            <div class="flex items-center space-x-3 mb-2">
-                <i class="fa-solid fa-triangle-exclamation text-danger-red text-xl"></i>
-                <h4 class="font-bold text-red-900">Evaluación de Inocuidad (Eficacia)</h4>
-            </div>
-            <p class="text-xs text-slate-700 leading-relaxed">
-                Se detectaron <b>${metricas.riesgoDeficit.toLocaleString()}</b> registros con concentración por debajo del mínimo permitido <b>(${pRiesgo}% del filtro activo)</b>. Alerta crítica de riesgo microbiológico.
-            </p>
-        </div>
-        <div class="bg-amber-50 border border-amber-200 rounded-xl p-5">
-            <div class="flex items-center space-x-3 mb-2">
-                <i class="fa-solid fa-flask-vial text-alert-yellow text-xl"></i>
-                <h4 class="font-bold text-amber-900">Evaluación de Eficiencia (Costos / Exceso)</h4>
-            </div>
-            <p class="text-xs text-slate-700 leading-relaxed">
-                Se registran <b>${metricas.excesoIneficiente.toLocaleString()}</b> eventos de sobredosificación por encima del máximo <b>(${pExceso}% del filtro activo)</b>. Impacto directo en sobreconsumo químico y fatiga de equipos.
-            </p>
-        </div>
-    `;
+    // Lógica dinámica Inocuidad
+    let riesgoHtml = '';
+    if (metricas.riesgoDeficit === 0) {
+        riesgoHtml = `
+            <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex gap-3 items-start">
+                <i class="fa-solid fa-circle-check text-corporate-green text-lg mt-0.5"></i>
+                <div>
+                    <h4 class="font-bold text-emerald-900 mb-1">Inocuidad Garantizada (Eficacia 100%)</h4>
+                    <p class="text-xs text-slate-700">No se detectan sub-dosificaciones en el periodo y equipos seleccionados. Los parámetros de esterilización CIP se mantienen dentro de los límites operativos seguros.</p>
+                </div>
+            </div>`;
+    } else {
+        let equipoCritico = Object.keys(metricas.resumenDesvios.equiposRiesgo).reduce((a, b) => metricas.resumenDesvios.equiposRiesgo[a] > metricas.resumenDesvios.equiposRiesgo[b] ? a : b);
+        riesgoHtml = `
+            <div class="bg-red-50 border border-red-200 rounded-xl p-4 flex gap-3 items-start">
+                <i class="fa-solid fa-triangle-exclamation text-danger-red text-lg mt-0.5"></i>
+                <div>
+                    <h4 class="font-bold text-red-900 mb-1">Alerta Crítica Microbiológica</h4>
+                    <p class="text-xs text-slate-700">Se detectan <b>${metricas.riesgoDeficit} desvíos (${pRiesgo}%)</b> por debajo del límite técnico. Mayor incidencia crítica localizada en: <b>${equipoCritico}</b>. Se requiere revisión inmediata del lazo de dosificación.</p>
+                </div>
+            </div>`;
+    }
+
+    // Lógica dinámica Costos/Eficiencia
+    let excesoHtml = '';
+    if (metricas.excesoIneficiente === 0) {
+        excesoHtml = `
+            <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex gap-3 items-start">
+                <i class="fa-solid fa-seedling text-corporate-green text-lg mt-0.5"></i>
+                <div>
+                    <h4 class="font-bold text-emerald-900 mb-1">Eficiencia Operativa Óptima</h4>
+                    <p class="text-xs text-slate-700">Consumo de químicos estable. No se registran eventos de sobredosificación, mitigando costos por desperdicio y fatiga prematura de materiales en la línea.</p>
+                </div>
+            </div>`;
+    } else {
+        let equipoGasto = Object.keys(metricas.resumenDesvios.equiposExceso).reduce((a, b) => metricas.resumenDesvios.equiposExceso[a] > metricas.resumenDesvios.equiposExceso[b] ? a : b);
+        excesoHtml = `
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3 items-start">
+                <i class="fa-solid fa-flask-vial text-alert-yellow text-lg mt-0.5"></i>
+                <div>
+                    <h4 class="font-bold text-amber-900 mb-1">Ineficiencia por Sobreconsumo Químico</h4>
+                    <p class="text-xs text-slate-700">Se registran <b>${metricas.excesoIneficiente} eventos (${pExceso}%)</b> de exceso químico. El mayor índice de desperdicio ocurre en: <b>${equipoGasto}</b>. Sugerencia: Recalibrar parámetros PLC de conductividad.</p>
+                </div>
+            </div>`;
+    }
+
+    contenedor.innerHTML = riesgoHtml + excesoHtml;
 }
 
 // ==========================================
@@ -441,7 +488,7 @@ function abrirModalDetalle(tipo) {
     }
 
     if (filtradosModal.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400">No hay registros en esta categoría con el filtro actual.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400">No hay registros en esta categoría con los filtros actuales.</td></tr>`;
     } else {
         filtradosModal.slice(0, 300).forEach(r => {
             const tr = document.createElement('tr');
@@ -456,7 +503,6 @@ function abrirModalDetalle(tipo) {
             tbody.appendChild(tr);
         });
     }
-
     modal.classList.remove('hidden');
 }
 
