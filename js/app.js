@@ -6,7 +6,15 @@ const PUBLISHABLE_KEY = 'sb_publishable_oUVzPeOCzi89qXy7Or3GDw_JzcpuKfd';
 const clienteSupabase = supabase.createClient(PROYECTO_URL, PUBLISHABLE_KEY);
 
 // Pon tu API Key aquí para habilitar la Tabla de Acción IA
-const GEMINI_API_KEY = 'TU_CLAVE_API_DE_GEMINI'; 
+// Sistema seguro para la API de Gemini (Evita el bloqueo de GitHub)
+let GEMINI_API_KEY = localStorage.getItem('gemini_poes_key');
+
+if (!GEMINI_API_KEY || GEMINI_API_KEY === 'TU_CLAVE_API_DE_GEMINI') {
+    GEMINI_API_KEY = prompt("Seguridad Gerencial: Ingresa tu clave API de Gemini para habilitar el Plan de Acción (se guardará en tu navegador):");
+    if (GEMINI_API_KEY) {
+        localStorage.setItem('gemini_poes_key', GEMINI_API_KEY.trim());
+    }
+} 
 
 // ==========================================
 // 2. CONSTANTES TÉCNICAS
