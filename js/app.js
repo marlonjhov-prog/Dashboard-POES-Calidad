@@ -25,7 +25,7 @@ const PARAMETROS_TECNICOS = [
 ];
 
 let listaRegistros = [];
-let desviosUltimoFiltro = []; // Almacena los desvíos para análisis manual
+let desviosUltimoFiltro = [];
 let scatterInst = null;
 let radarInst = null;
 let sparkInst = { ef: null, ri: null, ex: null, to: null };
@@ -202,16 +202,13 @@ function renderizarCore() {
     drawRadar(datos);
     drawHeatmap(datos, stats.desviosList);
     
-    // Guardamos los desvíos actuales para cuando el usuario decida consultar la IA manualmente
     desviosUltimoFiltro = stats.desviosList;
-    
-    // Mensaje inicial limpio en la tabla invitando a generar con el botón
     const tbody = document.getElementById('ai-action-plan-tbody');
     if(tbody) {
         if(desviosUltimoFiltro.length === 0) {
             tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-emerald-400 font-medium"><i class="fa-solid fa-check-circle mr-2"></i>Cero desvíos reportados bajo los filtros seleccionados.</td></tr>`;
         } else {
-            tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-slate-300 font-medium">Hay <b>${desviosUltimoFiltro.length} desvíos</b> detectados. Haz clic en el botón superior <b>"✨ Generar Plan IA"</b> para analizarlos sin agotar cuotas.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-slate-300 font-medium">Hay <b>${desviosUltimoFiltro.length} desvíos</b> detectados. Haz clic en el botón superior <b>"✨ Generar Plan IA"</b> para analizarlos.</td></tr>`;
         }
     }
 }
@@ -371,7 +368,6 @@ function actualizarBadgeIA() {
     }
 }
 
-// Función ejecutada manualmente al hacer clic en el botón de análisis IA
 async function dispararAnalisisIA() {
     await generarPlanAccionIA(desviosUltimoFiltro);
 }
@@ -428,7 +424,7 @@ async function generarPlanAccionIA(desviosList) {
         tbody.innerHTML = html;
 
     } catch(err) {
-        tbody.innerHTML = `<tr><td colspan="4" class="py-4 px-6 text-center text-red-400 font-mono text-[11px]"><i class="fa-solid fa-triangle-exclamation mr-1"></i> <b>Límite de Cuota (429):</b> Has alcanzado el límite gratuito. Espera unos segundos o un minuto antes de volver a consultar la IA. (${err.message})</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="py-4 px-6 text-center text-red-400 font-mono text-[11px]"><i class="fa-solid fa-triangle-exclamation mr-1"></i> <b>Límite de Cuota (429):</b> Has alcanzado el límite gratuito temporal. Espera unos segundos antes de volver a hacer clic en el botón. (${err.message})</td></tr>`;
         console.error("Gemini Debug Error:", err);
     }
 }
