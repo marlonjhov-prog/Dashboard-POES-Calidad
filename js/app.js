@@ -28,6 +28,7 @@ let listaRegistros = [];
 let scatterInst = null;
 let radarInst = null;
 let sparkInst = { ef: null, ri: null, ex: null, to: null };
+let iaTimeout = null; // Control anti-saturación de cuota
 
 // ==========================================
 // 3. NORMALIZADORES
@@ -201,7 +202,11 @@ function renderizarCore() {
     drawRadar(datos);
     drawHeatmap(datos, stats.desviosList);
     
-    generarPlanAccionIA(stats.desviosList);
+    // Control Anti-Spam: Espera 1.5 segundos de inactividad en filtros antes de llamar a la IA
+    if (iaTimeout) clearTimeout(iaTimeout);
+    iaTimeout = setTimeout(() => {
+        generarPlanAccionIA(stats.desviosList);
+    }, 1500);
 }
 
 // ==========================================
@@ -340,7 +345,7 @@ function drawHeatmap(datos, desviosList) {
 }
 
 // ==========================================
-// 8. ASISTENTE IA GEMINI (VERSIÓN V1 + 3.6 FLASH / FLASH-LITE)
+// 8. ASISTENTE IA GEMINI (CON REINTENTO Y CONTROL DE CUOTA)
 // ==========================================
 function obtenerApiKeySegura() {
     return localStorage.getItem('poes_gemini_key') || '';
@@ -375,45 +380,59 @@ async function generarPlanAccionIA(desviosList) {
         return;
     }
 
-    tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-emerald-400/70 font-mono animate-pulse"><i class="fa-solid fa-microchip mr-2"></i>Analizando datos con Google AI...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-emerald-400/70 font-mono animate-pulse"><i class="fa-solid fa-microchip mr-2"></i>Analizando datos con Google AI (Flash)...</td></tr>`;
 
     let muestraIA = desviosList.slice(0, 10).map(r => `Equipo: ${r.equipo} | Solución: ${r.solucion} | Conc: ${r.concen} | Falla: ${r.tipo} | Resp: ${r.operario || r.laboratorista}`);
     const prompt = `Eres un Auditor Jefe de POES. Analiza estos desvíos en planta láctea:\n${muestraIA.join('\n')}\n\nGenera un "Plan de Acciones Correctivas" en formato JSON estricto, sin markdown adicional, con un arreglo de objetos. Usa esta estructura exacta:\n[{"hallazgo": "Resumen del desvío", "causa_raiz": "Causa técnica probable", "accion": "Acción inmediata", "responsable": "Rol o nombre del operador/técnico"}]\nDevuelve máximo 4 acciones críticas consolidadas.`;
 
-    try {
-        // MODELO CONFIGURADO: gemini-3.6-flash (compatible con v1)
-        const modeloIA = 'gemini-3.6-flash';
-        
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1/models/${modeloIA}:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-        });
+    const modeloIA = 'gemini-3.6-flash';
+    let intentos = 0;
+    const maxIntentos = 2;
 
-        if (!res.ok) {
-            const errorData = await res.json();
-            throw new Error(`Google Error (${res.status}): ${errorData.error?.message || 'Error desconocido'}`);
+    while (intentos < maxIntentos) {
+        try {
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1/models/${modeloIA}:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json();
+                // Si es error 429 o 503, reintentar tras una breve pausa
+                if ((res.status === 429 || res.status === 503) && intentos < maxIntentos - 1) {
+                    intentos++;
+                    tbody.innerHTML = `<tr><td colspan="4" class="py-4 px-6 text-center text-amber-400 font-mono text-[11px]"><i class="fa-solid fa-clock mr-1"></i> Servidor ocupado (Límite temporal). Reintentando en 4 segundos...</td></tr>`;
+                    await new Promise(resolve => setTimeout(resolve, 4000));
+                    continue;
+                }
+                throw new Error(`Google Error (${res.status}): ${errorData.error?.message || 'Error desconocido'}`);
+            }
+
+            const jsonRes = await res.json();
+            let rawText = jsonRes.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            rawText = rawText.replace(/```json/gi, '').replace(/```/gi, '').trim();
+            let plan = JSON.parse(rawText);
+
+            let html = '';
+            plan.forEach(item => {
+                html += `<tr class="hover:bg-slate-700/30 transition">
+                            <td class="py-3 px-2 align-top text-red-300 font-semibold text-[11px]"><i class="fa-solid fa-circle-xmark mr-1.5 text-red-500"></i> ${item.hallazgo}</td>
+                            <td class="py-3 px-2 align-top text-slate-300 text-[11px]">${item.causa_raiz}</td>
+                            <td class="py-3 px-2 align-top text-emerald-300 font-medium text-[11px]">${item.accion}</td>
+                            <td class="py-3 px-2 align-top text-slate-400 font-mono text-[10px]"><i class="fa-regular fa-user mr-1"></i> ${item.responsable}</td>
+                         </tr>`;
+            });
+            tbody.innerHTML = html;
+            return; // Éxito total
+
+        } catch(err) {
+            if (intentos >= maxIntentos - 1) {
+                tbody.innerHTML = `<tr><td colspan="4" class="py-4 px-6 text-center text-red-400 font-mono text-[11px]"><i class="fa-solid fa-triangle-exclamation mr-1"></i> <b>Límite de Cuota (429/503):</b> Espera 1 minuto o reduce los cambios rápidos de filtros. (${err.message})</td></tr>`;
+                console.error("Gemini Debug Error:", err);
+            }
+            intentos++;
         }
-
-        const jsonRes = await res.json();
-        let rawText = jsonRes.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        rawText = rawText.replace(/```json/gi, '').replace(/```/gi, '').trim();
-        let plan = JSON.parse(rawText);
-
-        let html = '';
-        plan.forEach(item => {
-            html += `<tr class="hover:bg-slate-700/30 transition">
-                        <td class="py-3 px-2 align-top text-red-300 font-semibold text-[11px]"><i class="fa-solid fa-circle-xmark mr-1.5 text-red-500"></i> ${item.hallazgo}</td>
-                        <td class="py-3 px-2 align-top text-slate-300 text-[11px]">${item.causa_raiz}</td>
-                        <td class="py-3 px-2 align-top text-emerald-300 font-medium text-[11px]">${item.accion}</td>
-                        <td class="py-3 px-2 align-top text-slate-400 font-mono text-[10px]"><i class="fa-regular fa-user mr-1"></i> ${item.responsable}</td>
-                     </tr>`;
-        });
-        tbody.innerHTML = html;
-
-    } catch(err) {
-        tbody.innerHTML = `<tr><td colspan="4" class="py-4 px-6 text-center text-red-400 font-mono text-[11px]"><i class="fa-solid fa-triangle-exclamation mr-1"></i> <b>Fallo IA:</b> ${err.message}</td></tr>`;
-        console.error("Gemini Debug Error:", err);
     }
 }
 
