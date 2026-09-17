@@ -69,11 +69,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         await cargarSupabase();
         poblarFiltros();
+        
         ['filtro-solucion', 'filtro-equipo', 'filtro-anio', 'filtro-mes'].forEach(id => {
             document.getElementById(id).addEventListener('change', renderizarCore);
         });
-        document.getElementById('loader').classList.add('opacity-0');
-        setTimeout(() => { document.getElementById('loader').classList.add('hidden'); document.getElementById('dashboard-content').classList.remove('opacity-0'); }, 500);
+
+        // Solución robusta al error "Cannot read properties of null" (Línea 76)
+        const loader = document.getElementById('loader');
+        const content = document.getElementById('dashboard-content');
+        
+        if (loader) {
+            loader.classList.add('opacity-0');
+            setTimeout(() => {
+                loader.classList.add('hidden');
+                if (content) content.classList.remove('opacity-0');
+            }, 500);
+        }
     } catch (e) { console.error("Error BD:", e); }
 });
 
@@ -85,7 +96,10 @@ async function cargarSupabase() {
         if (data && data.length > 0) { acumulador = acumulador.concat(data); offset += chunkSize; if (data.length < chunkSize) keepFetching = false; } else { keepFetching = false; }
     }
     listaRegistros = acumulador.map(r => ({ ...r, solucion: estandarizarNombreSolucion(r.solucion), equipo: String(r.equipo || 'N/A').trim(), proceso: String(r.proceso || 'CIP').trim().toUpperCase() }));
-    document.getElementById('info-registros-totales').innerText = `${listaRegistros.length.toLocaleString()} Registros BD`;
+    
+    const infoRegistros = document.getElementById('info-registros-totales');
+    if (infoRegistros) infoRegistros.innerText = `${listaRegistros.length.toLocaleString()} Registros BD`;
+    
     actualizarSelectores();
     renderizarCore();
 }
@@ -118,11 +132,15 @@ async function importarArchivoExcel(event) {
 // ==========================================
 function poblarFiltros() {
     const s = document.getElementById('filtro-solucion');
+    if(!s) return;
     s.innerHTML = `<option value="TODAS">TODAS LAS SOLUCIONES</option>`;
     [...new Set(PARAMETROS_TECNICOS.map(p => p.solucion))].forEach(sol => s.appendChild(new Option(sol, sol)));
 }
+
 function actualizarSelectores() {
     const eq = document.getElementById('filtro-equipo'); const an = document.getElementById('filtro-anio');
+    if(!eq || !an) return;
+    
     let eqSet = new Set(), anSet = new Set();
     listaRegistros.forEach(r => { if (r.equipo) eqSet.add(r.equipo); if (r.fecha) anSet.add(r.fecha.substring(0, 4)); });
     
@@ -132,9 +150,16 @@ function actualizarSelectores() {
     let anVal = an.value; an.innerHTML = `<option value="TODOS">AÑO</option>`;
     Array.from(anSet).sort().reverse().forEach(a => an.appendChild(new Option(a, a))); an.value = anVal;
 }
+
 function obtenerDatosFiltrados() {
-    const s = document.getElementById('filtro-solucion').value, e = document.getElementById('filtro-equipo').value, 
-          a = document.getElementById('filtro-anio').value, m = document.getElementById('filtro-mes').value;
+    const elS = document.getElementById('filtro-solucion');
+    const elE = document.getElementById('filtro-equipo');
+    const elA = document.getElementById('filtro-anio');
+    const elM = document.getElementById('filtro-mes');
+    
+    if(!elS || !elE || !elA || !elM) return [];
+
+    const s = elS.value, e = elE.value, a = elA.value, m = elM.value;
     
     return listaRegistros.filter(r => {
         let mMes = true;
@@ -189,7 +214,9 @@ Chart.defaults.color = '#64748b';
 
 function getLineSpark(ctxId, data, color) {
     if(sparkInst[ctxId]) sparkInst[ctxId].destroy();
-    const ctx = document.getElementById(ctxId).getContext('2d');
+    const canvas = document.getElementById(ctxId);
+    if(!canvas) return;
+    const ctx = canvas.getContext('2d');
     sparkInst[ctxId] = new Chart(ctx, {
         type: 'line',
         data: { labels: data.map((_,i)=>i), datasets: [{ data: data, borderColor: color, borderWidth: 2, pointRadius: 0, fill: false, tension: 0.3 }] },
@@ -211,20 +238,25 @@ function drawSparklines(datos) {
 }
 
 function drawScatter(datos) {
-    const solFiltro = document.getElementById('filtro-solucion').value;
-    let sol = solFiltro;
+    const elS = document.getElementById('filtro-solucion');
+    const elLabel = document.getElementById('label-scatter');
+    const canvas = document.getElementById('scatterChart');
+    if(!elS || !canvas) return;
+
+    let sol = elS.value;
     if(sol === 'TODAS') {
         let count={}; datos.forEach(r => count[r.solucion] = (count[r.solucion]||0)+1);
         sol = Object.keys(count).length ? Object.keys(count).reduce((a,b)=>count[a]>count[b]?a:b) : 'SOSA';
-        document.getElementById('label-scatter').innerText = `${sol} (Predominante)`;
-    } else { document.getElementById('label-scatter').innerText = sol; }
+        if(elLabel) elLabel.innerText = `${sol} (Predominante)`;
+    } else { 
+        if(elLabel) elLabel.innerText = sol; 
+    }
 
     const regla = PARAMETROS_TECNICOS.find(p => p.solucion === sol);
     const subset = datos.filter(r => r.solucion === sol).slice(0, 60).reverse();
+    const ctx = canvas.getContext('2d');
     
-    const ctx = document.getElementById('scatterChart').getContext('2d');
     if (scatterInst) scatterInst.destroy();
-    
     if(!regla || subset.length===0) { scatterInst = new Chart(ctx, { type:'line', data:{labels:[],datasets:[]} }); return; }
 
     let min = regla.min, max = regla.max;
@@ -248,7 +280,9 @@ function drawScatter(datos) {
 }
 
 function drawRadar(datos) {
-    const ctx = document.getElementById('radarChart').getContext('2d');
+    const canvas = document.getElementById('radarChart');
+    if(!canvas) return;
+    const ctx = canvas.getContext('2d');
     if (radarInst) radarInst.destroy();
 
     let procs = {};
@@ -275,6 +309,8 @@ function drawRadar(datos) {
 
 function drawHeatmap(datos, desviosList) {
     const container = document.getElementById('heatmap-container');
+    if(!container) return;
+
     if(desviosList.length === 0) { container.innerHTML = `<div class="h-full flex items-center justify-center text-slate-400 italic">No hay desvíos en el periodo para dibujar el mapa de calor.</div>`; return; }
 
     let heatmapData = {};
@@ -306,7 +342,7 @@ function drawHeatmap(datos, desviosList) {
 }
 
 // ==========================================
-// 8. ASISTENTE IA GEMINI (CON DEPURACIÓN AVANZADA)
+// 8. ASISTENTE IA GEMINI (ACTUALIZADO A MODELO UNIVERSAL)
 // ==========================================
 function obtenerApiKeySegura() {
     return localStorage.getItem('poes_gemini_key') || '';
@@ -314,6 +350,7 @@ function obtenerApiKeySegura() {
 
 function actualizarBadgeIA() {
     const badge = document.getElementById('badge-ia-status');
+    if(!badge) return;
     const key = obtenerApiKeySegura();
     if (key) {
         badge.innerHTML = `<span class="w-2 h-2 bg-accent-green rounded-full animate-ping inline-block mr-1"></span> IA Activa`;
@@ -326,6 +363,8 @@ function actualizarBadgeIA() {
 
 async function generarPlanAccionIA(desviosList) {
     const tbody = document.getElementById('ai-action-plan-tbody');
+    if(!tbody) return;
+    
     const apiKey = obtenerApiKeySegura();
     
     if(desviosList.length === 0) {
@@ -334,26 +373,28 @@ async function generarPlanAccionIA(desviosList) {
     }
 
     if(!apiKey) {
-        tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-slate-500 font-mono italic">Haz clic en <b>"IA Config"</b> en la barra superior para ingresar tu API Key y habilitar la predicción automática.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-slate-500 font-mono italic">Haz clic en <b>"IA Config"</b> en la barra superior para ingresar tu API Key y habilitar la predicción.</td></tr>`;
         return;
     }
 
-    tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-emerald-400/70 font-mono animate-pulse"><i class="fa-solid fa-microchip mr-2"></i>Analizando datos con Gemini 1.5 Flash...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-emerald-400/70 font-mono animate-pulse"><i class="fa-solid fa-microchip mr-2"></i>Analizando datos con Google AI...</td></tr>`;
 
     let muestraIA = desviosList.slice(0, 10).map(r => `Equipo: ${r.equipo} | Solución: ${r.solucion} | Conc: ${r.concen} | Falla: ${r.tipo} | Resp: ${r.operario || r.laboratorista}`);
     const prompt = `Eres un Auditor Jefe de POES. Analiza estos desvíos en planta láctea:\n${muestraIA.join('\n')}\n\nGenera un "Plan de Acciones Correctivas" en formato JSON estricto, sin markdown adicional, con un arreglo de objetos. Usa esta estructura exacta:\n[{"hallazgo": "Resumen del desvío", "causa_raiz": "Causa técnica probable", "accion": "Acción inmediata", "responsable": "Rol o nombre del operador/técnico"}]\nDevuelve máximo 4 acciones críticas consolidadas.`;
 
     try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+        // ACTUALIZADO: Usamos gemini-1.5-pro-latest para evitar el error 404 globalmente
+        const modeloIA = 'gemini-1.5-pro-latest';
+        
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modeloIA}:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
 
-        // Este bloque captura el error exacto si Google rechaza la clave
         if (!res.ok) {
             const errorData = await res.json();
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {`);
+            throw new Error(`Google Error (${res.status}): ${errorData.error?.message || 'Error desconocido'}`);
         }
 
         const jsonRes = await res.json();
@@ -364,17 +405,16 @@ async function generarPlanAccionIA(desviosList) {
         let html = '';
         plan.forEach(item => {
             html += `<tr class="hover:bg-slate-700/30 transition">
-                        <td class="py-3 px-2 align-top text-red-300 font-semibold"><i class="fa-solid fa-circle-xmark mr-1.5 text-red-500"></i> ${item.hallazgo}</td>
-                        <td class="py-3 px-2 align-top text-slate-300">${item.causa_raiz}</td>
-                        <td class="py-3 px-2 align-top text-emerald-300 font-medium">${item.accion}</td>
-                        <td class="py-3 px-2 align-top text-slate-400 font-mono"><i class="fa-regular fa-user mr-1"></i> ${item.responsable}</td>
+                        <td class="py-3 px-2 align-top text-red-300 font-semibold text-[11px]"><i class="fa-solid fa-circle-xmark mr-1.5 text-red-500"></i> ${item.hallazgo}</td>
+                        <td class="py-3 px-2 align-top text-slate-300 text-[11px]">${item.causa_raiz}</td>
+                        <td class="py-3 px-2 align-top text-emerald-300 font-medium text-[11px]">${item.accion}</td>
+                        <td class="py-3 px-2 align-top text-slate-400 font-mono text-[10px]"><i class="fa-regular fa-user mr-1"></i> ${item.responsable}</td>
                      </tr>`;
         });
         tbody.innerHTML = html;
 
     } catch(err) {
-        // Imprime el error EXACTO en la pantalla
-        tbody.innerHTML = `<tr><td colspan="4" class="py-4 px-6 text-center text-red-400 font-mono text-[11px]"><i class="fa-solid fa-triangle-exclamation mr-1"></i> <b>Detalle del Error:</b> ${err.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="py-4 px-6 text-center text-red-400 font-mono text-[11px]"><i class="fa-solid fa-triangle-exclamation mr-1"></i> <b>Fallo IA:</b> ${err.message}</td></tr>`;
         console.error("Gemini Debug Error:", err);
     }
 }
@@ -383,7 +423,10 @@ async function generarPlanAccionIA(desviosList) {
 // 9. MODALES (DETALLE E IA CONFIG)
 // ==========================================
 function abrirModalDetalle(tipo) {
-    const modal = document.getElementById('modal-detalle'); const tbody = document.getElementById('modal-tbody'); tbody.innerHTML = '';
+    const modal = document.getElementById('modal-detalle'); const tbody = document.getElementById('modal-tbody'); 
+    if(!modal || !tbody) return;
+    
+    tbody.innerHTML = '';
     const datos = obtenerDatosFiltrados();
     let rsl = [];
     if(tipo === 'riesgo') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)<p.min;});
@@ -404,15 +447,25 @@ function abrirModalDetalle(tipo) {
     }
     modal.classList.remove('hidden');
 }
-function cerrarModalDetalle() { document.getElementById('modal-detalle').classList.add('hidden'); }
+
+function cerrarModalDetalle() { 
+    const modal = document.getElementById('modal-detalle');
+    if(modal) modal.classList.add('hidden'); 
+}
 
 function abrirConfigIA() {
     const modal = document.getElementById('modal-config-ia');
     const input = document.getElementById('input-api-key');
+    if(!modal || !input) return;
     input.value = obtenerApiKeySegura();
     modal.classList.remove('hidden');
 }
-function cerrarConfigIA() { document.getElementById('modal-config-ia').classList.add('hidden'); }
+
+function cerrarConfigIA() { 
+    const modal = document.getElementById('modal-config-ia');
+    if(modal) modal.classList.add('hidden'); 
+}
+
 function guardarApiKey() {
     const inputVal = document.getElementById('input-api-key').value.trim();
     if(inputVal) {
@@ -424,9 +477,11 @@ function guardarApiKey() {
         alert("Por favor, ingresa una clave válida.");
     }
 }
+
 function limpiarApiKey() {
     localStorage.removeItem('poes_gemini_key');
-    document.getElementById('input-api-key').value = '';
+    const input = document.getElementById('input-api-key');
+    if(input) input.value = '';
     cerrarConfigIA();
     actualizarBadgeIA();
     renderizarCore();
