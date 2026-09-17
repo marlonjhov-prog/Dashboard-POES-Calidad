@@ -1,12 +1,32 @@
 // ==========================================
-// 1. CREDENCIALES DE SUPABASE
+// 1. CREDENCIALES DE SUPABASE Y TABLA ESTRICTA
 // ==========================================
 const PROYECTO_URL = 'https://pemughavmbgcxxahffpn.supabase.co';
 const PUBLISHABLE_KEY = 'sb_publishable_oUVzPeOCzi89qXy7Or3GDw_JzcpuKfd';
 
 const clienteSupabase = supabase.createClient(PROYECTO_URL, PUBLISHABLE_KEY);
 
-let listaParametros = [];
+// Tabla dura de rangos para garantizar precisión analítica exacta (Single Source of Truth)
+const PARAMETROS_TECNICOS = [
+    { solucion: 'SOSA', min: 1.5, max: 2.5 },
+    { solucion: 'SOSA (MADRE)', min: 35, max: 50 },
+    { solucion: 'ÁCIDO NITRICO', min: 0.8, max: 2.0 },
+    { solucion: 'ACIDO NITRICO', min: 0.8, max: 2.0 }, // Variante sin tilde por si acaso
+    { solucion: 'ACIDO NITRICO MADRE', min: 55, max: 65 },
+    { solucion: 'AGUA ENJUAGUE', min: 6.5, max: 7.6 },
+    { solucion: 'PEROXIDO', min: 35, max: 45 },
+    { solucion: 'ÁCIDO PERACÉTICO', min: 200, max: 450 },
+    { solucion: 'ACIDO PERACETICO', min: 200, max: 450 }, // Variante sin tilde
+    { solucion: 'BACOXIN', min: 100, max: 200 },
+    { solucion: 'SOSA (CENTRO ACOPIO)', min: 20, max: 30 },
+    { solucion: 'SOSA (PASIVACIÓN)', min: 2.5, max: 5 },
+    { solucion: 'SOSA (PASIVACION)', min: 2.5, max: 5 }, // Variante sin tilde
+    { solucion: 'ÁCIDO (PASIVACIÓN)', min: 8, max: 15 },
+    { solucion: 'ACIDO (PASIVACION)', min: 8, max: 15 }, // Variante sin tilde
+    { solucion: 'ACIDO FOSFORICO', min: 0.8, max: 2.0 },
+    { solucion: 'CLORO', min: 0, max: 200 }
+];
+
 let listaRegistros = [];
 let loteActualCarga = 0;
 const tamañoLoteBloque = 4000;
@@ -15,17 +35,21 @@ let chartStatusInstance = null;
 let chartTrendInstance = null;
 let chartEquiposSolucionesInstance = null;
 
+// Normalizador de texto para asegurar coincidencias exactas
+function normalizarTexto(texto) {
+    if (!texto) return '';
+    return texto.trim().toUpperCase();
+}
+
 // ==========================================
 // 2. INICIALIZACIÓN
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log("Iniciando Dashboard POES Gerencial Masivo...");
+    console.log("Iniciando motor analítico con validación estricta de rangos...");
     try {
-        await descargarParametros();
         await cargarMasDatosSupabase();
-        poblarFiltrosSelect();
+        poblarFiltrosSelectDesdeDatos();
         configurarEventosFiltros();
-        
         revelarInterfazDashboard();
     } catch (error) {
         console.error("Error crítico:", error);
@@ -40,14 +64,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // ==========================================
-// 3. CARGA DESDE SUPABASE Y EXCEL
+// 3. CARGA DESDE SUPABASE Y EXCEL (INTACTO)
 // ==========================================
-async function descargarParametros() {
-    const res = await clienteSupabase.from('parametros_soluciones').select('*');
-    if (res.error) throw res.error;
-    listaParametros = res.data;
-}
-
 async function cargarMasDatosSupabase() {
     const btnCargar = document.getElementById('btn-cargar-mas');
     if (btnCargar) {
@@ -143,12 +161,14 @@ async function importarArchivoExcel(event) {
 // ==========================================
 // 4. FILTROS Y SELECTORES DINÁMICOS
 // ==========================================
-function poblarFiltrosSelect() {
+function poblarFiltrosSelectDesdeDatos() {
     const selectSolucion = document.getElementById('filtro-solucion');
-    listaParametros.forEach(p => {
+    const solucionesUnicas = [...new Set(PARAMETROS_TECNICOS.map(p => p.solucion))];
+    
+    solucionesUnicas.forEach(sol => {
         const opt = document.createElement('option');
-        opt.value = p.solucion;
-        opt.innerText = p.solucion;
+        opt.value = sol;
+        opt.innerText = sol;
         selectSolucion.appendChild(opt);
     });
 }
@@ -198,7 +218,7 @@ function obtenerDatosFiltrados() {
     const mesSel = document.getElementById('filtro-mes').value;
 
     return listaRegistros.filter(r => {
-        let matchSol = (solSel === 'TODAS' || r.solucion === solSel);
+        let matchSol = (solSel === 'TODAS' || normalizarTexto(r.solucion) === solSel);
         let matchEq = (eqSel === 'TODOS' || r.equipo === eqSel);
         let matchAnio = (anioSel === 'TODOS' || (r.fecha && r.fecha.substring(0, 4) === anioSel));
         let matchMes = (mesSel === 'TODOS' || (r.fecha && r.fecha.substring(5, 7) === mesSel));
@@ -207,7 +227,7 @@ function obtenerDatosFiltrados() {
 }
 
 // ==========================================
-// 5. PROCESAMIENTO ANALÍTICO
+// 5. PROCESAMIENTO ANALÍTICO EXACTO
 // ==========================================
 function aplicarFiltrosYRenderizar() {
     const datosActivos = obtenerDatosFiltrados();
@@ -218,11 +238,13 @@ function aplicarFiltrosYRenderizar() {
     let resumenDesvios = { equiposRiesgo: {}, equiposExceso: {} };
 
     datosActivos.forEach(fila => {
-        const regla = listaParametros.find(p => p.solucion === fila.solucion);
+        const solFila = normalizarTexto(fila.solucion);
+        const regla = PARAMETROS_TECNICOS.find(p => p.solucion === solFila);
+        
         if (regla) {
             const val = parseFloat(fila.concen);
-            const min = parseFloat(regla.rango_min);
-            const max = parseFloat(regla.rango_max);
+            const min = parseFloat(regla.min);
+            const max = parseFloat(regla.max);
 
             if (val < min) {
                 riesgoDeficit++;
@@ -251,7 +273,7 @@ function aplicarFiltrosYRenderizar() {
 }
 
 // ==========================================
-// 6. MOTOR GRÁFICO (DONA, TENDENCIA, BARRAS HORIZONTALES)
+// 6. MOTOR GRÁFICO (DONA, TENDENCIA INTELIGENTE, BARRAS)
 // ==========================================
 function renderizarGraficas(registros, kpis) {
     const total = kpis.total > 0 ? kpis.total : 1;
@@ -273,7 +295,7 @@ function renderizarGraficas(registros, kpis) {
             labels: [`Óptimo (${pOptimo}%)`, `Exceso (${pExceso}%)`, `Riesgo (${pRiesgo}%)`],
             datasets: [{
                 data: [kpis.conformes, kpis.excesoIneficiente, kpis.riesgoDeficit],
-                backgroundColor: ['#1f8c22', '#f59e0b', '#dc2626'],
+                backgroundColor: ['#10b981', '#f59e0b', '#dc2626'],
                 borderWidth: 2,
                 borderColor: '#ffffff',
                 hoverOffset: 4
@@ -287,18 +309,38 @@ function renderizarGraficas(registros, kpis) {
         }
     });
 
-    // Gráfico Líneas (Tendencia)
+    // Gráfico Líneas (Tendencia Inteligente)
     const solActiva = document.getElementById('filtro-solucion').value;
-    const quimico = solActiva === 'TODAS' ? 'SOSA' : solActiva;
+    const quimico = solActiva === 'TODAS' ? 'SOSA (MADRE)' : solActiva; // Fallback por defecto si no hay filtro
     document.getElementById('label-quimico-activo').innerText = quimico;
 
-    const regsTrend = registros.filter(r => r.solucion === quimico).slice(0, 30).reverse();
-    const reglaTrend = listaParametros.find(p => p.solucion === quimico);
+    const reglaTrend = PARAMETROS_TECNICOS.find(p => p.solucion === normalizarTexto(quimico));
+    const regsTrend = registros.filter(r => normalizarTexto(r.solucion) === normalizarTexto(quimico)).slice(0, 45).reverse();
 
     const ctxTrend = document.getElementById('trendChart').getContext('2d');
     if (chartTrendInstance) chartTrendInstance.destroy();
 
-    if (!reglaTrend || regsTrend.length === 0) return;
+    if (!reglaTrend || regsTrend.length === 0) {
+        // Limpiar canvas si no hay datos
+        chartTrendInstance = new Chart(ctxTrend, { type: 'line', data: { labels: [], datasets: [] }});
+        return;
+    }
+
+    const min = parseFloat(reglaTrend.min);
+    const max = parseFloat(reglaTrend.max);
+
+    // Mapeo dinámico de colores y tamaños según desvío
+    const coloresFondoPunto = regsTrend.map(r => {
+        const v = parseFloat(r.concen);
+        if (v < min) return '#dc2626'; // Rojo (Riesgo)
+        if (v > max) return '#f59e0b'; // Naranja (Exceso)
+        return '#10b981'; // Verde (Óptimo)
+    });
+
+    const tamañosPunto = regsTrend.map(r => {
+        const v = parseFloat(r.concen);
+        return (v < min || v > max) ? 7 : 4; // Resaltar valores atípicos
+    });
 
     chartTrendInstance = new Chart(ctxTrend, {
         type: 'line',
@@ -306,40 +348,61 @@ function renderizarGraficas(registros, kpis) {
             labels: regsTrend.map(r => (r.fecha || '') + ' ' + (r.hora ? r.hora.substring(0,5) : '')),
             datasets: [
                 {
-                    label: 'Concentración Real (%)',
+                    label: 'Concentración Real',
                     data: regsTrend.map(r => parseFloat(r.concen)),
-                    borderColor: '#3b82f6',
-                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    borderColor: '#94a3b8',
+                    backgroundColor: 'rgba(148, 163, 184, 0.1)',
                     borderWidth: 2,
                     tension: 0.3,
                     fill: true,
-                    pointRadius: 3
+                    pointBackgroundColor: coloresFondoPunto,
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 1.5,
+                    pointRadius: tamañosPunto,
+                    pointHoverRadius: 8
                 },
                 {
-                    label: 'Máx. (' + reglaTrend.rango_max + '%)',
-                    data: Array(regsTrend.length).fill(parseFloat(reglaTrend.rango_max)),
-                    borderColor: '#f59e0b', borderWidth: 2, borderDash: [5, 5], pointRadius: 0
+                    label: 'Máx. (' + max + ')',
+                    data: Array(regsTrend.length).fill(max),
+                    borderColor: '#f59e0b', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, fill: false
                 },
                 {
-                    label: 'Mín. (' + reglaTrend.rango_min + '%)',
-                    data: Array(regsTrend.length).fill(parseFloat(reglaTrend.rango_min)),
-                    borderColor: '#dc2626', borderWidth: 2, borderDash: [5, 5], pointRadius: 0
+                    label: 'Mín. (' + min + ')',
+                    data: Array(regsTrend.length).fill(min),
+                    borderColor: '#dc2626', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, fill: false
                 }
             ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { position: 'top' }, tooltip: { mode: 'index', intersect: false } },
+            plugins: { 
+                legend: { position: 'top' },
+                tooltip: { 
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) label += ': ';
+                            if (context.parsed.y !== null) label += context.parsed.y;
+                            const v = context.parsed.y;
+                            if (context.datasetIndex === 0) {
+                                if (v < min) label += ' (RIESGO)';
+                                else if (v > max) label += ' (EXCESO)';
+                                else label += ' (ÓPTIMO)';
+                            }
+                            return label;
+                        }
+                    }
+                } 
+            },
             scales: {
-                y: { grid: { color: '#f1f5f9' }, suggestedMin: parseFloat(reglaTrend.rango_min) - 0.4, suggestedMax: parseFloat(reglaTrend.rango_max) + 0.4 },
+                y: { grid: { color: '#f1f5f9' }, suggestedMin: min - (min * 0.2), suggestedMax: max + (max * 0.2) },
                 x: { grid: { display: false }, ticks: { maxRotation: 45, minRotation: 45, font: { size: 9 } } }
             }
         }
     });
 }
 
-// BARRAS HORIZONTALES 100% APILADAS POR EQUIPO (Estilo Imagen Referencia)
 function renderizarGraficoSolucionesHorizontal(registros) {
     const ctx = document.getElementById('equiposSolucionesChart').getContext('2d');
     if (chartEquiposSolucionesInstance) chartEquiposSolucionesInstance.destroy();
@@ -349,7 +412,7 @@ function renderizarGraficoSolucionesHorizontal(registros) {
 
     registros.forEach(r => {
         let eq = r.equipo || 'SIN EQUIPO';
-        let sol = r.solucion || 'OTRA';
+        let sol = normalizarTexto(r.solucion) || 'OTRA';
         solucionesUnicas.add(sol);
         
         if (!conteoEqSol[eq]) conteoEqSol[eq] = { total: 0 };
@@ -358,7 +421,6 @@ function renderizarGraficoSolucionesHorizontal(registros) {
     });
 
     let equiposLabels = Object.keys(conteoEqSol);
-    // Limitar a 10 equipos para legibilidad si no hay filtro de equipo específico
     if (document.getElementById('filtro-equipo').value === 'TODOS') {
         equiposLabels = equiposLabels.slice(0, 10);
     }
@@ -385,16 +447,12 @@ function renderizarGraficoSolucionesHorizontal(registros) {
         type: 'bar',
         data: { labels: equiposLabels, datasets: datasets },
         options: {
-            indexAxis: 'y', // Barra Horizontal
+            indexAxis: 'y',
             responsive: true,
             maintainAspectRatio: false,
             plugins: { 
                 legend: { position: 'top', labels: { font: { size: 10, weight: 'bold' } } },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) { return ` ${context.dataset.label}: ${context.parsed.x}%`; }
-                    }
-                }
+                tooltip: { callbacks: { label: function(context) { return ` ${context.dataset.label}: ${context.parsed.x}%`; } } }
             },
             scales: {
                 x: { stacked: true, max: 100, ticks: { callback: v => v + '%' }, grid: { color: '#f1f5f9' } },
@@ -405,22 +463,21 @@ function renderizarGraficoSolucionesHorizontal(registros) {
 }
 
 // ==========================================
-// 7. ASISTENTE IA (LÓGICA CONTEXTUAL)
+// 7. ASISTENTE IA (LÓGICA MATEMÁTICA EXACTA)
 // ==========================================
 function generarAlertasIA(registros, metricas) {
     const contenedor = document.getElementById('ai-alerts-container');
     let pRiesgo = metricas.total > 0 ? ((metricas.riesgoDeficit / metricas.total) * 100).toFixed(1) : 0;
     let pExceso = metricas.total > 0 ? ((metricas.excesoIneficiente / metricas.total) * 100).toFixed(1) : 0;
 
-    // Lógica dinámica Inocuidad
     let riesgoHtml = '';
     if (metricas.riesgoDeficit === 0) {
         riesgoHtml = `
             <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex gap-3 items-start">
                 <i class="fa-solid fa-circle-check text-corporate-green text-lg mt-0.5"></i>
                 <div>
-                    <h4 class="font-bold text-emerald-900 mb-1">Inocuidad Garantizada (Eficacia 100%)</h4>
-                    <p class="text-xs text-slate-700">No se detectan sub-dosificaciones en el periodo y equipos seleccionados. Los parámetros de esterilización CIP se mantienen dentro de los límites operativos seguros.</p>
+                    <h4 class="font-bold text-emerald-900 mb-1">Inocuidad Garantizada (0 Desvíos)</h4>
+                    <p class="text-xs text-slate-700">Validación de rangos mínima superada. No se detectan concentraciones inferiores al límite operativo establecido en la matriz POES.</p>
                 </div>
             </div>`;
     } else {
@@ -429,21 +486,20 @@ function generarAlertasIA(registros, metricas) {
             <div class="bg-red-50 border border-red-200 rounded-xl p-4 flex gap-3 items-start">
                 <i class="fa-solid fa-triangle-exclamation text-danger-red text-lg mt-0.5"></i>
                 <div>
-                    <h4 class="font-bold text-red-900 mb-1">Alerta Crítica Microbiológica</h4>
-                    <p class="text-xs text-slate-700">Se detectan <b>${metricas.riesgoDeficit} desvíos (${pRiesgo}%)</b> por debajo del límite técnico. Mayor incidencia crítica localizada en: <b>${equipoCritico}</b>. Se requiere revisión inmediata del lazo de dosificación.</p>
+                    <h4 class="font-bold text-red-900 mb-1">Alerta Crítica: Sub-dosificación</h4>
+                    <p class="text-xs text-slate-700">Validación detecta <b>${metricas.riesgoDeficit} desvíos exactos (${pRiesgo}%)</b> por debajo del límite mínimo. Principal incidencia en equipo: <b>${equipoCritico}</b>. Riesgo microbiológico activo.</p>
                 </div>
             </div>`;
     }
 
-    // Lógica dinámica Costos/Eficiencia
     let excesoHtml = '';
     if (metricas.excesoIneficiente === 0) {
         excesoHtml = `
             <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex gap-3 items-start">
                 <i class="fa-solid fa-seedling text-corporate-green text-lg mt-0.5"></i>
                 <div>
-                    <h4 class="font-bold text-emerald-900 mb-1">Eficiencia Operativa Óptima</h4>
-                    <p class="text-xs text-slate-700">Consumo de químicos estable. No se registran eventos de sobredosificación, mitigando costos por desperdicio y fatiga prematura de materiales en la línea.</p>
+                    <h4 class="font-bold text-emerald-900 mb-1">Eficiencia Operativa (0 Desvíos)</h4>
+                    <p class="text-xs text-slate-700">Consumo químico controlado. La validación matemática descarta eventos de sobredosificación por encima del máximo permitido.</p>
                 </div>
             </div>`;
     } else {
@@ -452,8 +508,8 @@ function generarAlertasIA(registros, metricas) {
             <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3 items-start">
                 <i class="fa-solid fa-flask-vial text-alert-yellow text-lg mt-0.5"></i>
                 <div>
-                    <h4 class="font-bold text-amber-900 mb-1">Ineficiencia por Sobreconsumo Químico</h4>
-                    <p class="text-xs text-slate-700">Se registran <b>${metricas.excesoIneficiente} eventos (${pExceso}%)</b> de exceso químico. El mayor índice de desperdicio ocurre en: <b>${equipoGasto}</b>. Sugerencia: Recalibrar parámetros PLC de conductividad.</p>
+                    <h4 class="font-bold text-amber-900 mb-1">Ineficiencia: Sobredosificación Confirmada</h4>
+                    <p class="text-xs text-slate-700">El sistema contabiliza <b>${metricas.excesoIneficiente} registros (${pExceso}%)</b> que superan el umbral máximo técnico. La mayor fuga se ubica en: <b>${equipoGasto}</b>.</p>
                 </div>
             </div>`;
     }
@@ -462,7 +518,7 @@ function generarAlertasIA(registros, metricas) {
 }
 
 // ==========================================
-// 8. MODAL INTERACTIVO (DRILL-DOWN)
+// 8. MODAL INTERACTIVO (DRILL-DOWN EXACTO)
 // ==========================================
 function abrirModalDetalle(tipo) {
     const modal = document.getElementById('modal-detalle');
@@ -476,29 +532,29 @@ function abrirModalDetalle(tipo) {
     if (tipo === 'riesgo') {
         titulo.innerText = "Desglose de Desvíos por Riesgo (< Mínimo)";
         filtradosModal = datosActivos.filter(fila => {
-            const regla = listaParametros.find(p => p.solucion === fila.solucion);
-            return regla && parseFloat(fila.concen) < parseFloat(regla.rango_min);
+            const regla = PARAMETROS_TECNICOS.find(p => p.solucion === normalizarTexto(fila.solucion));
+            return regla && parseFloat(fila.concen) < parseFloat(regla.min);
         });
     } else if (tipo === 'exceso') {
         titulo.innerText = "Desglose de Desvíos por Sobredosificación (> Máximo)";
         filtradosModal = datosActivos.filter(fila => {
-            const regla = listaParametros.find(p => p.solucion === fila.solucion);
-            return regla && parseFloat(fila.concen) > parseFloat(regla.rango_max);
+            const regla = PARAMETROS_TECNICOS.find(p => p.solucion === normalizarTexto(fila.solucion));
+            return regla && parseFloat(fila.concen) > parseFloat(regla.max);
         });
     }
 
     if (filtradosModal.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400">No hay registros en esta categoría con los filtros actuales.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400 font-bold">Sin registros de desviación bajo los parámetros actuales.</td></tr>`;
     } else {
         filtradosModal.slice(0, 300).forEach(r => {
             const tr = document.createElement('tr');
             tr.className = "hover:bg-slate-50 transition border-b border-slate-100";
             tr.innerHTML = `
-                <td class="py-2.5 px-3 font-semibold">${r.fecha || ''} ${r.hora || ''}</td>
+                <td class="py-2.5 px-3 font-semibold text-slate-600">${r.fecha || ''} ${r.hora || ''}</td>
                 <td class="py-2.5 px-3 font-bold text-slate-900">${r.equipo || 'N/A'}</td>
-                <td class="py-2.5 px-3 text-slate-600">${r.solucion || 'N/A'}</td>
-                <td class="py-2.5 px-3 font-bold text-blue-600">${r.concen || 0}</td>
-                <td class="py-2.5 px-3 text-slate-500">${r.operario || 'N/A'}</td>
+                <td class="py-2.5 px-3 text-slate-700">${r.solucion || 'N/A'}</td>
+                <td class="py-2.5 px-3 font-black ${tipo === 'riesgo' ? 'text-danger-red' : 'text-alert-yellow'}">${r.concen || 0}</td>
+                <td class="py-2.5 px-3 text-slate-500 text-[11px]">${r.operario || 'N/A'}</td>
             `;
             tbody.appendChild(tr);
         });
