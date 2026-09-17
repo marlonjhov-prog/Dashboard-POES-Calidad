@@ -236,9 +236,8 @@ function obtenerDatosFiltrados() {
         if (mesSel !== 'TODOS') {
             let mesBD = (r.fecha && r.fecha.length >= 7) ? r.fecha.substring(5, 7) : ''; 
             let nombreMesBD = normalizarTexto(r.mes); 
-            let mesSelNorm = normalizarTexto(mesSel);
             
-            matchMes = (mesBD === mesSel || nombreMesBD.includes(mesSelNorm) || obtenerNombreMes(mesSel) === nombreMesBD);
+            matchMes = (mesBD === mesSel || nombreMesBD.includes(normalizarTexto(mesSel)) || obtenerNombreMes(mesSel) === nombreMesBD);
         }
         
         return matchSol && matchEq && matchAnio && matchMes;
@@ -299,9 +298,9 @@ function aplicarFiltrosYRenderizar() {
 }
 
 // ==========================================
-// 5. MOTOR GRÁFICO (TENDENCIA O MATRIZ DE SEMÁFOROS)
+// 5. MOTOR GRÁFICO SINCRONIZADO AL FILTRO ACTIVO
 // ==========================================
-function renderizarGraficas(registros, kpis) {
+function renderizarGraficas(registrosFiltrados, kpis) {
     const total = kpis.total > 0 ? kpis.total : 1;
     const pOptimo = ((kpis.conformes / total) * 100).toFixed(1);
     const pExceso = ((kpis.excesoIneficiente / total) * 100).toFixed(1);
@@ -330,13 +329,13 @@ function renderizarGraficas(registros, kpis) {
     const solActiva = document.getElementById('filtro-solucion').value;
     const containerTrend = document.getElementById('trendChart').parentNode;
 
-    // SI SELECCIONA "TODAS" LAS SOLUCIONES: Mostrar Matriz de Semáforos Ejecutivos basada en los datos filtrados
+    // SI SELECCIONA "TODAS": Matriz de Semáforos calculada EXCLUSIVAMENTE con 'registrosFiltrados' (respeta Mes, Equipo, Año)
     if (solActiva === 'TODAS') {
         document.getElementById('label-quimico-activo').innerText = "TODAS LAS SOLUCIONES";
         if (chartTrendInstance) { chartTrendInstance.destroy(); chartTrendInstance = null; }
 
         let resumenSoluciones = {};
-        registros.forEach(r => {
+        registrosFiltrados.forEach(r => {
             let sol = r.solucion;
             if (!resumenSoluciones[sol]) resumenSoluciones[sol] = { total: 0, conformes: 0, exceso: 0, riesgo: 0 };
             resumenSoluciones[sol].total++;
@@ -407,7 +406,7 @@ function renderizarGraficas(registros, kpis) {
         return;
     }
 
-    // SI SELECCIONA UN QUÍMICO ESPECÍFICO: Renderizar Gráfica de Tendencia sincronizada con el mes y equipo filtrado
+    // SI SELECCIONA UN QUÍMICO ESPECÍFICO: Renderizar Gráfica de Tendencia filtrada
     document.getElementById('label-quimico-activo').innerText = solActiva;
     
     if (!document.getElementById('trendChart')) {
@@ -415,7 +414,7 @@ function renderizarGraficas(registros, kpis) {
     }
 
     const reglaTrend = PARAMETROS_TECNICOS.find(p => p.solucion === solActiva);
-    const regsTrend = registros.filter(r => r.solucion === solActiva).slice(0, 45).reverse();
+    const regsTrend = registrosFiltrados.filter(r => r.solucion === solActiva).slice(0, 45).reverse();
 
     const ctxTrend = document.getElementById('trendChart').getContext('2d');
     if (chartTrendInstance) chartTrendInstance.destroy();
