@@ -1,300 +1,500 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>POES Control Center - Lácteos San Antonio</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- SheetJS -->
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <!-- Supabase -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        'brand-dark': '#0f172a',
-                        'brand-panel': '#1e293b',
-                        'accent-green': '#10b981',
-                        'risk-red': '#ef4444',
-                        'warn-yellow': '#f59e0b'
-                    }
-                }
-            }
+// ==========================================
+// 1. CREDENCIALES DE SUPABASE
+// ==========================================
+const PROYECTO_URL = 'https://pemughavmbgcxxahffpn.supabase.co';
+const PUBLISHABLE_KEY = 'sb_publishable_oUVzPeOCzi89qXy7Or3GDw_JzcpuKfd';
+const clienteSupabase = supabase.createClient(PROYECTO_URL, PUBLISHABLE_KEY);
+
+// ==========================================
+// 2. CONSTANTES TÉCNICAS
+// ==========================================
+const PARAMETROS_TECNICOS = [
+    { solucion: 'SOSA', min: 1.5, max: 2.5 },
+    { solucion: 'SOSA (MADRE)', min: 35, max: 50 },
+    { solucion: 'ÁCIDO NÍTRICO', min: 0.8, max: 2.0 },
+    { solucion: 'ÁCIDO NÍTRICO MADRE', min: 55, max: 65 },
+    { solucion: 'AGUA ENJUAGUE', min: 6.5, max: 7.6 },
+    { solucion: 'PEROXIDO', min: 35, max: 45 },
+    { solucion: 'ÁCIDO PERACÉTICO', min: 200, max: 450 },
+    { solucion: 'BACOXIN', min: 100, max: 200 },
+    { solucion: 'SOSA (CENTRO ACOPIO)', min: 20, max: 30 },
+    { solucion: 'SOSA (PASIVACIÓN)', min: 2.5, max: 5 },
+    { solucion: 'ÁCIDO (PASIVACIÓN)', min: 8, max: 15 },
+    { solucion: 'ÁCIDO FOSFÓRICO', min: 0.8, max: 2.0 },
+    { solucion: 'CLORO', min: 0, max: 200 }
+];
+
+let listaRegistros = [];
+let desviosUltimoFiltro = [];
+let scatterInst = null;
+let radarInst = null;
+let sparkInst = { ef: null, ri: null, ex: null, to: null };
+
+// ==========================================
+// 3. NORMALIZADORES
+// ==========================================
+function n(t) { return t ? String(t).trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : ''; }
+function parseConcen(v) { let num = parseFloat(String(v).replace(',', '.')); return isNaN(num) ? 0 : num; }
+function estandarizarFechaParaBD(f) {
+    if (!f) return new Date().toISOString().split('T')[0];
+    if (typeof f === 'number') return new Date((f - 25569) * 86400 * 1000).toISOString().split('T')[0];
+    const s = String(f).trim();
+    if (s.match(/^\d{4}-\d{2}-\d{2}/)) return s.substring(0, 10);
+    const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+    return new Date().toISOString().split('T')[0];
+}
+function estandarizarNombreSolucion(nombre) {
+    let l = n(nombre);
+    if (l.includes('SOSA (MADRE)')) return 'SOSA (MADRE)';
+    if (l.includes('SOSA (CENTRO ACOPIO)')) return 'SOSA (CENTRO ACOPIO)';
+    if (l.includes('SOSA (PASIVACION')) return 'SOSA (PASIVACIÓN)';
+    if (l.includes('SOSA')) return 'SOSA';
+    if (l.includes('ACIDO NITRICO MADRE')) return 'ÁCIDO NÍTRICO MADRE';
+    if (l.includes('ACIDO NITRICO')) return 'ÁCIDO NÍTRICO';
+    if (l.includes('ACIDO PERACETICO')) return 'ÁCIDO PERACÉTICO';
+    if (l.includes('ACIDO FOSFORICO')) return 'ÁCIDO FOSFÓRICO';
+    if (l.includes('ACIDO (PASIVACION')) return 'ÁCIDO (PASIVACIÓN)';
+    if (l.includes('AGUA ENJUAGUE')) return 'AGUA ENJUAGUE';
+    if (l.includes('PEROXIDO')) return 'PEROXIDO';
+    if (l.includes('BACOXIN')) return 'BACOXIN';
+    if (l.includes('CLORO')) return 'CLORO';
+    return String(nombre || 'S/N').trim().toUpperCase();
+}
+
+// ==========================================
+// 4. INICIO Y DATOS (SUPABASE + EXCEL)
+// ==========================================
+document.addEventListener('DOMContentLoaded', async () => {
+    actualizarBadgeIA();
+    try {
+        await cargarSupabase();
+        poblarFiltros();
+        
+        ['filtro-solucion', 'filtro-equipo', 'filtro-anio', 'filtro-mes'].forEach(id => {
+            document.getElementById(id).addEventListener('change', renderizarCore);
+        });
+
+        const loader = document.getElementById('loader');
+        const content = document.getElementById('dashboard-content');
+        
+        if (loader) {
+            loader.classList.add('opacity-0');
+            setTimeout(() => {
+                loader.classList.add('hidden');
+                if (content) content.classList.remove('opacity-0');
+            }, 500);
         }
-    </script>
-    <style>
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-    </style>
-</head>
-<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen flex flex-col">
+    } catch (e) { console.error("Error BD:", e); }
+});
 
-    <!-- Pantalla de Carga -->
-    <div id="loader" class="fixed inset-0 bg-brand-dark z-50 flex flex-col items-center justify-center text-white transition-opacity duration-500">
-        <i class="fa-solid fa-atom text-5xl text-accent-green animate-spin-slow mb-4" style="animation-duration: 3s;"></i>
-        <h2 class="text-2xl font-black tracking-widest">NÚCLEO POES <span class="text-accent-green">IA</span></h2>
-        <p class="text-sm text-slate-400 mt-2 font-mono" id="loader-text">Conectando con Supabase...</p>
-    </div>
+async function cargarSupabase() {
+    let chunkSize = 1000, offset = 0, keepFetching = true, acumulador = [];
+    while (keepFetching) {
+        const { data, error } = await clienteSupabase.from('registros_limpieza').select('*').range(offset, offset + chunkSize - 1);
+        if (error) break;
+        if (data && data.length > 0) { acumulador = acumulador.concat(data); offset += chunkSize; if (data.length < chunkSize) keepFetching = false; } else { keepFetching = false; }
+    }
+    listaRegistros = acumulador.map(r => ({ ...r, solucion: estandarizarNombreSolucion(r.solucion), equipo: String(r.equipo || 'N/A').trim(), proceso: String(r.proceso || 'CIP').trim().toUpperCase() }));
+    
+    const infoRegistros = document.getElementById('info-registros-totales');
+    if (infoRegistros) infoRegistros.innerText = `${listaRegistros.length.toLocaleString()} Registros BD`;
+    
+    actualizarSelectores();
+    renderizarCore();
+}
 
-    <!-- HEADER GERENCIAL OSCURO -->
-    <header class="bg-brand-dark text-white px-6 py-4 shadow-xl border-b border-slate-800 flex flex-wrap justify-between items-center z-10 relative">
-        <div class="flex items-center gap-4">
-            <div class="bg-gradient-to-br from-accent-green to-emerald-700 p-3 rounded-xl shadow-lg shadow-emerald-900/50">
-                <i class="fa-solid fa-bolt text-white text-xl"></i>
-            </div>
-            <div>
-                <h1 class="text-xl font-black tracking-tight flex items-center gap-2">
-                    CENTRO DE CONTROL POES <span class="bg-accent-green/20 text-accent-green text-[10px] px-2 py-0.5 rounded-full border border-accent-green/30">V.2 PRO</span>
-                </h1>
-                <p class="text-[11px] text-slate-400 font-mono tracking-wide mt-0.5">LÁCTEOS SAN ANTONIO | SISTEMA DE INOCUIDAD PREDICTIVA</p>
-            </div>
-        </div>
-        <div class="flex items-center gap-4 mt-3 sm:mt-0">
-            <div class="text-right hidden sm:block">
-                <span id="info-registros-totales" class="text-xs font-bold text-slate-200 block">0 Registros</span>
-                <span class="text-[10px] text-accent-green flex items-center justify-end gap-1"><span class="w-2 h-2 bg-accent-green rounded-full animate-ping"></span> Online</span>
-            </div>
-        </div>
-    </header>
+async function importarArchivoExcel(event) {
+    const f = event.target.files[0]; if (!f) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+            if(json.length===0) return;
+            alert(`Sincronizando ${json.length} filas...`);
+            let records = json.map(row => ({
+                fecha: estandarizarFechaParaBD(row.FECHA || row.fecha), mes: n(row.MES || row.mes || 'N/A'), hora: row.HORA || row.hora || '00:00:00',
+                solucion: estandarizarNombreSolucion(row.SOLUCION || row.solucion), equipo: String(row.EQUIPO || row.equipo || 'N/A').trim(),
+                proceso: n(row.PROCESO || row.proceso || 'CIP'), concen: parseConcen(row.CONCEN || row.concen),
+                operario: n(row.OPERARIO || row.operario || 'S/N'), laboratorista: n(row.LABORATORISTA || row.laboratorista || 'S/N')
+            }));
+            for (let i = 0; i < records.length; i += 500) { await clienteSupabase.from('registros_limpieza').insert(records.slice(i, i + 500)); }
+            alert("Sincronización exitosa."); await cargarSupabase();
+        } catch (err) { alert("Error Excel"); }
+    };
+    reader.readAsArrayBuffer(f);
+}
 
-    <!-- BARRA DE FILTROS TIPO CONSOLA -->
-    <section class="bg-white border-b border-slate-200 px-6 py-3 shadow-sm z-0">
-        <div class="flex flex-wrap items-center justify-between gap-4">
-            <div class="flex flex-wrap items-center gap-4 w-full lg:w-auto">
-                <div class="bg-slate-100 p-1.5 rounded-lg border border-slate-200 flex items-center gap-2">
-                    <i class="fa-solid fa-filter text-slate-400 ml-2 text-xs"></i>
-                    
-                    <select id="filtro-solucion" class="bg-transparent border-none text-xs font-bold text-slate-700 focus:ring-0 cursor-pointer">
-                        <option value="TODAS">TODAS LAS SOLUCIONES</option>
-                    </select>
-                    <div class="w-px h-4 bg-slate-300"></div>
-                    
-                    <select id="filtro-equipo" class="bg-transparent border-none text-xs font-bold text-slate-700 focus:ring-0 cursor-pointer">
-                        <option value="TODOS">TODOS LOS EQUIPOS</option>
-                    </select>
-                    <div class="w-px h-4 bg-slate-300"></div>
-                    
-                    <select id="filtro-anio" class="bg-transparent border-none text-xs font-bold text-slate-700 focus:ring-0 cursor-pointer">
-                        <option value="TODOS">AÑO</option>
-                    </select>
-                    <div class="w-px h-4 bg-slate-300"></div>
-                    
-                    <select id="filtro-mes" class="bg-transparent border-none text-xs font-bold text-slate-700 focus:ring-0 cursor-pointer">
-                        <option value="TODOS">MES (TODOS)</option>
-                        <option value="01">Enero</option><option value="02">Febrero</option><option value="03">Marzo</option><option value="04">Abril</option>
-                        <option value="05">Mayo</option><option value="06">Junio</option><option value="07">Julio</option><option value="08">Agosto</option>
-                        <option value="09" selected>Septiembre</option><option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
-                    </select>
-                </div>
-            </div>
+// ==========================================
+// 5. FILTROS
+// ==========================================
+function poblarFiltros() {
+    const s = document.getElementById('filtro-solucion');
+    if(!s) return;
+    s.innerHTML = `<option value="TODAS">TODAS LAS SOLUCIONES</option>`;
+    [...new Set(PARAMETROS_TECNICOS.map(p => p.solucion))].forEach(sol => s.appendChild(new Option(sol, sol)));
+}
 
-            <!-- BOTONES DE ACCIÓN: IMPORTAR Y CONFIGURAR IA -->
-            <div class="flex items-center gap-3">
-                <label class="cursor-pointer bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm">
-                    <i class="fa-solid fa-upload text-accent-green"></i> Importar BD
-                    <input type="file" id="input-excel" accept=".xlsx, .xls, .csv" class="hidden" onchange="importarArchivoExcel(event)">
-                </label>
-                <button onclick="abrirConfigIA()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm">
-                    <i class="fa-solid fa-microchip"></i> IA Config
-                </button>
-            </div>
-        </div>
-    </section>
+function actualizarSelectores() {
+    const eq = document.getElementById('filtro-equipo'); const an = document.getElementById('filtro-anio');
+    if(!eq || !an) return;
+    
+    let eqSet = new Set(), anSet = new Set();
+    listaRegistros.forEach(r => { if (r.equipo) eqSet.add(r.equipo); if (r.fecha) anSet.add(r.fecha.substring(0, 4)); });
+    
+    let eqVal = eq.value; eq.innerHTML = `<option value="TODOS">TODOS LOS EQUIPOS</option>`;
+    Array.from(eqSet).sort().forEach(e => eq.appendChild(new Option(e, e))); eq.value = eqVal;
+    
+    let anVal = an.value; an.innerHTML = `<option value="TODOS">AÑO</option>`;
+    Array.from(anSet).sort().reverse().forEach(a => an.appendChild(new Option(a, a))); an.value = anVal;
+}
 
-    <!-- ÁREA DE PANELES PRINCIPALES -->
-    <main class="p-6 space-y-6 flex-grow max-w-[1600px] mx-auto w-full">
+function obtenerDatosFiltrados() {
+    const elS = document.getElementById('filtro-solucion');
+    const elE = document.getElementById('filtro-equipo');
+    const elA = document.getElementById('filtro-anio');
+    const elM = document.getElementById('filtro-mes');
+    
+    if(!elS || !elE || !elA || !elM) return [];
 
-        <!-- 1. KPIs CON SPARKLINES -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-col justify-between relative overflow-hidden">
-                <div class="flex justify-between items-start mb-2 relative z-10">
-                    <div>
-                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Eficacia Sanitaria</p>
-                        <h3 class="text-3xl font-black text-slate-800 mt-1" id="kpi-eficacia">0%</h3>
-                    </div>
-                    <i class="fa-solid fa-shield-virus text-accent-green text-xl bg-emerald-50 p-2 rounded-lg"></i>
-                </div>
-                <div class="h-10 w-full mt-2"><canvas id="sparkEficacia"></canvas></div>
-            </div>
+    const s = elS.value, e = elE.value, a = elA.value, m = elM.value;
+    
+    return listaRegistros.filter(r => {
+        let mMes = true;
+        if(m !== 'TODOS') {
+            let mesBD = r.fecha ? r.fecha.substring(5, 7) : '';
+            let mapMeses = {'01':'ENERO','02':'FEBRERO','03':'MARZO','04':'ABRIL','05':'MAYO','06':'JUNIO','07':'JULIO','08':'AGOSTO','09':'SEPTIEMBRE','10':'OCTUBRE','11':'NOVIEMBRE','12':'DICIEMBRE'};
+            mMes = (mesBD === m || n(r.mes) === mapMeses[m] || n(r.mes).includes(mapMeses[m]));
+        }
+        return (s === 'TODAS' || r.solucion === s) && (e === 'TODOS' || r.equipo === e) && (a === 'TODOS' || (r.fecha && r.fecha.startsWith(a))) && mMes;
+    });
+}
 
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-col justify-between relative overflow-hidden cursor-pointer hover:border-risk-red transition" onclick="abrirModalDetalle('riesgo')">
-                <div class="flex justify-between items-start mb-2 relative z-10">
-                    <div>
-                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sub-dosificación (&lt; Min)</p>
-                        <h3 class="text-3xl font-black text-risk-red mt-1" id="kpi-riesgo">0</h3>
-                    </div>
-                    <i class="fa-solid fa-biohazard text-risk-red text-xl bg-red-50 p-2 rounded-lg"></i>
-                </div>
-                <div class="h-10 w-full mt-2"><canvas id="sparkRiesgo"></canvas></div>
-            </div>
+// ==========================================
+// 6. MOTOR RENDER PRINCIPAL
+// ==========================================
+function renderizarCore() {
+    const datos = obtenerDatosFiltrados();
+    let stats = { conformes: 0, riesgo: 0, exceso: 0, desviosList: [] };
 
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-col justify-between relative overflow-hidden cursor-pointer hover:border-warn-yellow transition" onclick="abrirModalDetalle('exceso')">
-                <div class="flex justify-between items-start mb-2 relative z-10">
-                    <div>
-                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sobredosificación (&gt; Max)</p>
-                        <h3 class="text-3xl font-black text-warn-yellow mt-1" id="kpi-exceso">0</h3>
-                    </div>
-                    <i class="fa-solid fa-flask-vial text-warn-yellow text-xl bg-amber-50 p-2 rounded-lg"></i>
-                </div>
-                <div class="h-10 w-full mt-2"><canvas id="sparkExceso"></canvas></div>
-            </div>
+    datos.forEach(r => {
+        const p = PARAMETROS_TECNICOS.find(x => x.solucion === r.solucion);
+        if (p) {
+            const val = parseConcen(r.concen);
+            if (val < p.min) { stats.riesgo++; stats.desviosList.push({...r, tipo: 'Riesgo (<Min)'}); }
+            else if (val > p.max) { stats.exceso++; stats.desviosList.push({...r, tipo: 'Exceso (>Max)'}); }
+            else stats.conformes++;
+        }
+    });
 
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-col justify-between relative overflow-hidden">
-                <div class="flex justify-between items-start mb-2 relative z-10">
-                    <div>
-                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cobertura de Muestreo</p>
-                        <h3 class="text-3xl font-black text-blue-600 mt-1" id="kpi-total">0</h3>
-                    </div>
-                    <i class="fa-solid fa-microscope text-blue-600 text-xl bg-blue-50 p-2 rounded-lg"></i>
-                </div>
-                <div class="h-10 w-full mt-2"><canvas id="sparkTotal"></canvas></div>
-            </div>
-        </div>
+    let total = datos.length;
+    let eficacia = total > 0 ? (((stats.conformes) / total) * 100).toFixed(1) : 0;
+    
+    document.getElementById('kpi-eficacia').innerText = eficacia + '%';
+    document.getElementById('kpi-riesgo').innerText = stats.riesgo.toLocaleString();
+    document.getElementById('kpi-exceso').innerText = stats.exceso.toLocaleString();
+    document.getElementById('kpi-total').innerText = total.toLocaleString();
 
-        <!-- 2. GRÁFICAS DE VANGUARDIA -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
-            <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col">
-                <div class="flex justify-between items-end mb-4 border-b border-slate-100 pb-3">
-                    <div>
-                        <h2 class="text-sm font-black text-brand-dark uppercase tracking-wide flex items-center gap-2">
-                            <i class="fa-solid fa-braille text-accent-green"></i> Mapa de Dispersión Bromatológica
-                        </h2>
-                        <p class="text-[11px] text-slate-400 mt-1">Análisis de estabilidad frente a límites de especificación (Mín/Máx)</p>
-                    </div>
-                    <span id="label-scatter" class="text-xs font-bold bg-slate-100 text-slate-600 px-3 py-1 rounded-md">Filtrar Químico</span>
-                </div>
-                <div class="relative w-full flex-grow min-h-[300px]">
-                    <canvas id="scatterChart"></canvas>
-                </div>
-            </div>
+    drawSparklines(datos);
+    drawScatter(datos);
+    drawRadar(datos);
+    drawHeatmap(datos, stats.desviosList);
+    
+    // Guardamos los desvíos del filtro actual y mostramos la invitación para generar
+    desviosUltimoFiltro = stats.desviosList;
+    const tbody = document.getElementById('ai-action-plan-tbody');
+    if(tbody) {
+        if(desviosUltimoFiltro.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-emerald-400 font-medium"><i class="fa-solid fa-check-circle mr-2"></i>Cero desvíos reportados bajo los filtros seleccionados.</td></tr>`;
+        } else {
+            tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-slate-300 font-medium">Hay <b>${desviosUltimoFiltro.length} desvíos</b> detectados. Haz clic en el botón superior <b>"✨ Generar Plan IA"</b> para analizarlos.</td></tr>`;
+        }
+    }
+}
 
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col">
-                <div class="mb-4 border-b border-slate-100 pb-3">
-                    <h2 class="text-sm font-black text-brand-dark uppercase tracking-wide flex items-center gap-2">
-                        <i class="fa-solid fa-satellite-dish text-accent-green"></i> Eficacia por Proceso
-                    </h2>
-                    <p class="text-[11px] text-slate-400 mt-1">Índice de conformidad (CIP, HTST, UHT...)</p>
-                </div>
-                <div class="relative w-full flex-grow min-h-[250px] flex items-center justify-center">
-                    <canvas id="radarChart"></canvas>
-                </div>
-            </div>
-        </div>
+// ==========================================
+// 7. GRÁFICAS (Chart.js y HTML dinámico)
+// ==========================================
+Chart.defaults.font.family = "'Inter', 'Segoe UI', sans-serif";
+Chart.defaults.color = '#64748b';
 
-        <!-- 3. MAPA DE CALOR POR TURNOS Y PLAN DE ACCIÓN IA -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 overflow-hidden flex flex-col">
-                <div class="mb-4 border-b border-slate-100 pb-3">
-                    <h2 class="text-sm font-black text-brand-dark uppercase tracking-wide flex items-center gap-2">
-                        <i class="fa-solid fa-chess-board text-accent-green"></i> Heatmap de Desvíos (Horarios)
-                    </h2>
-                    <p class="text-[11px] text-slate-400 mt-1">Identificación de cuellos de botella por franja horaria en equipos críticos</p>
-                </div>
-                <div id="heatmap-container" class="w-full flex-grow overflow-x-auto text-xs font-medium pb-2">
-                    <!-- Generado por JS -->
-                </div>
-            </div>
+function getLineSpark(ctxId, data, color) {
+    if(sparkInst[ctxId]) sparkInst[ctxId].destroy();
+    const canvas = document.getElementById(ctxId);
+    if(!canvas) return;
+    const ctx = canvas.getContext('2d');
+    sparkInst[ctxId] = new Chart(ctx, {
+        type: 'line',
+        data: { labels: data.map((_,i)=>i), datasets: [{ data: data, borderColor: color, borderWidth: 2, pointRadius: 0, fill: false, tension: 0.3 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } }
+    });
+}
 
-            <!-- PLAN DE ACCIÓN AUTOMATIZADO IA -->
-            <div class="bg-brand-panel text-white rounded-xl shadow-xl border border-slate-700 p-5 flex flex-col relative overflow-hidden">
-                <div class="absolute -right-20 -top-20 w-64 h-64 bg-accent-green/10 rounded-full blur-3xl pointer-events-none"></div>
-                
-                <div class="flex justify-between items-center mb-4 border-b border-slate-600 pb-3 relative z-10">
-                    <div>
-                        <h2 class="text-sm font-black text-white uppercase tracking-wide flex items-center gap-2">
-                            <i class="fa-solid fa-robot text-accent-green"></i> Plan de Acción Predictivo
-                        </h2>
-                        <p class="text-[11px] text-slate-400 mt-1">Causas raíz y acciones sugeridas generadas por Gemini IA</p>
-                    </div>
-                    <span id="badge-ia-status" class="bg-slate-800 text-slate-400 text-[10px] font-bold px-3 py-1 rounded-full border border-slate-600">
-                        IA Inactiva (Falta Clave)
-                    </span>
-                </div>
-                
-                <div class="overflow-y-auto max-h-[300px] w-full relative z-10 pr-2">
-                    <table class="w-full text-left border-collapse text-xs">
-                        <thead>
-                            <tr class="text-[10px] text-slate-400 uppercase border-b border-slate-700">
-                                <th class="pb-2 font-bold w-1/4">Desvío / Hallazgo</th>
-                                <th class="pb-2 font-bold w-1/4">Causa Raíz Probable</th>
-                                <th class="pb-2 font-bold w-1/3">Acción Correctiva (IA)</th>
-                                <th class="pb-2 font-bold w-1/6">Responsable</th>
-                            </tr>
-                        </thead>
-                        <tbody id="ai-action-plan-tbody" class="divide-y divide-slate-700/50">
-                            <tr><td colspan="4" class="py-6 text-center text-slate-500 font-mono italic">Modo offline. Configura tu API Key de Gemini en el botón superior para habilitar la predicción.</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+function drawSparklines(datos) {
+    let trend = datos.slice(0, 50).reverse();
+    let dataEf = trend.map(r => { let p=PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); if(!p)return 0; let v=parseConcen(r.concen); return (v>=p.min && v<=p.max)?1:0; });
+    let dataRi = trend.map(r => { let p=PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); if(!p)return 0; return (parseConcen(r.concen)<p.min)?1:0; });
+    let dataEx = trend.map(r => { let p=PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); if(!p)return 0; return (parseConcen(r.concen)>p.max)?1:0; });
+    let dataTo = trend.map(()=> Math.random()*5+5); 
+    
+    getLineSpark('sparkEficacia', dataEf.length ? dataEf : [1,1,1], '#10b981');
+    getLineSpark('sparkRiesgo', dataRi.length ? dataRi : [0,0,0], '#ef4444');
+    getLineSpark('sparkExceso', dataEx.length ? dataEx : [0,0,0], '#f59e0b');
+    getLineSpark('sparkTotal', dataTo.length ? dataTo : [5,6,7], '#2563eb');
+}
 
-        </div>
-    </main>
+function drawScatter(datos) {
+    const elS = document.getElementById('filtro-solucion');
+    const elLabel = document.getElementById('label-scatter');
+    const canvas = document.getElementById('scatterChart');
+    if(!elS || !canvas) return;
 
-    <!-- MODAL DE CONFIGURACIÓN IA -->
-    <div id="modal-config-ia" class="fixed inset-0 bg-brand-dark/90 z-[60] hidden flex items-center justify-center p-4 backdrop-blur-sm">
-        <div class="bg-brand-panel border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full p-6 relative overflow-hidden">
-            <div class="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>
-            <div class="flex justify-between items-center mb-6">
-                <h3 class="text-lg font-black text-white flex items-center gap-2"><i class="fa-solid fa-microchip text-accent-green"></i> Configuración IA Gemini</h3>
-                <button onclick="cerrarConfigIA()" class="text-slate-400 hover:text-white transition"><i class="fa-solid fa-xmark text-xl"></i></button>
-            </div>
-            
-            <p class="text-xs text-slate-400 mb-4">Ingresa tu clave de <b>Google Gemini API</b> para activar el motor de diagnósticos gerenciales. La clave se almacenará de forma segura en tu navegador y no se enviará a ningún servidor.</p>
-            
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Clave API (Gemini Flash)</label>
-                    <input type="password" id="input-api-key" placeholder="AIzaSyA..." class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none focus:border-emerald-500 placeholder-slate-600 transition">
-                </div>
-                
-                <div class="flex justify-end gap-3 pt-2">
-                    <button onclick="limpiarApiKey()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-bold px-4 py-2 rounded-lg transition">Borrar Clave</button>
-                    <button onclick="guardarApiKey()" class="bg-accent-green hover:bg-emerald-500 text-white text-xs font-bold px-5 py-2 rounded-lg transition shadow-md shadow-emerald-900/50">Guardar e Iniciar IA</button>
-                </div>
-            </div>
-        </div>
-    </div>
+    let sol = elS.value;
+    if(sol === 'TODAS') {
+        let count={}; datos.forEach(r => count[r.solucion] = (count[r.solucion]||0)+1);
+        sol = Object.keys(count).length ? Object.keys(count).reduce((a,b)=>count[a]>count[b]?a:b) : 'SOSA';
+        if(elLabel) elLabel.innerText = `${sol} (Predominante)`;
+    } else { 
+        if(elLabel) elLabel.innerText = sol; 
+    }
 
-    <!-- MODAL DE DETALLE (DRILL DOWN) -->
-    <div id="modal-detalle" class="fixed inset-0 bg-brand-dark/80 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[85vh] flex flex-col overflow-hidden border border-slate-200">
-            <div class="bg-slate-100 border-b border-slate-200 px-6 py-4 flex justify-between items-center">
-                <h3 id="modal-titulo" class="text-sm font-black uppercase tracking-wide text-brand-dark">Desglose de Desvíos</h3>
-                <button onclick="cerrarModalDetalle()" class="text-slate-400 hover:text-brand-dark transition text-xl"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div class="p-0 overflow-y-auto flex-grow">
-                <table class="w-full text-left border-collapse">
-                    <thead class="bg-slate-50 sticky top-0 shadow-sm">
-                        <tr class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">
-                            <th class="py-3 px-6">Fecha / Hora</th>
-                            <th class="py-3 px-6">Equipo</th>
-                            <th class="py-3 px-6">Solución</th>
-                            <th class="py-3 px-6 text-center">Concentración</th>
-                            <th class="py-3 px-6">Operario / Lab.</th>
-                        </tr>
-                    </thead>
-                    <tbody id="modal-tbody" class="divide-y divide-slate-100 text-xs font-medium text-slate-700">
-                        <!-- Dinámico -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
+    const regla = PARAMETROS_TECNICOS.find(p => p.solucion === sol);
+    const subset = datos.filter(r => r.solucion === sol).slice(0, 60).reverse();
+    const ctx = canvas.getContext('2d');
+    
+    if (scatterInst) scatterInst.destroy();
+    if(!regla || subset.length===0) { scatterInst = new Chart(ctx, { type:'line', data:{labels:[],datasets:[]} }); return; }
 
-    <script src="js/app.js"></script>
-</body>
-</html>
+    let min = regla.min, max = regla.max;
+    let dataPoints = subset.map(r => parseConcen(r.concen));
+    let labels = subset.map(r => r.fecha.substring(5) + ' ' + (r.hora?r.hora.substring(0,5):''));
+    let pointColors = dataPoints.map(v => v < min ? '#ef4444' : (v > max ? '#f59e0b' : '#10b981'));
+    let pointSizes = dataPoints.map(v => v < min || v > max ? 6 : 4);
+
+    scatterInst = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                { label: 'Muestras ('+sol+')', data: dataPoints, showLine: false, pointBackgroundColor: pointColors, pointBorderColor: '#fff', pointBorderWidth: 1, pointRadius: pointSizes, pointHoverRadius: 8 },
+                { label: 'Máx Permitido', data: Array(labels.length).fill(max), borderColor: '#f59e0b', borderWidth: 2, borderDash: [5,5], pointRadius: 0, fill: false },
+                { label: 'Mín Requerido', data: Array(labels.length).fill(min), borderColor: '#ef4444', borderWidth: 2, borderDash: [5,5], pointRadius: 0, fill: false }
+            ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { tooltip: { callbacks: { label: function(c) { return `Valor: ${c.raw}`; } } } }, scales: { y: { min: min - (min*0.5), max: max + (max*0.5), grid: { color: '#f1f5f9' } }, x: { ticks: { maxRotation: 45, minRotation: 45, font: {size: 9} }, grid: {display:false} } } }
+    });
+}
+
+function drawRadar(datos) {
+    const canvas = document.getElementById('radarChart');
+    if(!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (radarInst) radarInst.destroy();
+
+    let procs = {};
+    datos.forEach(r => {
+        let pr = r.proceso || 'CIP';
+        if(!procs[pr]) procs[pr] = { tot:0, conf:0 };
+        procs[pr].tot++;
+        let p = PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion);
+        if(p) { let v = parseConcen(r.concen); if(v>=p.min && v<=p.max) procs[pr].conf++; }
+    });
+
+    let keys = Object.keys(procs).sort((a,b)=>procs[b].tot - procs[a].tot).slice(0, 6);
+    if(keys.length === 0) { radarInst = new Chart(ctx, {type:'radar', data:{labels:[],datasets:[]}}); return; }
+
+    let labels = keys;
+    let dataPcts = keys.map(k => ((procs[k].conf / procs[k].tot)*100).toFixed(1));
+
+    radarInst = new Chart(ctx, {
+        type: 'radar',
+        data: { labels: labels, datasets: [{ label: '% Cumplimiento', data: dataPcts, backgroundColor: 'rgba(16, 185, 129, 0.2)', borderColor: '#10b981', pointBackgroundColor: '#10b981', pointBorderColor: '#fff', pointHoverBackgroundColor: '#fff', pointHoverBorderColor: '#10b981', borderWidth: 2 }] },
+        options: { responsive: true, maintainAspectRatio: false, scales: { r: { angleLines: { color: '#e2e8f0' }, grid: { color: '#e2e8f0' }, pointLabels: { font: { size: 10, weight: 'bold' } }, suggestedMin: 0, suggestedMax: 100 } } }
+    });
+}
+
+function drawHeatmap(datos, desviosList) {
+    const container = document.getElementById('heatmap-container');
+    if(!container) return;
+
+    if(desviosList.length === 0) { container.innerHTML = `<div class="h-full flex items-center justify-center text-slate-400 italic">No hay desvíos en el periodo para dibujar el mapa de calor.</div>`; return; }
+
+    let heatmapData = {};
+    desviosList.forEach(r => {
+        let eq = r.equipo || 'N/A'; let h = r.hora ? parseInt(r.hora.substring(0,2)) : 12;
+        let turno = h < 6 ? 'Madrugada' : (h < 12 ? 'Mañana' : (h < 18 ? 'Tarde' : 'Noche'));
+        if(!heatmapData[eq]) heatmapData[eq] = { 'Madrugada':0, 'Mañana':0, 'Tarde':0, 'Noche':0, total:0 };
+        heatmapData[eq][turno]++; heatmapData[eq].total++;
+    });
+
+    let topEquipos = Object.keys(heatmapData).sort((a,b)=>heatmapData[b].total - heatmapData[a].total).slice(0, 5);
+    let turnos = ['Madrugada', 'Mañana', 'Tarde', 'Noche'];
+    let html = `<table class="w-full text-center border-collapse"><thead><tr><th class="py-2 text-left w-1/3">Equipo Crítico</th>`;
+    turnos.forEach(t => html += `<th class="py-2 text-[10px] text-slate-400 uppercase tracking-wide font-bold">${t}</th>`);
+    html += `</tr></thead><tbody class="divide-y divide-slate-100">`;
+
+    topEquipos.forEach(eq => {
+        html += `<tr><td class="py-2.5 text-left text-[11px] font-bold text-slate-700 truncate pr-2" title="${eq}">${eq}</td>`;
+        turnos.forEach(t => {
+            let count = heatmapData[eq][t];
+            let bg = 'bg-slate-50', txt = 'text-slate-300';
+            if(count > 0 && count <= 2) { bg = 'bg-amber-100'; txt = 'text-amber-700 font-bold'; }
+            else if(count > 2) { bg = 'bg-red-200'; txt = 'text-red-700 font-bold'; }
+            html += `<td class="p-1"><div class="${bg} ${txt} rounded-md py-1.5 transition hover:scale-105 cursor-default">${count}</div></td>`;
+        });
+        html += `</tr>`;
+    });
+    html += `</tbody></table>`; container.innerHTML = html;
+}
+
+// ==========================================
+// 8. ASISTENTE IA GEMINI (CONTROL MANUAL POR BOTÓN)
+// ==========================================
+function obtenerApiKeySegura() {
+    return localStorage.getItem('poes_gemini_key') || '';
+}
+
+function actualizarBadgeIA() {
+    const badge = document.getElementById('badge-ia-status');
+    if(!badge) return;
+    const key = obtenerApiKeySegura();
+    if (key) {
+        badge.innerHTML = `<span class="w-2 h-2 bg-accent-green rounded-full animate-ping inline-block mr-1"></span> IA Activa`;
+        badge.className = "bg-accent-green/20 text-accent-green text-[10px] font-bold px-3 py-1 rounded-full border border-accent-green/30 shadow-[0_0_10px_rgba(16,185,129,0.2)] cursor-pointer";
+    } else {
+        badge.innerHTML = `<i class="fa-solid fa-lock mr-1"></i> IA Inactiva (Falta Clave)`;
+        badge.className = "bg-slate-800 text-slate-400 text-[10px] font-bold px-3 py-1 rounded-full border border-slate-600 cursor-pointer";
+    }
+}
+
+// Vinculado al botón "Generar Plan IA" en la interfaz
+async function dispararAnalisisIA() {
+    await generarPlanAccionIA(desviosUltimoFiltro);
+}
+
+async function generarPlanAccionIA(desviosList) {
+    const tbody = document.getElementById('ai-action-plan-tbody');
+    if(!tbody) return;
+    
+    const apiKey = obtenerApiKeySegura();
+    
+    if(desviosList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-emerald-400 font-medium"><i class="fa-solid fa-check-circle mr-2"></i>Cero desvíos reportados. No se requieren acciones correctivas.</td></tr>`;
+        return;
+    }
+
+    if(!apiKey) {
+        tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-slate-500 font-mono italic">Haz clic en <b>"IA Config"</b> en la barra superior para ingresar tu API Key y habilitar la predicción.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-emerald-400/70 font-mono animate-pulse"><i class="fa-solid fa-microchip mr-2"></i>Analizando ${desviosList.length} desvíos con Google AI (Flash)...</td></tr>`;
+
+    let muestraIA = desviosList.slice(0, 10).map(r => `Equipo: ${r.equipo} | Solución: ${r.solucion} | Conc: ${r.concen} | Falla: ${r.tipo} | Resp: ${r.operario || r.laboratorista}`);
+    const prompt = `Eres un Auditor Jefe de POES. Analiza estos desvíos en planta láctea:\n${muestraIA.join('\n')}\n\nGenera un "Plan de Acciones Correctivas" en formato JSON estricto, sin markdown adicional, con un arreglo de objetos. Usa esta estructura exacta:\n[{"hallazgo": "Resumen del desvío", "causa_raiz": "Causa técnica probable", "accion": "Acción inmediata", "responsable": "Rol o nombre del operador/técnico"}]\nDevuelve máximo 4 acciones críticas consolidadas.`;
+
+    const modeloIA = 'gemini-3.6-flash';
+
+    try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1/models/${modeloIA}:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(`Google Error (${res.status}): ${errorData.error?.message || 'Error desconocido'}`);
+        }
+
+        const jsonRes = await res.json();
+        let rawText = jsonRes.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        rawText = rawText.replace(/```json/gi, '').replace(/```/gi, '').trim();
+        let plan = JSON.parse(rawText);
+
+        let html = '';
+        plan.forEach(item => {
+            html += `<tr class="hover:bg-slate-700/30 transition">
+                        <td class="py-3 px-2 align-top text-red-300 font-semibold text-[11px]"><i class="fa-solid fa-circle-xmark mr-1.5 text-red-500"></i> ${item.hallazgo}</td>
+                        <td class="py-3 px-2 align-top text-slate-300 text-[11px]">${item.causa_raiz}</td>
+                        <td class="py-3 px-2 align-top text-emerald-300 font-medium text-[11px]">${item.accion}</td>
+                        <td class="py-3 px-2 align-top text-slate-400 font-mono text-[10px]"><i class="fa-regular fa-user mr-1"></i> ${item.responsable}</td>
+                     </tr>`;
+        });
+        tbody.innerHTML = html;
+
+    } catch(err) {
+        tbody.innerHTML = `<tr><td colspan="4" class="py-4 px-6 text-center text-red-400 font-mono text-[11px]"><i class="fa-solid fa-triangle-exclamation mr-1"></i> <b>Límite de Cuota (429):</b> Has alcanzado el límite gratuito temporal. Espera unos segundos antes de volver a hacer clic en el botón. (${err.message})</td></tr>`;
+        console.error("Gemini Debug Error:", err);
+    }
+}
+
+// ==========================================
+// 9. MODALES (DETALLE E IA CONFIG)
+// ==========================================
+function abrirModalDetalle(tipo) {
+    const modal = document.getElementById('modal-detalle'); const tbody = document.getElementById('modal-tbody'); 
+    if(!modal || !tbody) return;
+    
+    tbody.innerHTML = '';
+    const datos = obtenerDatosFiltrados();
+    let rsl = [];
+    if(tipo === 'riesgo') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)<p.min;});
+    if(tipo === 'exceso') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)>p.max;});
+    
+    document.getElementById('modal-titulo').innerText = tipo === 'riesgo' ? "Desvíos de Riesgo (< Mínimo)" : "Desvíos por Sobredosificación (> Máximo)";
+    if(rsl.length===0) { tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-400 font-bold">Sin registros de desviación bajo los filtros actuales.</td></tr>`; } 
+    else {
+        rsl.slice(0, 100).forEach(r => {
+            tbody.innerHTML += `<tr class="hover:bg-slate-50 transition border-b border-slate-100">
+                <td class="py-3 px-6 whitespace-nowrap">${r.fecha} ${r.hora?r.hora.substring(0,5):''}</td>
+                <td class="py-3 px-6 font-bold text-slate-800">${r.equipo}</td>
+                <td class="py-3 px-6 text-slate-600">${r.solucion}</td>
+                <td class="py-3 px-6 text-center font-black ${tipo==='riesgo'?'text-risk-red':'text-warn-yellow'}">${r.concen}</td>
+                <td class="py-3 px-6 text-[10px] text-slate-400">${r.operario || r.laboratorista}</td>
+            </tr>`;
+        });
+    }
+    modal.classList.remove('hidden');
+}
+
+function cerrarModalDetalle() { 
+    const modal = document.getElementById('modal-detalle');
+    if(modal) modal.classList.add('hidden'); 
+}
+
+function abrirConfigIA() {
+    const modal = document.getElementById('modal-config-ia');
+    const input = document.getElementById('input-api-key');
+    if(!modal || !input) return;
+    input.value = obtenerApiKeySegura();
+    modal.classList.remove('hidden');
+}
+
+function cerrarConfigIA() { 
+    const modal = document.getElementById('modal-config-ia');
+    if(modal) modal.classList.add('hidden'); 
+}
+
+function guardarApiKey() {
+    const inputVal = document.getElementById('input-api-key').value.trim();
+    if(inputVal) {
+        localStorage.setItem('poes_gemini_key', inputVal);
+        cerrarConfigIA();
+        actualizarBadgeIA();
+        renderizarCore(); 
+    } else {
+        alert("Por favor, ingresa una clave válida.");
+    }
+}
+
+function limpiarApiKey() {
+    localStorage.removeItem('poes_gemini_key');
+    const input = document.getElementById('input-api-key');
+    if(input) input.value = '';
+    cerrarConfigIA();
+    actualizarBadgeIA();
+    renderizarCore();
+}
