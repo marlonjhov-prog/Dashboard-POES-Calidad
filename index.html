@@ -3,16 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard POES | Control Gerencial Integral</title>
-    
+    <title>Dashboard POES Gerencial - Lácteos San Antonio</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Font Awesome Icons -->
+    <!-- FontAwesome para Iconos Modernos -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Chart.js -->
+    <!-- Chart.js para las Gráficas -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- SheetJS (Para importar Excel/CSV de forma masiva) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- SheetJS para lectura de Excel -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- Supabase JS Client -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
@@ -21,10 +20,10 @@
             theme: {
                 extend: {
                     colors: {
-                        'corporate-green': '#1f8c22',
-                        'alert-yellow': '#f59e0b',
+                        'corporate-dark': '#0f172a',
+                        'corporate-green': '#10b981',
                         'danger-red': '#dc2626',
-                        'surface-dark': '#0f172a',
+                        'alert-yellow': '#f59e0b',
                         'card-bg': '#ffffff'
                     }
                 }
@@ -32,255 +31,291 @@
         }
     </script>
 </head>
-<body class="bg-slate-100 font-sans antialiased text-slate-800 flex flex-col min-h-screen">
+<body class="bg-slate-100 text-slate-800 font-sans antialiased min-h-screen">
 
-    <!-- Header Principal -->
-    <header class="bg-surface-dark text-white shadow-md border-b-4 border-corporate-green sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-            <div class="flex items-center">
-                <div class="bg-corporate-green/20 p-3 rounded-xl mr-4 border border-corporate-green/40">
-                    <i class="fa-solid fa-shield-halved text-corporate-green text-3xl"></i>
+    <!-- Pantalla de Carga (Loader) -->
+    <div id="loader" class="fixed inset-0 bg-slate-900 z-50 flex flex-col items-center justify-center text-white transition-opacity duration-300">
+        <i class="fa-solid fa-shield-halved text-5xl text-emerald-400 animate-bounce mb-4"></i>
+        <h2 class="text-xl font-bold tracking-wide">Cargando Dashboard Gerencial POES...</h2>
+        <p class="text-xs text-slate-400 mt-2">Sincronizando registros y parámetros desde Supabase</p>
+    </div>
+
+    <!-- Contenedor Principal del Dashboard -->
+    <div id="dashboard-content" class="opacity-0 transition-opacity duration-700 flex flex-col min-h-screen">
+
+        <!-- HEADER INSTITUCIONAL -->
+        <header class="bg-corporate-dark text-white px-6 py-4 shadow-md flex flex-wrap justify-between items-center border-b border-slate-800">
+            <div class="flex items-center gap-3">
+                <div class="bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20">
+                    <i class="fa-solid fa-chart-line text-emerald-400 text-xl"></i>
                 </div>
                 <div>
-                    <h1 class="text-xl md:text-2xl font-black tracking-tight text-white">DASHBOARD POES GERENCIAL</h1>
-                    <p class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Control CIP & Análisis Bromatológico</p>
+                    <h1 class="text-lg font-black tracking-tight text-white flex items-center gap-2">
+                        DASHBOARD POES GERENCIAL <span class="text-[10px] bg-emerald-500 text-slate-950 font-bold px-2 py-0.5 rounded-full">PROD</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">Control CIP & Análisis Bromatológico | Planta Lácteos San Antonio</p>
                 </div>
             </div>
-            <div class="hidden md:flex items-center space-x-6 text-right">
-                <div>
-                    <p class="text-sm font-bold text-slate-200">Planta Lácteos San Antonio</p>
-                    <p class="text-xs text-slate-400" id="info-registros-totales">Cargando volumen...</p>
-                </div>
-                <div class="bg-emerald-950 text-emerald-400 px-3 py-1.5 rounded-lg border border-emerald-800 text-xs font-bold flex items-center">
-                    <span class="w-2 h-2 rounded-full bg-corporate-green animate-ping mr-2"></span> En Línea
+            <div class="flex items-center gap-4 mt-2 sm:mt-0">
+                <div class="text-right">
+                    <span id="info-registros-totales" class="text-xs font-bold text-slate-300 block">Sincronizando...</span>
+                    <span class="text-[10px] text-emerald-400 flex items-center justify-end gap-1 font-semibold"><span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> En Línea</span>
                 </div>
             </div>
-        </div>
-    </header>
+        </header>
 
-    <!-- BARRA DE FILTROS GLOBALES Y ACCIÓN DE CARGA EXCEL / SUPABASE -->
-    <section class="bg-white shadow-sm border-b border-slate-200 py-4 z-40 relative">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col lg:flex-row items-center justify-between gap-4">
-            
-            <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-                <div class="flex items-center space-x-2 text-slate-700 font-bold text-sm mr-2">
-                    <i class="fa-solid fa-filter text-corporate-green"></i>
-                    <span>Filtros:</span>
+        <!-- BARRA DE FILTROS DINÁMICOS -->
+        <section class="bg-white border-b border-slate-200 px-6 py-3.5 shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                    <span class="text-xs font-black uppercase text-slate-500 tracking-wider flex items-center gap-1.5"><i class="fa-solid fa-filter text-emerald-600"></i> Filtros:</span>
+                    
+                    <!-- Filtro Solución -->
+                    <div class="flex flex-col">
+                        <label class="text-[10px] font-bold text-slate-400 uppercase">Solución</label>
+                        <select id="filtro-solucion" class="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-1.5 font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                            <option value="TODAS">Todas</option>
+                        </select>
+                    </div>
+
+                    <!-- Filtro Equipo -->
+                    <div class="flex flex-col">
+                        <label class="text-[10px] font-bold text-slate-400 uppercase">Equipo</label>
+                        <select id="filtro-equipo" class="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-1.5 font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                            <option value="TODOS">Todos</option>
+                        </select>
+                    </div>
+
+                    <!-- Filtro Año -->
+                    <div class="flex flex-col">
+                        <label class="text-[10px] font-bold text-slate-400 uppercase">Año</label>
+                        <select id="filtro-anio" class="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-1.5 font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                            <option value="TODOS">Todos</option>
+                        </select>
+                    </div>
+
+                    <!-- Filtro Mes -->
+                    <div class="flex flex-col">
+                        <label class="text-[10px] font-bold text-slate-400 uppercase">Mes</label>
+                        <select id="filtro-mes" class="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-1.5 font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                            <option value="TODOS">Todos</option>
+                            <option value="01">Enero</option>
+                            <option value="02">Febrero</option>
+                            <option value="03">Marzo</option>
+                            <option value="04">Abril</option>
+                            <option value="05">Mayo</option>
+                            <option value="06">Junio</option>
+                            <option value="07">Julio</option>
+                            <option value="08">Agosto</option>
+                            <option value="09">Septiembre</option>
+                            <option value="10">Octubre</option>
+                            <option value="11">Noviembre</option>
+                            <option value="12">Diciembre</option>
+                        </select>
+                    </div>
                 </div>
-                <div class="bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 flex items-center space-x-2">
-                    <label class="text-xs font-semibold text-slate-500 uppercase">Solución:</label>
-                    <select id="filtro-solucion" class="bg-transparent text-sm font-bold text-slate-800 focus:outline-none cursor-pointer">
-                        <option value="TODAS">Todas</option>
-                    </select>
-                </div>
-                <div class="bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 flex items-center space-x-2">
-                    <label class="text-xs font-semibold text-slate-500 uppercase">Equipo:</label>
-                    <select id="filtro-equipo" class="bg-transparent text-sm font-bold text-slate-800 focus:outline-none cursor-pointer">
-                        <option value="TODOS">Todos</option>
-                    </select>
-                </div>
-                <div class="bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 flex items-center space-x-2">
-                    <label class="text-xs font-semibold text-slate-500 uppercase">Año:</label>
-                    <select id="filtro-anio" class="bg-transparent text-sm font-bold text-slate-800 focus:outline-none cursor-pointer">
-                        <option value="TODOS">Todos</option>
-                    </select>
-                </div>
-                <div class="bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 flex items-center space-x-2">
-                    <label class="text-xs font-semibold text-slate-500 uppercase">Mes:</label>
-                    <select id="filtro-mes" class="bg-transparent text-sm font-bold text-slate-800 focus:outline-none cursor-pointer">
-                        <option value="TODOS">Todos</option>
-                        <option value="01">Enero</option><option value="02">Febrero</option><option value="03">Marzo</option>
-                        <option value="04">Abril</option><option value="05">Mayo</option><option value="06">Junio</option>
-                        <option value="07">Julio</option><option value="08">Agosto</option><option value="09">Septiembre</option>
-                        <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
-                    </select>
+
+                <!-- Botones de Acción -->
+                <div class="flex items-center gap-3">
+                    <label class="cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-sm transition flex items-center gap-2">
+                        <i class="fa-solid fa-file-excel"></i> Importar Excel
+                        <input type="file" id="input-excel" accept=".xlsx, .xls, .csv" class="hidden" onchange="importarArchivoExcel(event)">
+                    </label>
+                    <button id="btn-cargar-mas" class="bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-sm flex items-center gap-2 cursor-default">
+                        <i class="fa-solid fa-database text-emerald-400"></i> Base Completa
+                    </button>
                 </div>
             </div>
+        </section>
 
-            <!-- Botones Importar Excel y Carga Masiva Supabase -->
-            <div class="flex items-center gap-3 w-full lg:w-auto justify-end">
-                <label class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow transition cursor-pointer flex items-center">
-                    <i class="fa-solid fa-file-excel mr-2"></i> Importar Excel
-                    <input type="file" id="input-excel" accept=".xlsx, .xls, .csv" class="hidden" onchange="importarArchivoExcel(event)">
-                </label>
-                <button id="btn-cargar-mas" onclick="cargarMasDatosSupabase()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow transition flex items-center">
-                    <i class="fa-solid fa-cloud-arrow-down mr-2"></i> Cargar Servidor (+10k)
-                </button>
-            </div>
+        <!-- CONTENIDO PRINCIPAL -->
+        <main class="p-6 space-y-6 flex-grow">
 
-        </div>
-    </section>
-
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 flex-grow">
-        
-        <!-- Loader Inicial -->
-        <div id="loader" class="flex flex-col justify-center items-center py-32">
-            <div class="animate-spin rounded-full h-16 w-16 border-4 border-corporate-green border-t-transparent mb-4"></div>
-            <p class="text-slate-600 font-bold text-lg animate-pulse">Sincronizando base de datos masiva (+19k)...</p>
-        </div>
-
-        <!-- Dashboard Content -->
-        <div id="dashboard-content" class="hidden opacity-0 transition-opacity duration-700 ease-in-out space-y-6">
-            
-            <!-- TARJETAS KPIS INTERACTIVAS -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <!-- Eficacia -->
-                <div class="bg-card-bg rounded-2xl shadow-sm p-5 border-l-8 border-corporate-green">
-                    <div class="flex justify-between items-start">
+            <!-- TARJETAS KPI MODERNIZADAS -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                
+                <!-- KPI 1: Eficacia General -->
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden flex flex-col justify-between">
+                    <div class="absolute top-0 left-0 bottom-0 w-1.5 bg-emerald-500"></div>
+                    <div class="flex justify-between items-start mb-3">
                         <div>
-                            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Eficacia General</p>
-                            <h2 class="text-3xl font-black text-slate-900 mt-1" id="kpi-eficacia">--%</h2>
+                            <span class="text-[11px] font-black uppercase text-slate-400 tracking-wider">Eficacia General</span>
+                            <h3 class="text-3xl font-black text-slate-900 mt-1" id="kpi-eficacia">0.0%</h3>
                         </div>
-                        <div class="p-2.5 bg-emerald-50 rounded-xl text-corporate-green">
-                            <i class="fa-solid fa-circle-check text-xl"></i>
+                        <div class="bg-emerald-50 p-2.5 rounded-xl border border-emerald-100">
+                            <i class="fa-solid fa-shield-check text-emerald-600 text-lg"></i>
                         </div>
                     </div>
-                    <div class="mt-3 pt-2 border-t border-slate-100 text-[11px] text-slate-500 font-medium">Cumplimiento de Inocuidad</div>
+                    <p class="text-[11px] text-slate-500 font-medium">Cumplimiento estricto de inocuidad</p>
                 </div>
 
-                <!-- Riesgo (< Min) -->
-                <div onclick="abrirModalDetalle('riesgo')" class="bg-card-bg rounded-2xl shadow-sm p-5 border-l-8 border-danger-red hover:shadow-md cursor-pointer transition transform hover:-translate-y-1">
-                    <div class="flex justify-between items-start">
+                <!-- KPI 2: Riesgo Deficit -->
+                <div onclick="abrirModalDetalle('riesgo')" class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden flex flex-col justify-between cursor-pointer hover:border-red-300 transition group">
+                    <div class="absolute top-0 left-0 bottom-0 w-1.5 bg-red-600"></div>
+                    <div class="flex justify-between items-start mb-3">
                         <div>
-                            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Riesgo (&lt; Min) <i class="fa-solid fa-hand-pointer text-[10px] ml-1 text-danger-red"></i></p>
-                            <h2 class="text-3xl font-black text-slate-900 mt-1" id="kpi-desvios">--</h2>
+                            <span class="text-[11px] font-black uppercase text-slate-400 tracking-wider">Riesgo (&lt; Min)</span>
+                            <h3 class="text-3xl font-black text-red-600 mt-1" id="kpi-desvios">0</h3>
                         </div>
-                        <div class="p-2.5 bg-red-50 rounded-xl text-danger-red">
-                            <i class="fa-solid fa-triangle-exclamation text-xl"></i>
-                        </div>
-                    </div>
-                    <div class="mt-3 pt-2 border-t border-slate-100 text-[11px] text-danger-red font-bold flex justify-between items-center">
-                        <span>Ver equipos afectados</span> <i class="fa-solid fa-chevron-right"></i>
-                    </div>
-                </div>
-
-                <!-- Sobredosificación (> Max) -->
-                <div onclick="abrirModalDetalle('exceso')" class="bg-card-bg rounded-2xl shadow-sm p-5 border-l-8 border-alert-yellow hover:shadow-md cursor-pointer transition transform hover:-translate-y-1">
-                    <div class="flex justify-between items-start">
-                        <div>
-                            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Sobredosificación (&gt; Max) <i class="fa-solid fa-hand-pointer text-[10px] ml-1 text-alert-yellow"></i></p>
-                            <h2 class="text-3xl font-black text-slate-900 mt-1" id="kpi-excesos">--</h2>
-                        </div>
-                        <div class="p-2.5 bg-amber-50 rounded-xl text-alert-yellow">
-                            <i class="fa-solid fa-flask-vial text-xl"></i>
+                        <div class="bg-red-50 p-2.5 rounded-xl border border-red-100">
+                            <i class="fa-solid fa-triangle-exclamation text-red-600 text-lg"></i>
                         </div>
                     </div>
-                    <div class="mt-3 pt-2 border-t border-slate-100 text-[11px] text-alert-yellow font-bold flex justify-between items-center">
-                        <span>Ver desvíos de exceso</span> <i class="fa-solid fa-chevron-right"></i>
+                    <div class="flex justify-between items-center text-[11px] text-red-600 font-bold group-hover:underline">
+                        <span>Ver equipos afectados</span>
+                        <i class="fa-solid fa-arrow-right"></i>
                     </div>
                 </div>
 
-                <!-- Total Muestras -->
-                <div class="bg-card-bg rounded-2xl shadow-sm p-5 border-l-8 border-blue-500">
-                    <div class="flex justify-between items-start">
+                <!-- KPI 3: Sobredosificación -->
+                <div onclick="abrirModalDetalle('exceso')" class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden flex flex-col justify-between cursor-pointer hover:border-amber-300 transition group">
+                    <div class="absolute top-0 left-0 bottom-0 w-1.5 bg-amber-500"></div>
+                    <div class="flex justify-between items-start mb-3">
                         <div>
-                            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Muestras Analizadas</p>
-                            <h2 class="text-3xl font-black text-slate-900 mt-1" id="kpi-total">--</h2>
+                            <span class="text-[11px] font-black uppercase text-slate-400 tracking-wider">Sobredosificación (&gt; Max)</span>
+                            <h3 class="text-3xl font-black text-amber-600 mt-1" id="kpi-excesos">0</h3>
                         </div>
-                        <div class="p-2.5 bg-blue-50 rounded-xl text-blue-500">
-                            <i class="fa-solid fa-database text-xl"></i>
+                        <div class="bg-amber-50 p-2.5 rounded-xl border border-amber-100">
+                            <i class="fa-solid fa-flask-vial text-amber-600 text-lg"></i>
                         </div>
                     </div>
-                    <div class="mt-3 pt-2 border-t border-slate-100 text-[11px] text-blue-600 font-medium">Filtros Dinámicos Aplicados</div>
+                    <div class="flex justify-between items-center text-[11px] text-amber-600 font-bold group-hover:underline">
+                        <span>Ver desvíos de exceso</span>
+                        <i class="fa-solid fa-arrow-right"></i>
+                    </div>
                 </div>
+
+                <!-- KPI 4: Muestras Analizadas -->
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden flex flex-col justify-between">
+                    <div class="absolute top-0 left-0 bottom-0 w-1.5 bg-blue-600"></div>
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <span class="text-[11px] font-black uppercase text-slate-400 tracking-wider">Muestras Analizadas</span>
+                            <h3 class="text-3xl font-black text-slate-900 mt-1" id="kpi-total">0</h3>
+                        </div>
+                        <div class="bg-blue-50 p-2.5 rounded-xl border border-blue-100">
+                            <i class="fa-solid fa-database text-blue-600 text-lg"></i>
+                        </div>
+                    </div>
+                    <p class="text-[11px] text-slate-500 font-medium">Filtros dinámicos aplicados</p>
+                </div>
+
             </div>
 
-            <!-- GRÁFICAS GERENCIALES MEJORADAS -->
+            <!-- SECCIÓN DE GRÁFICAS PRINCIPALES -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <!-- Tendencia Temporal -->
-                <div class="bg-card-bg rounded-2xl shadow-sm p-5 lg:col-span-2 border border-slate-100 flex flex-col justify-between">
-                    <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
+                
+                <!-- Gráfica de Tendencia / Matriz (2 columnas) -->
+                <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                    <div class="flex justify-between items-center mb-4">
                         <div>
-                            <h3 class="text-sm font-bold text-slate-800"><i class="fa-solid fa-chart-line mr-2 text-blue-500"></i>Tendencia de Concentración vs. Rangos</h3>
+                            <h3 class="text-sm font-black text-slate-900 uppercase tracking-wide flex items-center gap-2">
+                                <i class="fa-solid fa-chart-line text-emerald-600"></i> Tendencia de Concentración vs. Rangos
+                            </h3>
+                            <p class="text-xs text-slate-400">Comportamiento bromatológico histórico del periodo</p>
                         </div>
-                        <span id="label-quimico-activo" class="bg-blue-50 text-blue-600 text-[10px] font-bold px-3 py-1 rounded-full uppercase">SOSA</span>
+                        <span id="label-quimico-activo" class="bg-slate-100 text-slate-700 font-bold text-xs px-3 py-1 rounded-lg border border-slate-200">TODAS LAS SOLUCIONES</span>
                     </div>
-                    <div class="relative h-60 w-full">
+                    <div class="relative h-72 w-full flex items-center justify-center">
                         <canvas id="trendChart"></canvas>
                     </div>
                 </div>
-                
-                <!-- Distribución Global con Porcentajes -->
-                <div class="bg-card-bg rounded-2xl shadow-sm p-5 border border-slate-100 flex flex-col justify-between">
-                    <div class="mb-2">
-                        <h3 class="text-sm font-bold text-slate-800"><i class="fa-solid fa-chart-pie mr-2 text-corporate-green"></i>Distribución Global</h3>
+
+                <!-- Distribución Global (1 columna) -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-sm font-black text-slate-900 uppercase tracking-wide flex items-center gap-2 mb-1">
+                            <i class="fa-solid fa-chart-pie text-emerald-600"></i> Distribución Global
+                        </h3>
+                        <p class="text-xs text-slate-400">Proporción general de conformidad</p>
                     </div>
-                    <div class="relative h-48 w-full flex justify-center items-center">
+                    <div class="relative h-56 w-full my-3 flex items-center justify-center">
                         <canvas id="statusChart"></canvas>
                     </div>
-                    <div class="mt-3 pt-2 border-t border-slate-100 grid grid-cols-3 gap-1 text-center text-[11px] font-bold text-slate-700">
-                        <div class="bg-emerald-50 py-1.5 rounded text-corporate-green" id="leg-optimo">Opt: --%</div>
-                        <div class="bg-amber-50 py-1.5 rounded text-amber-600" id="leg-exceso">Exc: --%</div>
-                        <div class="bg-red-50 py-1.5 rounded text-danger-red" id="leg-riesgo">Ries: --%</div>
+                    <div class="grid grid-cols-3 gap-2 text-center pt-3 border-t border-slate-100 text-[11px] font-black">
+                        <div class="bg-emerald-50 text-emerald-700 py-1.5 rounded-lg border border-emerald-100" id="leg-optimo">Opt: 0%</div>
+                        <div class="bg-amber-50 text-amber-700 py-1.5 rounded-lg border border-amber-100" id="leg-exceso">Exc: 0%</div>
+                        <div class="bg-red-50 text-red-700 py-1.5 rounded-lg border border-red-100" id="leg-riesgo">Ries: 0%</div>
                     </div>
                 </div>
+
             </div>
 
-            <!-- SECCIÓN NUEVA: BARRAS HORIZONTALES 100% APILADAS POR EQUIPO -->
-            <div class="bg-card-bg rounded-2xl shadow-sm p-5 border border-slate-100">
-                <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
+            <!-- SECCIÓN SECUNDARIA: DISTRIBUCIÓN POR EQUIPOS -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div class="flex justify-between items-center mb-4">
                     <div>
-                        <h3 class="text-sm font-bold text-slate-800"><i class="fa-solid fa-bars-progress mr-2 text-emerald-600"></i>Distribución de Soluciones Químicas por Equipo (%)</h3>
-                        <p class="text-[11px] text-slate-400 mt-0.5">Participación porcentual de químicos aplicados en el área seleccionada</p>
+                        <h3 class="text-sm font-black text-slate-900 uppercase tracking-wide flex items-center gap-2">
+                            <i class="fa-solid fa-bars-progress text-emerald-600"></i> Distribución de Soluciones Químicas por Equipo (%)
+                        </h3>
+                        <p class="text-xs text-slate-400">Participación porcentual de químicos aplicados en el área seleccionada</p>
                     </div>
-                    <span class="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-3 py-1 rounded-full">Proporción 100%</span>
+                    <span class="text-xs font-bold bg-emerald-50 text-emerald-700 px-3 py-1 rounded-lg border border-emerald-100">Proporción 100%</span>
                 </div>
-                <div class="relative h-72 w-full">
+                <div class="relative h-80 w-full">
                     <canvas id="equiposSolucionesChart"></canvas>
                 </div>
             </div>
 
-            <!-- PANEL DE ASISTENTE IA (LÓGICA CONTEXTUAL Y DINÁMICA) -->
-            <div class="bg-card-bg rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                <div class="bg-surface-dark text-white px-5 py-3 flex items-center justify-between">
-                    <div class="flex items-center">
-                        <div class="bg-corporate-green p-1.5 rounded-lg mr-3">
-                            <i class="fa-solid fa-microchip text-white text-sm"></i>
+            <!-- ASISTENTE IA: DICTAMEN GERENCIAL -->
+            <div class="bg-corporate-dark text-white p-6 rounded-2xl shadow-md border border-slate-800">
+                <div class="flex justify-between items-center mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20">
+                            <i class="fa-solid fa-brain text-emerald-400 text-lg"></i>
                         </div>
                         <div>
-                            <h3 class="text-sm font-bold">Asistente IA: Dictamen Técnico y Reglas de Negocio</h3>
+                            <h3 class="text-sm font-black text-white uppercase tracking-wide">Asistente IA: Dictamen Técnico y Reglas de Negocio</h3>
+                            <p class="text-xs text-slate-400">Análisis inteligente automatizado en base a concentraciones y frecuencias</p>
                         </div>
                     </div>
-                    <span class="bg-emerald-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center">
-                        <i class="fa-solid fa-bolt mr-1.5"></i> IA Activa
+                    <span class="bg-emerald-500/10 text-emerald-400 text-xs font-bold px-3 py-1 rounded-full border border-emerald-500/20 flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> IA Activa
                     </span>
                 </div>
-                <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-4" id="ai-alerts-container">
+                <div id="ai-alerts-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <!-- Inyectado dinámicamente -->
                 </div>
             </div>
 
-        </div>
-    </main>
+        </main>
 
-    <!-- MODAL DE DETALLE (DRILL-DOWN) -->
-    <div id="modal-detalle" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex justify-center items-center p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden animate-fadeIn">
-            <div class="bg-surface-dark text-white px-6 py-4 flex justify-between items-center">
-                <h3 id="modal-titulo" class="font-bold text-lg">Detalle de Desvíos</h3>
-                <button onclick="cerrarModalDetalle()" class="text-slate-400 hover:text-white text-xl font-bold px-2">&times;</button>
+        <!-- FOOTER -->
+        <footer class="bg-white border-t border-slate-200 py-4 px-6 text-center text-xs text-slate-400 font-medium">
+            Dashboard POES Gerencial &copy; 2026 — Lácteos San Antonio &quot;Nutri&quot;. Todos los derechos reservados.
+        </footer>
+    </div>
+
+    <!-- MODAL DE DETALLE / DRILL-DOWN -->
+    <div id="modal-detalle" class="fixed inset-0 bg-slate-900/60 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[85vh] flex flex-col overflow-hidden border border-slate-200">
+            <div class="bg-slate-900 text-white px-6 py-4 flex justify-between items-center">
+                <h3 id="modal-titulo" class="text-sm font-black uppercase tracking-wide text-white">Desglose de Desvíos</h3>
+                <button onclick="cerrarModalDetalle()" class="text-slate-400 hover:text-white transition text-lg"><i class="fa-solid fa-xmark"></i></button>
             </div>
-            <div class="p-6 overflow-y-auto flex-1">
+            <div class="p-6 overflow-y-auto flex-grow">
                 <table class="w-full text-left border-collapse">
                     <thead>
-                        <tr class="border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                            <th class="pb-3 px-3">Fecha / Hora</th>
-                            <th class="pb-3 px-3">Equipo</th>
-                            <th class="pb-3 px-3">Solución</th>
-                            <th class="pb-3 px-3">Concentración Real</th>
-                            <th class="pb-3 px-3">Operario</th>
+                        <tr class="border-b border-slate-200 text-[11px] font-bold text-slate-400 uppercase">
+                            <th class="py-2 px-3">Fecha / Hora</th>
+                            <th class="py-2 px-3">Equipo</th>
+                            <th class="py-2 px-3">Solución</th>
+                            <th class="py-2 px-3">Concentración</th>
+                            <th class="py-2 px-3">Operario</th>
                         </tr>
                     </thead>
-                    <tbody id="modal-tbody" class="divide-y divide-slate-100 text-xs text-slate-700"></tbody>
+                    <tbody id="modal-tbody" class="divide-y divide-slate-100 text-xs font-medium">
+                        <!-- Inyectado dinámicamente -->
+                    </tbody>
                 </table>
             </div>
-            <div class="bg-slate-50 px-6 py-3 border-t border-slate-200 text-right">
-                <button onclick="cerrarModalDetalle()" class="bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold px-5 py-2 rounded-lg transition">Cerrar</button>
+            <div class="bg-slate-50 border-t border-slate-200 px-6 py-3.5 flex justify-end">
+                <button onclick="cerrarModalDetalle()" class="bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold px-5 py-2 rounded-xl transition">Cerrar Ventana</button>
             </div>
         </div>
     </div>
 
-    <!-- Script Principal optimizado -->
-    <script src="./js/app.js"></script>
+    <!-- Script Principal del Dashboard -->
+    <script src="js/app.js"></script>
 </body>
 </html>
