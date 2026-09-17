@@ -25,10 +25,10 @@ const PARAMETROS_TECNICOS = [
 ];
 
 let listaRegistros = [];
+let desviosUltimoFiltro = []; // Almacena los desvíos para análisis manual
 let scatterInst = null;
 let radarInst = null;
 let sparkInst = { ef: null, ri: null, ex: null, to: null };
-let iaTimeout = null; // Control anti-saturación de cuota
 
 // ==========================================
 // 3. NORMALIZADORES
@@ -202,11 +202,18 @@ function renderizarCore() {
     drawRadar(datos);
     drawHeatmap(datos, stats.desviosList);
     
-    // Control Anti-Spam: Espera 1.5 segundos de inactividad en filtros antes de llamar a la IA
-    if (iaTimeout) clearTimeout(iaTimeout);
-    iaTimeout = setTimeout(() => {
-        generarPlanAccionIA(stats.desviosList);
-    }, 1500);
+    // Guardamos los desvíos actuales para cuando el usuario decida consultar la IA manualmente
+    desviosUltimoFiltro = stats.desviosList;
+    
+    // Mensaje inicial limpio en la tabla invitando a generar con el botón
+    const tbody = document.getElementById('ai-action-plan-tbody');
+    if(tbody) {
+        if(desviosUltimoFiltro.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-emerald-400 font-medium"><i class="fa-solid fa-check-circle mr-2"></i>Cero desvíos reportados bajo los filtros seleccionados.</td></tr>`;
+        } else {
+            tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-slate-300 font-medium">Hay <b>${desviosUltimoFiltro.length} desvíos</b> detectados. Haz clic en el botón superior <b>"✨ Generar Plan IA"</b> para analizarlos sin agotar cuotas.</td></tr>`;
+        }
+    }
 }
 
 // ==========================================
@@ -345,7 +352,7 @@ function drawHeatmap(datos, desviosList) {
 }
 
 // ==========================================
-// 8. ASISTENTE IA GEMINI (CON REINTENTO Y CONTROL DE CUOTA)
+// 8. ASISTENTE IA GEMINI (CONTROL MANUAL POR BOTÓN)
 // ==========================================
 function obtenerApiKeySegura() {
     return localStorage.getItem('poes_gemini_key') || '';
@@ -364,6 +371,11 @@ function actualizarBadgeIA() {
     }
 }
 
+// Función ejecutada manualmente al hacer clic en el botón de análisis IA
+async function dispararAnalisisIA() {
+    await generarPlanAccionIA(desviosUltimoFiltro);
+}
+
 async function generarPlanAccionIA(desviosList) {
     const tbody = document.getElementById('ai-action-plan-tbody');
     if(!tbody) return;
@@ -380,59 +392,44 @@ async function generarPlanAccionIA(desviosList) {
         return;
     }
 
-    tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-emerald-400/70 font-mono animate-pulse"><i class="fa-solid fa-microchip mr-2"></i>Analizando datos con Google AI (Flash)...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-emerald-400/70 font-mono animate-pulse"><i class="fa-solid fa-microchip mr-2"></i>Analizando ${desviosList.length} desvíos con Google AI (Flash)...</td></tr>`;
 
     let muestraIA = desviosList.slice(0, 10).map(r => `Equipo: ${r.equipo} | Solución: ${r.solucion} | Conc: ${r.concen} | Falla: ${r.tipo} | Resp: ${r.operario || r.laboratorista}`);
     const prompt = `Eres un Auditor Jefe de POES. Analiza estos desvíos en planta láctea:\n${muestraIA.join('\n')}\n\nGenera un "Plan de Acciones Correctivas" en formato JSON estricto, sin markdown adicional, con un arreglo de objetos. Usa esta estructura exacta:\n[{"hallazgo": "Resumen del desvío", "causa_raiz": "Causa técnica probable", "accion": "Acción inmediata", "responsable": "Rol o nombre del operador/técnico"}]\nDevuelve máximo 4 acciones críticas consolidadas.`;
 
     const modeloIA = 'gemini-3.6-flash';
-    let intentos = 0;
-    const maxIntentos = 2;
 
-    while (intentos < maxIntentos) {
-        try {
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1/models/${modeloIA}:generateContent?key=${apiKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-            });
+    try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1/models/${modeloIA}:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
 
-            if (!res.ok) {
-                const errorData = await res.json();
-                // Si es error 429 o 503, reintentar tras una breve pausa
-                if ((res.status === 429 || res.status === 503) && intentos < maxIntentos - 1) {
-                    intentos++;
-                    tbody.innerHTML = `<tr><td colspan="4" class="py-4 px-6 text-center text-amber-400 font-mono text-[11px]"><i class="fa-solid fa-clock mr-1"></i> Servidor ocupado (Límite temporal). Reintentando en 4 segundos...</td></tr>`;
-                    await new Promise(resolve => setTimeout(resolve, 4000));
-                    continue;
-                }
-                throw new Error(`Google Error (${res.status}): ${errorData.error?.message || 'Error desconocido'}`);
-            }
-
-            const jsonRes = await res.json();
-            let rawText = jsonRes.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            rawText = rawText.replace(/```json/gi, '').replace(/```/gi, '').trim();
-            let plan = JSON.parse(rawText);
-
-            let html = '';
-            plan.forEach(item => {
-                html += `<tr class="hover:bg-slate-700/30 transition">
-                            <td class="py-3 px-2 align-top text-red-300 font-semibold text-[11px]"><i class="fa-solid fa-circle-xmark mr-1.5 text-red-500"></i> ${item.hallazgo}</td>
-                            <td class="py-3 px-2 align-top text-slate-300 text-[11px]">${item.causa_raiz}</td>
-                            <td class="py-3 px-2 align-top text-emerald-300 font-medium text-[11px]">${item.accion}</td>
-                            <td class="py-3 px-2 align-top text-slate-400 font-mono text-[10px]"><i class="fa-regular fa-user mr-1"></i> ${item.responsable}</td>
-                         </tr>`;
-            });
-            tbody.innerHTML = html;
-            return; // Éxito total
-
-        } catch(err) {
-            if (intentos >= maxIntentos - 1) {
-                tbody.innerHTML = `<tr><td colspan="4" class="py-4 px-6 text-center text-red-400 font-mono text-[11px]"><i class="fa-solid fa-triangle-exclamation mr-1"></i> <b>Límite de Cuota (429/503):</b> Espera 1 minuto o reduce los cambios rápidos de filtros. (${err.message})</td></tr>`;
-                console.error("Gemini Debug Error:", err);
-            }
-            intentos++;
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(`Google Error (${res.status}): ${errorData.error?.message || 'Error desconocido'}`);
         }
+
+        const jsonRes = await res.json();
+        let rawText = jsonRes.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        rawText = rawText.replace(/```json/gi, '').replace(/```/gi, '').trim();
+        let plan = JSON.parse(rawText);
+
+        let html = '';
+        plan.forEach(item => {
+            html += `<tr class="hover:bg-slate-700/30 transition">
+                        <td class="py-3 px-2 align-top text-red-300 font-semibold text-[11px]"><i class="fa-solid fa-circle-xmark mr-1.5 text-red-500"></i> ${item.hallazgo}</td>
+                        <td class="py-3 px-2 align-top text-slate-300 text-[11px]">${item.causa_raiz}</td>
+                        <td class="py-3 px-2 align-top text-emerald-300 font-medium text-[11px]">${item.accion}</td>
+                        <td class="py-3 px-2 align-top text-slate-400 font-mono text-[10px]"><i class="fa-regular fa-user mr-1"></i> ${item.responsable}</td>
+                     </tr>`;
+        });
+        tbody.innerHTML = html;
+
+    } catch(err) {
+        tbody.innerHTML = `<tr><td colspan="4" class="py-4 px-6 text-center text-red-400 font-mono text-[11px]"><i class="fa-solid fa-triangle-exclamation mr-1"></i> <b>Límite de Cuota (429):</b> Has alcanzado el límite gratuito. Espera unos segundos o un minuto antes de volver a consultar la IA. (${err.message})</td></tr>`;
+        console.error("Gemini Debug Error:", err);
     }
 }
 
