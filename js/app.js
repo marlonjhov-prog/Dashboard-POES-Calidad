@@ -809,7 +809,7 @@ async function dispararAnalisisIA() {
 }
 
 function obtenerApiKeySegura() { 
-    return localStorage.getItem('poes_gemini_key'] || ''; 
+    return localStorage.getItem('poes_gemini_key') || ''; 
 }
 
 function actualizarBadgeIA() {
