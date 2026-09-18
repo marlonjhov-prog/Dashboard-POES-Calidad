@@ -19,7 +19,7 @@
     <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.default.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
     
-    <!-- NUEVO: Flatpickr (Calendario de Rango) -->
+    <!-- Flatpickr (Calendario de Rango) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
@@ -68,7 +68,7 @@
 
         <main class="p-6 space-y-6 flex-grow max-w-[1600px] w-full mx-auto">
             
-            <!-- SECCIÓN DE FILTROS (Híbrido) -->
+            <!-- SECCIÓN DE FILTROS -->
             <section class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col gap-4">
                 <div class="flex flex-wrap items-center gap-2 pb-4 border-b border-slate-100">
                     <span class="text-[11px] font-bold text-slate-500 uppercase mr-2"><i class="fa-regular fa-clock mr-1 text-slate-400"></i> Rango Temporal:</span>
@@ -96,26 +96,69 @@
                 </div>
             </section>
 
-            <!-- Tarjetas KPI -->
+            <!-- Tarjetas KPI (Con Porcentajes Integrados) -->
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
-                    <div class="flex justify-between items-start"><div><p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Eficacia Sanitaria</p><h3 id="kpi-eficacia" class="text-3xl font-black text-corporate-blue mt-1">0.0%</h3></div><div class="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 text-lg border border-blue-100"><i class="fa-solid fa-chart-line"></i></div></div>
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Eficacia Sanitaria</p>
+                            <h3 id="kpi-eficacia" class="text-3xl font-black text-corporate-blue mt-1">0.0%</h3>
+                        </div>
+                        <div class="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 text-lg border border-blue-100"><i class="fa-solid fa-chart-line"></i></div>
+                    </div>
                     <div class="h-10 mt-4"><canvas id="sparkEficacia"></canvas></div>
                 </div>
+
                 <div onclick="abrirModalDetalle('conformes')" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between cursor-pointer hover:border-emerald-300 transition group">
-                    <div class="flex justify-between items-start"><div><p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Conformes (Óptimas)</p><h3 id="kpi-conformes" class="text-3xl font-black text-emerald-600 mt-1">0</h3></div><div class="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 text-lg border border-emerald-200"><i class="fa-solid fa-circle-check"></i></div></div>
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Conformes (Óptimas)</p>
+                            <div class="flex items-baseline space-x-2 mt-1">
+                                <h3 id="kpi-conformes" class="text-3xl font-black text-emerald-600">0</h3>
+                                <span id="kpi-conformes-pct" class="text-xs font-bold text-emerald-600/80 bg-emerald-50 px-1.5 py-0.5 rounded">(0.0%)</span>
+                            </div>
+                        </div>
+                        <div class="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 text-lg border border-emerald-200"><i class="fa-solid fa-circle-check"></i></div>
+                    </div>
                     <div class="h-10 mt-4"><canvas id="sparkConformes"></canvas></div>
                 </div>
+
                 <div onclick="abrirModalDetalle('riesgo')" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between cursor-pointer hover:border-red-300 transition group">
-                    <div class="flex justify-between items-start"><div><p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Riesgo (&lt; Min)</p><h3 id="kpi-riesgo" class="text-3xl font-black text-red-600 mt-1">0</h3></div><div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-red-600 text-lg border border-red-200"><i class="fa-solid fa-triangle-exclamation"></i></div></div>
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Riesgo (&lt; Min)</p>
+                            <div class="flex items-baseline space-x-2 mt-1">
+                                <h3 id="kpi-riesgo" class="text-3xl font-black text-red-600">0</h3>
+                                <span id="kpi-riesgo-pct" class="text-xs font-bold text-red-600/80 bg-red-50 px-1.5 py-0.5 rounded">(0.0%)</span>
+                            </div>
+                        </div>
+                        <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-red-600 text-lg border border-red-200"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                    </div>
                     <div class="h-10 mt-4"><canvas id="sparkRiesgo"></canvas></div>
                 </div>
+
                 <div onclick="abrirModalDetalle('exceso')" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between cursor-pointer hover:border-amber-300 transition group">
-                    <div class="flex justify-between items-start"><div><p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Exceso (&gt; Max)</p><h3 id="kpi-exceso" class="text-3xl font-black text-amber-500 mt-1">0</h3></div><div class="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 text-lg border border-amber-200"><i class="fa-solid fa-flask"></i></div></div>
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Exceso (&gt; Max)</p>
+                            <div class="flex items-baseline space-x-2 mt-1">
+                                <h3 id="kpi-exceso" class="text-3xl font-black text-amber-500">0</h3>
+                                <span id="kpi-exceso-pct" class="text-xs font-bold text-amber-600/80 bg-amber-50 px-1.5 py-0.5 rounded">(0.0%)</span>
+                            </div>
+                        </div>
+                        <div class="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 text-lg border border-amber-200"><i class="fa-solid fa-flask"></i></div>
+                    </div>
                     <div class="h-10 mt-4"><canvas id="sparkExceso"></canvas></div>
                 </div>
+
                 <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
-                    <div class="flex justify-between items-start"><div><p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Muestras Totales</p><h3 id="kpi-total" class="text-3xl font-black text-slate-700 mt-1">0</h3></div><div class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600 text-lg border border-slate-200"><i class="fa-solid fa-vials"></i></div></div>
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Muestras Totales</p>
+                            <h3 id="kpi-total" class="text-3xl font-black text-slate-700 mt-1">0</h3>
+                        </div>
+                        <div class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600 text-lg border border-slate-200"><i class="fa-solid fa-vials"></i></div>
+                    </div>
                     <div class="h-10 mt-4"><canvas id="sparkTotal"></canvas></div>
                 </div>
             </div>
@@ -131,7 +174,6 @@
                         </div>
                         <div class="flex items-center gap-2">
                             <span id="label-heatmap-total" class="bg-orange-50 text-orange-600 text-xs font-bold px-3 py-1.5 rounded-lg border border-orange-200 shadow-sm">0 Muestras Mapeadas</span>
-                            <!-- BOTÓN MODO ENFOQUE -->
                             <button onclick="expandirGrafico('heatmap', 'Mapa de Calor Operativo')" class="text-slate-400 hover:text-corporate-blue p-1.5 rounded-lg transition bg-slate-50 border border-slate-200 hover:bg-blue-50 shadow-sm" title="Modo Enfoque (Expandir)"><i class="fa-solid fa-expand"></i></button>
                         </div>
                     </div>
@@ -225,7 +267,7 @@
 
     <!-- MODALES -->
 
-    <!-- Modal NUEVO: MODO ENFOQUE (POWER BI STYLE) -->
+    <!-- Modal MODO ENFOQUE -->
     <div id="modal-expandido" class="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[70] hidden flex items-center justify-center p-4 lg:p-8">
         <div class="bg-white border border-slate-200 w-full h-full max-h-[95vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
@@ -256,7 +298,7 @@
         </div>
     </div>
 
-    <!-- Modal 2: Dispersión del Químico -->
+    <!-- Modal 2: Dispersión -->
     <div id="modal-drilldown" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
         <div class="bg-white border border-slate-200 w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden flex flex-col">
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
@@ -273,7 +315,7 @@
         </div>
     </div>
 
-    <!-- Modal 3: Radiografía de Turno -->
+    <!-- Modal 3: Radiografía -->
     <div id="modal-turno" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
         <div class="bg-white border border-slate-200 w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col">
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
