@@ -17,6 +17,7 @@ const PARAMETROS_TECNICOS = [
 
 let listaRegistros = []; let desviosUltimoFiltro = []; let tsInstances = {}; 
 let barSolucionesInst = null, fugaChartInst = null, historicoInst = null, quadrantInst = null, drilldownInst = null;
+let turnoQuimInst = null, turnoOpInst = null; // Instancias para la radiografía del turno
 let sparkInst = { ef: null, co: null, ri: null, ex: null, to: null };
 let heatmapCache = {}; 
 
@@ -174,11 +175,11 @@ function getLineSpark(ctxId, data, color) {
 }
 function drawSparklines(datos) {
     let t = datos.slice(0, 50).reverse();
-    getLineSpark('sparkEficacia', t.length ? t.map(r=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); return p&&(parseConcen(r.concen)>=p.min&&parseConcen(r.concen)<=p.max)?1:0}) : [1], '#10b981');
+    getLineSpark('sparkEficacia', t.length ? t.map(r=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); return p&&(parseConcen(r.concen)>=p.min&&parseConcen(r.concen)<=p.max)?1:0}) : [1], '#3b82f6');
     getLineSpark('sparkConformes', t.length ? t.map(r=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); return p&&(parseConcen(r.concen)>=p.min&&parseConcen(r.concen)<=p.max)?1:0}) : [1], '#10b981');
     getLineSpark('sparkRiesgo', t.length ? t.map(r=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); return p&&(parseConcen(r.concen)<p.min)?1:0}) : [0], '#ef4444');
     getLineSpark('sparkExceso', t.length ? t.map(r=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); return p&&(parseConcen(r.concen)>p.max)?1:0}) : [0], '#f59e0b');
-    getLineSpark('sparkTotal', t.length ? t.map(()=>Math.random()) : [1], '#273c75');
+    getLineSpark('sparkTotal', t.length ? t.map(()=>Math.random()) : [1], '#64748b');
 }
 
 function drawHeatmapOperativo(datos) {
@@ -253,7 +254,8 @@ function drawHeatmapOperativo(datos) {
                 }
             }
             
-            html += `<td class="p-2.5 ${bgClass} transition-all duration-150 rounded" ${count > 0 ? `onclick="clicCeldaHeatmap('${f.key}',${d.key})" title="Clic para ver ${count} muestras detalladas"` : ''}>
+            // Llama a la NUEVA función de "Radiografía de Turno"
+            html += `<td class="p-2.5 ${bgClass} transition-all duration-150 rounded" ${count > 0 ? `onclick="clicRadiografiaTurno('${f.key}', ${d.key}, '${d.label}')" title="Clic para ver la Radiografía del Turno"` : ''}>
                 <div class="text-xs">${count > 0 ? count : ''}</div>
             </td>`;
         });
@@ -263,33 +265,148 @@ function drawHeatmapOperativo(datos) {
     container.innerHTML = html;
 }
 
-function clicCeldaHeatmap(franjaKey, diaKey) {
+// ==========================================
+// NUEVO: RADIOGRAFÍA OPERATIVA DEL TURNO (INFORMACIÓN ÚNICA)
+// ==========================================
+function clicRadiografiaTurno(franjaKey, diaKey, diaLabel) {
     let lista = heatmapCache[franjaKey] && heatmapCache[franjaKey][diaKey] ? heatmapCache[franjaKey][diaKey] : [];
     if(lista.length === 0) return;
 
-    const modal = document.getElementById('modal-detalle'); 
-    const tbody = document.getElementById('modal-tbody'); 
-    if(!modal || !tbody) return; 
-    tbody.innerHTML = '';
-    
-    document.getElementById('modal-titulo').innerText = `Auditoría Detallada - Franja ${franjaKey.toUpperCase()}`;
-    
-    lista.forEach(r => {
-        let badgeColor = 'bg-emerald-100 text-emerald-800';
-        let badgeText = 'Conforme';
-        if(r.estado === 'riesgo') { badgeColor = 'bg-red-100 text-red-800'; badgeText = 'Riesgo (<Min)'; }
-        else if(r.estado === 'exceso') { badgeColor = 'bg-amber-100 text-amber-800'; badgeText = 'Exceso (>Max)'; }
+    let dictQuimicos = {};
+    let dictOperadores = {};
 
-        tbody.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-100">
-            <td class="py-3 px-6">${r.fecha} ${r.hora?r.hora.substring(0,5):''}</td>
-            <td class="py-3 px-6 font-bold text-slate-800">${r.equipo}</td>
-            <td class="py-3 px-6 text-slate-600">${r.solucion}</td>
-            <td class="py-3 px-6 text-center font-black">${r.concen} <span class="text-[10px] px-2 py-0.5 rounded-full ${badgeColor}">${badgeText}</span></td>
-            <td class="py-3 px-6 text-[10px] text-slate-500"><b>Op:</b> ${r.operario || 'N/A'}<br><b>Lab:</b> ${r.laboratorista || 'N/A'}</td>
-        </tr>`;
+    lista.forEach(r => {
+        // Agrupar por químico
+        dictQuimicos[r.solucion] = (dictQuimicos[r.solucion] || 0) + 1;
+        // Agrupar por operador responsable
+        let op = r.operario || 'Sin nombre';
+        dictOperadores[op] = (dictOperadores[op] || 0) + 1;
     });
-    modal.classList.remove('hidden');
+
+    document.getElementById('turno-titulo').innerHTML = `<i class="fa-solid fa-clipboard-user mr-2"></i> Radiografía Operativa: ${franjaKey.toUpperCase()} (${diaLabel.toUpperCase()})`;
+    document.getElementById('modal-turno').classList.remove('hidden');
+
+    // 1. Gráfico de Anillo (Doughnut) de Químicos
+    if(turnoQuimInst) turnoQuimInst.destroy();
+    turnoQuimInst = new Chart(document.getElementById('turnoQuimicosChart').getContext('2d'), {
+        type: 'doughnut',
+        data: {
+            labels: Object.keys(dictQuimicos),
+            datasets: [{
+                data: Object.values(dictQuimicos),
+                backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'],
+                borderWidth: 2, borderColor: '#ffffff'
+            }]
+        },
+        options: {
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'right', labels: { boxWidth: 12, font: {size: 10, family: 'Inter'} } }
+            }
+        }
+    });
+
+    // 2. Gráfico de Barras Horizontales de Operadores
+    if(turnoOpInst) turnoOpInst.destroy();
+    
+    // Ordenar operadores de mayor a menor volumen
+    let opsArr = Object.keys(dictOperadores).map(k => ({ nombre: k, cant: dictOperadores[k] })).sort((a,b)=> b.cant - a.cant);
+
+    turnoOpInst = new Chart(document.getElementById('turnoOperadoresChart').getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: opsArr.map(o => o.nombre.split(' ').slice(0,2).join(' ')), // Mostrar solo 2 primeros nombres para que no se corte
+            datasets: [{
+                data: opsArr.map(o => o.cant),
+                backgroundColor: '#6366f1', borderRadius: 4
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { x: { ticks: { stepSize: 1 } }, y: { ticks: { font: {size: 9} } } }
+        }
+    });
 }
+function cerrarModalTurno() { document.getElementById('modal-turno').classList.add('hidden'); }
+
+// ==========================================
+// TENDENCIA HISTÓRICA COMBINADA (BARRAS APILADAS DE VOLUMEN + LÍNEA DE EFICACIA)
+// ==========================================
+function drawTendenciaHistorica(datos) {
+    if(historicoInst) historicoInst.destroy();
+    
+    let hist = {};
+    datos.forEach(r => {
+        let p = PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion);
+        if(p) { 
+            if(!hist[r.fecha]) hist[r.fecha] = { total:0, conformes:0, excesos:0, riesgos:0 };
+            hist[r.fecha].total++; 
+            let v = parseConcen(r.concen); 
+            
+            if(v < p.min) hist[r.fecha].riesgos++;
+            else if(v > p.max) hist[r.fecha].excesos++;
+            else hist[r.fecha].conformes++;
+        }
+    });
+
+    let fechas = Object.keys(hist).sort(); 
+    if(fechas.length === 0) return;
+    fechas = fechas.slice(-30); // Últimos 30 días con registros
+    
+    let arrConformes = fechas.map(f => hist[f].conformes);
+    let arrExcesos = fechas.map(f => hist[f].excesos);
+    let arrRiesgos = fechas.map(f => hist[f].riesgos);
+    let arrEficacias = fechas.map(f => (hist[f].conformes / hist[f].total) * 100);
+
+    historicoInst = new Chart(document.getElementById('historicoChart').getContext('2d'), {
+        type: 'bar',
+        data: { 
+            labels: fechas.map(f => f.substring(5)), 
+            datasets: [
+                {
+                    type: 'line',
+                    label: 'Eficacia General (%)',
+                    data: arrEficacias,
+                    borderColor: '#273c75', // Azul corporativo fuerte para la línea
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#273c75',
+                    yAxisID: 'porcentaje',
+                    order: 0 // Se dibuja encima de las barras
+                },
+                { label: 'Conformes', data: arrConformes, backgroundColor: '#10b981', stack: 'Stack 0', yAxisID: 'volumen', order: 1 },
+                { label: 'Exceso (> Máx)', data: arrExcesos, backgroundColor: '#f59e0b', stack: 'Stack 0', yAxisID: 'volumen', order: 1 },
+                { label: 'Riesgo (< Mín)', data: arrRiesgos, backgroundColor: '#ef4444', stack: 'Stack 0', yAxisID: 'volumen', order: 1 }
+            ] 
+        },
+        options: { 
+            responsive: true, maintainAspectRatio: false, 
+            plugins: { 
+                legend: { position: 'bottom', labels: { boxWidth: 12, font: {size: 10, family: 'Inter'} } },
+                tooltip: { mode: 'index', intersect: false }
+            }, 
+            scales: { 
+                x: { stacked: true, grid: { display: false } },
+                volumen: { 
+                    type: 'linear', position: 'left', stacked: true, 
+                    title: { display: true, text: 'Volumen Operativo (Muestras)', font: {size: 10, weight: 'bold'}, color: '#64748b' } 
+                },
+                porcentaje: { 
+                    type: 'linear', position: 'right', min: 0, max: 100, 
+                    grid: { drawOnChartArea: false }, // No dibujar doble grilla
+                    ticks: { callback: v => v + '%' },
+                    title: { display: true, text: 'Nivel de Eficacia', font: {size: 10, weight: 'bold'}, color: '#273c75' }
+                }
+            } 
+        }
+    });
+}
+
+// RESTO DE FUNCIONES (Iguales a la versión anterior)
 
 function drawMagicQuadrant(datos) {
     if(quadrantInst) quadrantInst.destroy(); if(datos.length === 0) return;
@@ -316,31 +433,10 @@ function drawMagicQuadrant(datos) {
     });
 }
 
-function drawTendenciaHistorica(datos) {
-    if(historicoInst) historicoInst.destroy();
-    let hist = {};
-    datos.forEach(r => {
-        let p = PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion);
-        if(p) { if(!hist[r.fecha]) hist[r.fecha] = { t:0, c:0 }; hist[r.fecha].t++; let v = parseConcen(r.concen); if(v>=p.min && v<=p.max) hist[r.fecha].c++; }
-    });
-    let fechas = Object.keys(hist).sort(); if(fechas.length === 0) return;
-    fechas = fechas.slice(-30); let eficacias = fechas.map(f => (hist[f].c / hist[f].t) * 100);
-    let ctx = document.getElementById('historicoChart').getContext('2d');
-    let gradient = ctx.createLinearGradient(0, 0, 0, 200); gradient.addColorStop(0, 'rgba(16, 185, 129, 0.4)'); gradient.addColorStop(1, 'rgba(16, 185, 129, 0.0)');
-
-    historicoInst = new Chart(ctx, {
-        type: 'line',
-        data: { labels: fechas.map(f => f.substring(5)), datasets: [{ label: 'Conformidad Diaria', data: eficacias, borderColor: '#10b981', backgroundColor: gradient, borderWidth: 2, fill: true, tension: 0.4, pointRadius: 3 }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` Eficacia: ${c.raw.toFixed(1)}%` } } }, scales: { y: { min: 0, max: 100, grid: { color: '#f1f5f9' }, ticks: { callback: v => v + '%' } }, x: { grid: { display: false } } } }
-    });
-}
-
-// CONFORMIDAD TÉCNICA (MOSTRANDO TODAS LAS SOLUCIONES DEL FILTRO, SIN CORTE DE 5)
 function drawEficaciaSoluciones(datos) {
     if(barSolucionesInst) barSolucionesInst.destroy();
     let d = {}; datos.forEach(r => { let p = PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); if(p) { if(!d[r.solucion]) d[r.solucion] = { t:0, c:0 }; d[r.solucion].t++; let v = parseConcen(r.concen); if(v>=p.min && v<=p.max) d[r.solucion].c++; } });
     
-    // Se eliminó .slice(0, 5) para que liste absolutamente todas las soluciones del equipo o filtro activo
     let res = Object.keys(d).map(k => ({ n: k, p: Number(((d[k].c / d[k].t) * 100).toFixed(1)), t: d[k].t })).sort((a,b)=>b.t - a.t); 
     if(res.length === 0) return;
     
@@ -370,9 +466,6 @@ function drawRadarFugas(desvios) {
     fugaChartInst = new Chart(document.getElementById('fugaQuimicaChart').getContext('2d'), { type: 'radar', data: { labels: labels, datasets: [{ label: 'Índice de Fuga (Σ%)', data: data, backgroundColor: 'rgba(245, 158, 11, 0.25)', borderColor: '#f59e0b', pointBackgroundColor: '#ffffff', pointBorderColor: '#f59e0b', pointBorderWidth: 2, pointRadius: 4, borderWidth: 2 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` Volumen Desperdiciado: ${c.raw.toFixed(2)} Índice de Fuga (Σ%)` } } }, scales: { r: { angleLines: { color: '#e2e8f0' }, grid: { color: '#e2e8f0', circular: true }, pointLabels: { font: { size: 9, weight: 'bold' }, color: '#475569' }, ticks: { display: false, beginAtZero: true } } } } });
 }
 
-// ==========================================
-// 7. DRILL-DOWN DISPERSIÓN (MODAL)
-// ==========================================
 function abrirModalDrilldown(solucion) {
     document.getElementById('modal-drilldown').classList.remove('hidden');
     document.getElementById('drilldown-titulo').innerHTML = `<i class="fa-solid fa-microscope text-indigo-500 mr-2"></i> Dispersión Técnica: ${solucion}`;
@@ -406,7 +499,27 @@ function abrirModalDrilldown(solucion) {
 function cerrarModalDrilldown() { document.getElementById('modal-drilldown').classList.add('hidden'); }
 
 // ==========================================
-// 8. MOTOR MATEMÁTICO + GEMINI 3.5 FLASH-LITE
+// LÓGICA DEL MODAL DE AUDITORÍA (Solo para las tarjetas de KPIs)
+// ==========================================
+function abrirModalDetalle(tipo) {
+    const modal = document.getElementById('modal-detalle'); const tbody = document.getElementById('modal-tbody'); if(!modal || !tbody) return; tbody.innerHTML = ''; const datos = obtenerDatosFiltrados(); let rsl = [];
+    if(tipo === 'conformes') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)>=p.min && parseConcen(f.concen)<=p.max;});
+    if(tipo === 'riesgo') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)<p.min;});
+    if(tipo === 'exceso') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)>p.max;});
+    
+    document.getElementById('modal-titulo').innerText = tipo === 'conformes' ? "Auditoría: Muestras Conformes (Óptimas)" : (tipo === 'riesgo' ? "Auditoría: Desvíos por Riesgo (< Mínimo)" : "Auditoría: Desvíos por Sobredosificación (> Máximo)");
+    
+    if(rsl.length===0) { tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-500 font-bold bg-slate-50">Sin registros en este filtro.</td></tr>`; } 
+    else { rsl.slice(0, 100).forEach(r => { 
+        let badgeColor = tipo === 'conformes' ? 'text-emerald-600 bg-emerald-50' : (tipo === 'riesgo' ? 'text-red-600 bg-red-50' : 'text-amber-600 bg-amber-50');
+        tbody.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-100"><td class="py-3 px-6">${r.fecha} ${r.hora?r.hora.substring(0,5):''}</td><td class="py-3 px-6 font-bold text-slate-800">${r.equipo}</td><td class="py-3 px-6 text-slate-600">${r.solucion}</td><td class="py-3 px-6 text-center font-black ${badgeColor}">${r.concen}</td><td class="py-3 px-6 text-[10px] text-slate-500">${r.operario || r.laboratorista}</td></tr>`; 
+    }); }
+    modal.classList.remove('hidden');
+}
+function cerrarModalDetalle() { document.getElementById('modal-detalle').classList.add('hidden'); }
+
+// ==========================================
+// MOTOR MATEMÁTICO + GEMINI 3.5 FLASH-LITE
 // ==========================================
 function obtenerApiKeySegura() { return localStorage.getItem('poes_gemini_key') || ''; }
 function actualizarBadgeIA() {
@@ -448,22 +561,6 @@ async function dispararAnalisisIA() {
     } catch(err) { tbody.innerHTML = `<tr><td colspan="3" class="py-6 px-6 text-center text-red-500 font-bold text-[11px] bg-red-50 rounded-lg"><i class="fa-solid fa-triangle-exclamation mr-1"></i> <b>Fallo IA:</b> ${err.message}.</td></tr>`; }
 }
 
-function abrirModalDetalle(tipo) {
-    const modal = document.getElementById('modal-detalle'); const tbody = document.getElementById('modal-tbody'); if(!modal || !tbody) return; tbody.innerHTML = ''; const datos = obtenerDatosFiltrados(); let rsl = [];
-    if(tipo === 'conformes') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)>=p.min && parseConcen(f.concen)<=p.max;});
-    if(tipo === 'riesgo') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)<p.min;});
-    if(tipo === 'exceso') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)>p.max;});
-    
-    document.getElementById('modal-titulo').innerText = tipo === 'conformes' ? "Muestras Conformes (Óptimas)" : (tipo === 'riesgo' ? "Desvíos por Riesgo (< Mínimo)" : "Desvíos por Sobredosificación (> Máximo)");
-    
-    if(rsl.length===0) { tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-500 font-bold bg-slate-50">Sin registros.</td></tr>`; } 
-    else { rsl.slice(0, 100).forEach(r => { 
-        let badgeColor = tipo === 'conformes' ? 'text-emerald-600 bg-emerald-50' : (tipo === 'riesgo' ? 'text-red-600 bg-red-50' : 'text-amber-600 bg-amber-50');
-        tbody.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-100"><td class="py-3 px-6">${r.fecha} ${r.hora?r.hora.substring(0,5):''}</td><td class="py-3 px-6 font-bold text-slate-800">${r.equipo}</td><td class="py-3 px-6 text-slate-600">${r.solucion}</td><td class="py-3 px-6 text-center font-black ${badgeColor}">${r.concen}</td><td class="py-3 px-6 text-[10px] text-slate-500">${r.operario || r.laboratorista}</td></tr>`; 
-    }); }
-    modal.classList.remove('hidden');
-}
-function cerrarModalDetalle() { document.getElementById('modal-detalle').classList.add('hidden'); }
 function abrirConfigIA() { document.getElementById('input-api-key').value = obtenerApiKeySegura(); document.getElementById('modal-config-ia').classList.remove('hidden'); }
 function cerrarConfigIA() { document.getElementById('modal-config-ia').classList.add('hidden'); }
 function guardarApiKey() { localStorage.setItem('poes_gemini_key', document.getElementById('input-api-key').value.trim()); cerrarConfigIA(); actualizarBadgeIA(); }
