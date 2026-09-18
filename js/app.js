@@ -16,11 +16,12 @@ const PARAMETROS_TECNICOS = [
 ];
 
 let listaRegistros = []; let desviosUltimoFiltro = []; let tsInstances = {}; 
-let fpInstancia = null; // Instancia global de Flatpickr
-let fechaInicioGlobal = null; let fechaFinGlobal = null; // Variables de Rango Temporal
+let fpInstancia = null; 
+let fechaInicioGlobal = null; let fechaFinGlobal = null; 
 
 let barSolucionesInst = null, fugaChartInst = null, historicoInst = null, quadrantInst = null, drilldownInst = null;
 let turnoQuimInst = null, turnoOpInst = null;
+let expandedChartInst = null; // NUEVO: Instancia para el modo enfoque
 let sparkInst = { ef: null, co: null, ri: null, ex: null, to: null };
 let heatmapCache = {}; 
 
@@ -63,14 +64,13 @@ function estandarizarSolucion(nombre) {
 document.addEventListener('DOMContentLoaded', async () => {
     actualizarBadgeIA(); 
     initFiltrosInteligentes(); 
-    initRangoFechas(); // Inicializa Flatpickr
+    initRangoFechas(); 
     
     try {
         await cargarSupabase();
         setTimeout(() => { document.getElementById('loader')?.classList.add('opacity-0', 'pointer-events-none'); document.getElementById('dashboard-content')?.classList.remove('opacity-0'); }, 500);
     } catch (e) { 
         console.error("Error BD:", e); 
-        // Si hay error en BD, quitamos el loader igual para no dejar la pantalla blanca
         setTimeout(() => { document.getElementById('loader')?.classList.add('opacity-0', 'pointer-events-none'); document.getElementById('dashboard-content')?.classList.remove('opacity-0'); }, 500);
     }
 });
@@ -88,127 +88,65 @@ async function cargarSupabase() {
 }
 
 // ==========================================
-// 4. NUEVO SISTEMA DE FILTROS (FLATPICKR + TOMSELECT)
+// 4. NUEVO SISTEMA DE FILTROS (BLINDADO)
 // ==========================================
 function initFiltrosInteligentes() {
-    // Validamos que el elemento exista antes de inicializar para evitar bloqueos
     ['filtro-equipo', 'filtro-solucion'].forEach(id => { 
         const el = document.getElementById(id);
-        if(el) {
-            tsInstances[id] = new TomSelect(el, { create: false, sortField: { field: "text", direction: "asc" } }); 
-            tsInstances[id].on('change', renderizarCore); 
-        }
+        if(el) { tsInstances[id] = new TomSelect(el, { create: false, sortField: { field: "text", direction: "asc" } }); tsInstances[id].on('change', renderizarCore); }
     });
 }
 
 function initRangoFechas() {
     fpInstancia = flatpickr("#filtro-fechas", {
-        mode: "range",
-        dateFormat: "Y-m-d",
-        locale: "es", // Español
+        mode: "range", dateFormat: "Y-m-d", locale: "es",
         onChange: function(selectedDates, dateStr, instance) {
             if (selectedDates.length === 2) {
-                let ini = instance.formatDate(selectedDates[0], "Y-m-d");
-                let fin = instance.formatDate(selectedDates[1], "Y-m-d");
-                fechaInicioGlobal = ini;
-                fechaFinGlobal = fin;
-                limpiarEstilosBotonesRapidos(); 
-                renderizarCore();
+                fechaInicioGlobal = instance.formatDate(selectedDates[0], "Y-m-d"); fechaFinGlobal = instance.formatDate(selectedDates[1], "Y-m-d");
+                limpiarEstilosBotonesRapidos(); renderizarCore();
             } else if (selectedDates.length === 0) {
                 fechaInicioGlobal = null; fechaFinGlobal = null;
-                pintarBotonRapido('btn-todos');
-                renderizarCore();
+                pintarBotonRapido('btn-todos'); renderizarCore();
             }
         }
     });
 }
 
-function formatoFecha(d) {
-    let ms = d.getMonth() + 1; let dy = d.getDate();
-    return `${d.getFullYear()}-${ms < 10 ? '0'+ms : ms}-${dy < 10 ? '0'+dy : dy}`;
-}
+function formatoFecha(d) { let ms = d.getMonth() + 1; let dy = d.getDate(); return `${d.getFullYear()}-${ms < 10 ? '0'+ms : ms}-${dy < 10 ? '0'+dy : dy}`; }
+function limpiarEstilosBotonesRapidos() { document.querySelectorAll('.rango-btn').forEach(btn => { btn.classList.remove('bg-corporate-blue', 'text-white'); btn.classList.add('bg-slate-100', 'text-slate-600'); }); }
+function pintarBotonRapido(idBoton) { limpiarEstilosBotonesRapidos(); const btn = document.getElementById(idBoton); if(btn) { btn.classList.remove('bg-slate-100', 'text-slate-600'); btn.classList.add('bg-corporate-blue', 'text-white'); } }
 
-function limpiarEstilosBotonesRapidos() {
-    document.querySelectorAll('.rango-btn').forEach(btn => {
-        btn.classList.remove('bg-corporate-blue', 'text-white');
-        btn.classList.add('bg-slate-100', 'text-slate-600');
-    });
-}
-
-function pintarBotonRapido(idBoton) {
-    limpiarEstilosBotonesRapidos();
-    const btn = document.getElementById(idBoton);
-    if(btn) {
-        btn.classList.remove('bg-slate-100', 'text-slate-600');
-        btn.classList.add('bg-corporate-blue', 'text-white');
-    }
-}
-
-// Botonera de Filtros Rápidos
 function setRangoFechas(tipo) {
-    let hoyObj = new Date();
-    pintarBotonRapido(`btn-${tipo}`);
-
-    if (tipo === 'todos') {
-        fechaInicioGlobal = null; fechaFinGlobal = null;
-        if(fpInstancia) fpInstancia.clear(); 
-        return;
-    }
-    
+    let hoyObj = new Date(); pintarBotonRapido(`btn-${tipo}`);
+    if (tipo === 'todos') { fechaInicioGlobal = null; fechaFinGlobal = null; if(fpInstancia) fpInstancia.clear(); return; }
     let fechaInicioObj = new Date();
-    if (tipo === 'hoy') { fechaInicioObj = hoyObj; } 
-    else if (tipo === 'semana') { fechaInicioObj.setDate(hoyObj.getDate() - 6); } 
-    else if (tipo === 'quincena') { fechaInicioObj.setDate(hoyObj.getDate() - 14); } 
-    else if (tipo === 'mes') { fechaInicioObj.setDate(1); }
-
-    let strInicio = formatoFecha(fechaInicioObj);
-    let strFin = formatoFecha(hoyObj);
-    
+    if (tipo === 'hoy') { fechaInicioObj = hoyObj; } else if (tipo === 'semana') { fechaInicioObj.setDate(hoyObj.getDate() - 6); } else if (tipo === 'quincena') { fechaInicioObj.setDate(hoyObj.getDate() - 14); } else if (tipo === 'mes') { fechaInicioObj.setDate(1); }
+    let strInicio = formatoFecha(fechaInicioObj); let strFin = formatoFecha(hoyObj);
     if(fpInstancia) fpInstancia.setDate([strInicio, strFin], false); 
-    
-    fechaInicioGlobal = strInicio;
-    fechaFinGlobal = strFin;
-    renderizarCore();
+    fechaInicioGlobal = strInicio; fechaFinGlobal = strFin; renderizarCore();
 }
 
 function actualizarOpcionesFiltros() {
     let eqSet = new Set(), solSet = new Set();
     listaRegistros.forEach(r => { if (r.equipo) eqSet.add(r.equipo); if (r.solucion) solSet.add(r.solucion); });
-    
     let currEq = tsInstances['filtro-equipo'] ? tsInstances['filtro-equipo'].getValue() : 'TODOS'; 
     let currSol = tsInstances['filtro-solucion'] ? tsInstances['filtro-solucion'].getValue() : 'TODAS';
-    
-    if(tsInstances['filtro-equipo']) {
-        tsInstances['filtro-equipo'].clearOptions(); tsInstances['filtro-equipo'].addOption({value: 'TODOS', text: 'Todos los Equipos'});
-        Array.from(eqSet).sort().forEach(e => tsInstances['filtro-equipo'].addOption({value: e, text: e})); tsInstances['filtro-equipo'].setValue(currEq, true);
-    }
-    
-    if(tsInstances['filtro-solucion']) {
-        tsInstances['filtro-solucion'].clearOptions(); tsInstances['filtro-solucion'].addOption({value: 'TODAS', text: 'Todas las Soluciones'});
-        Array.from(solSet).sort().forEach(s => tsInstances['filtro-solucion'].addOption({value: s, text: s})); tsInstances['filtro-solucion'].setValue(currSol, true);
-    }
+    if(tsInstances['filtro-equipo']) { tsInstances['filtro-equipo'].clearOptions(); tsInstances['filtro-equipo'].addOption({value: 'TODOS', text: 'Todos los Equipos'}); Array.from(eqSet).sort().forEach(e => tsInstances['filtro-equipo'].addOption({value: e, text: e})); tsInstances['filtro-equipo'].setValue(currEq, true); }
+    if(tsInstances['filtro-solucion']) { tsInstances['filtro-solucion'].clearOptions(); tsInstances['filtro-solucion'].addOption({value: 'TODAS', text: 'Todas las Soluciones'}); Array.from(solSet).sort().forEach(s => tsInstances['filtro-solucion'].addOption({value: s, text: s})); tsInstances['filtro-solucion'].setValue(currSol, true); }
 }
 
-// Nueva función maestra de filtrado (Soporta rangos de fecha)
 function obtenerDatosFiltrados() {
     const s = tsInstances['filtro-solucion'] ? tsInstances['filtro-solucion'].getValue() : 'TODAS'; 
     const e = tsInstances['filtro-equipo'] ? tsInstances['filtro-equipo'].getValue() : 'TODOS'; 
-    
     return listaRegistros.filter(r => {
-        let pasaEquipo = (!e || e === 'TODOS' || r.equipo === e);
-        let pasaSolucion = (!s || s === 'TODAS' || r.solucion === s);
-        
-        let pasaFecha = true;
-        if (fechaInicioGlobal && fechaFinGlobal && r.fecha) {
-            pasaFecha = (r.fecha >= fechaInicioGlobal && r.fecha <= fechaFinGlobal);
-        }
-
+        let pasaEquipo = (!e || e === 'TODOS' || r.equipo === e); let pasaSolucion = (!s || s === 'TODAS' || r.solucion === s);
+        let pasaFecha = true; if (fechaInicioGlobal && fechaFinGlobal && r.fecha) pasaFecha = (r.fecha >= fechaInicioGlobal && r.fecha <= fechaFinGlobal);
         return pasaEquipo && pasaSolucion && pasaFecha;
     });
 }
 
 // ==========================================
-// 5. RENDERIZADO GENERAL Y GRÁFICOS
+// 5. RENDERIZADO GENERAL Y GRÁFICOS (MODO ENFOQUE APLICADO)
 // ==========================================
 function renderizarCore() {
     const datos = obtenerDatosFiltrados(); let stats = { conformes: 0, riesgo: 0, exceso: 0, conformesList: [], desviosList: [] };
@@ -224,18 +162,15 @@ function renderizarCore() {
     });
 
     let total = datos.length; let eficacia = total > 0 ? (((stats.conformes) / total) * 100).toFixed(1) : 0;
-    document.getElementById('kpi-eficacia').innerText = eficacia + '%'; 
-    document.getElementById('kpi-conformes').innerText = stats.conformes.toLocaleString();
-    document.getElementById('kpi-riesgo').innerText = stats.riesgo.toLocaleString(); 
-    document.getElementById('kpi-exceso').innerText = stats.exceso.toLocaleString(); 
-    document.getElementById('kpi-total').innerText = total.toLocaleString();
+    document.getElementById('kpi-eficacia').innerText = eficacia + '%'; document.getElementById('kpi-conformes').innerText = stats.conformes.toLocaleString();
+    document.getElementById('kpi-riesgo').innerText = stats.riesgo.toLocaleString(); document.getElementById('kpi-exceso').innerText = stats.exceso.toLocaleString(); document.getElementById('kpi-total').innerText = total.toLocaleString();
 
     drawSparklines(datos); 
-    drawHeatmapOperativo(datos); 
-    drawEficaciaSoluciones(datos); 
-    drawRadarFugas(stats.desviosList); 
-    drawTendenciaHistorica(datos); 
-    drawMagicQuadrant(datos); 
+    drawHeatmapOperativo(datos, 'heatmap-container', false); 
+    drawEficaciaSoluciones(datos, 'barSolucionesChart', false); 
+    drawRadarFugas(stats.desviosList, 'fugaQuimicaChart', false); 
+    drawTendenciaHistorica(datos, 'historicoChart', false); 
+    drawMagicQuadrant(datos, 'quadrantChart', false); 
     
     desviosUltimoFiltro = stats.desviosList; const tbody = document.getElementById('ai-action-plan-tbody');
     if(tbody) {
@@ -244,127 +179,124 @@ function renderizarCore() {
     }
 }
 
-// Sparklines
-function getLineSpark(ctxId, data, color) {
-    if(sparkInst[ctxId]) sparkInst[ctxId].destroy(); const ctx = document.getElementById(ctxId)?.getContext('2d'); if(!ctx) return;
-    sparkInst[ctxId] = new Chart(ctx, { type: 'line', data: { labels: data.map((_,i)=>i), datasets: [{ data: data, borderColor: color, borderWidth: 2, pointRadius: 0, fill: false, tension: 0.3 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } } });
-}
-function drawSparklines(datos) {
-    let t = datos.slice(0, 50).reverse();
-    getLineSpark('sparkEficacia', t.length ? t.map(r=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); return p&&(parseConcen(r.concen)>=p.min&&parseConcen(r.concen)<=p.max)?1:0}) : [1], '#3b82f6');
-    getLineSpark('sparkConformes', t.length ? t.map(r=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); return p&&(parseConcen(r.concen)>=p.min&&parseConcen(r.concen)<=p.max)?1:0}) : [1], '#10b981');
-    getLineSpark('sparkRiesgo', t.length ? t.map(r=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); return p&&(parseConcen(r.concen)<p.min)?1:0}) : [0], '#ef4444');
-    getLineSpark('sparkExceso', t.length ? t.map(r=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); return p&&(parseConcen(r.concen)>p.max)?1:0}) : [0], '#f59e0b');
-    getLineSpark('sparkTotal', t.length ? t.map(()=>Math.random()) : [1], '#64748b');
-}
+function getLineSpark(ctxId, data, color) { if(sparkInst[ctxId]) sparkInst[ctxId].destroy(); const ctx = document.getElementById(ctxId)?.getContext('2d'); if(!ctx) return; sparkInst[ctxId] = new Chart(ctx, { type: 'line', data: { labels: data.map((_,i)=>i), datasets: [{ data: data, borderColor: color, borderWidth: 2, pointRadius: 0, fill: false, tension: 0.3 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } } }); }
+function drawSparklines(datos) { let t = datos.slice(0, 50).reverse(); getLineSpark('sparkEficacia', t.length ? t.map(r=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); return p&&(parseConcen(r.concen)>=p.min&&parseConcen(r.concen)<=p.max)?1:0}) : [1], '#3b82f6'); getLineSpark('sparkConformes', t.length ? t.map(r=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); return p&&(parseConcen(r.concen)>=p.min&&parseConcen(r.concen)<=p.max)?1:0}) : [1], '#10b981'); getLineSpark('sparkRiesgo', t.length ? t.map(r=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); return p&&(parseConcen(r.concen)<p.min)?1:0}) : [0], '#ef4444'); getLineSpark('sparkExceso', t.length ? t.map(r=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); return p&&(parseConcen(r.concen)>p.max)?1:0}) : [0], '#f59e0b'); getLineSpark('sparkTotal', t.length ? t.map(()=>Math.random()) : [1], '#64748b'); }
 
-// Mapa de Calor
-function drawHeatmapOperativo(datos) {
-    const container = document.getElementById('heatmap-container');
-    const labelTotal = document.getElementById('label-heatmap-total');
-    if(!container) return;
-    if(labelTotal) labelTotal.innerText = `${datos.length} Muestras Mapeadas`;
+function drawHeatmapOperativo(datos, containerId = 'heatmap-container', isExpanded = false) {
+    const container = document.getElementById(containerId); if(!container) return;
+    if(!isExpanded) { const labelTotal = document.getElementById('label-heatmap-total'); if(labelTotal) labelTotal.innerText = `${datos.length} Muestras Mapeadas`; }
 
     const franjas = [ { key: 'madrugada', label: 'Madrugada [00h - 06h]', test: h => h >= 0 && h < 6 }, { key: 'manana', label: 'Mañana [06h - 14h]', test: h => h >= 6 && h < 14 }, { key: 'tarde', label: 'Tarde [14h - 22h]', test: h => h >= 14 && h < 22 }, { key: 'noche', label: 'Noche [22h - 24h]', test: h => h >= 22 && h <= 23 } ];
     const dias = [ { key: 1, label: 'Lun' }, { key: 2, label: 'Mar' }, { key: 3, label: 'Mié' }, { key: 4, label: 'Jue' }, { key: 5, label: 'Vie' }, { key: 6, label: 'Sáb' }, { key: 0, label: 'Dom' } ];
 
     let matriz = {}; franjas.forEach(f => { matriz[f.key] = {}; dias.forEach(d => { matriz[f.key][d.key] = []; }); });
+    datos.forEach(r => { const p = PARAMETROS_TECNICOS.find(x => x.solucion === r.solucion); if(p) { const val = parseConcen(r.concen); let estado = 'conforme'; if(val < p.min) estado = 'riesgo'; else if(val > p.max) estado = 'exceso'; let horaStr = r.hora || '00:00:00'; let h = parseInt(horaStr.split(':')[0]) || 0; let fechaObj = new Date(r.fecha + "T00:00:00"); let dKey = isNaN(fechaObj.getDay()) ? 1 : fechaObj.getDay(); let fMatch = franjas.find(f => f.test(h)); if(fMatch && matriz[fMatch.key] && matriz[fMatch.key][dKey] !== undefined) { matriz[fMatch.key][dKey].push({ ...r, estado }); } } });
 
-    datos.forEach(r => {
-        const p = PARAMETROS_TECNICOS.find(x => x.solucion === r.solucion);
-        if(p) {
-            const val = parseConcen(r.concen);
-            let estado = 'conforme'; if(val < p.min) estado = 'riesgo'; else if(val > p.max) estado = 'exceso';
-            let horaStr = r.hora || '00:00:00'; let h = parseInt(horaStr.split(':')[0]) || 0;
-            let fechaObj = new Date(r.fecha + "T00:00:00"); 
-            let dKey = isNaN(fechaObj.getDay()) ? 1 : fechaObj.getDay();
-            let fMatch = franjas.find(f => f.test(h));
-            if(fMatch && matriz[fMatch.key] && matriz[fMatch.key][dKey] !== undefined) { matriz[fMatch.key][dKey].push({ ...r, estado }); }
-        }
-    });
+    if(!isExpanded) heatmapCache = matriz; // Solo actualizar caché general si no estamos en modal expandido (aunque los datos sean los mismos)
+    
+    let baseTextSize = isExpanded ? 'text-sm' : 'text-[10px]';
+    let contentTextSize = isExpanded ? 'text-base' : 'text-xs';
+    let paddingSize = isExpanded ? 'p-4' : 'p-2.5';
 
-    heatmapCache = matriz; 
-    let html = `<div class="w-full overflow-x-auto"><table class="w-full text-center border-collapse text-xs"><thead><tr class="bg-slate-100 text-slate-600 font-bold text-[10px] uppercase"><th class="p-2.5 text-left border-b border-slate-200">Turno / Franja</th>`;
-    dias.forEach(d => { html += `<th class="p-2.5 border-b border-slate-200">${d.label}</th>`; }); html += `</tr></thead><tbody class="divide-y divide-slate-100">`;
+    let html = `<div class="w-full h-full overflow-auto"><table class="w-full text-center border-collapse"><thead><tr class="bg-slate-100 text-slate-600 font-bold ${baseTextSize} uppercase"><th class="${paddingSize} text-left border-b border-slate-200">Turno / Franja</th>`;
+    dias.forEach(d => { html += `<th class="${paddingSize} border-b border-slate-200">${d.label}</th>`; }); html += `</tr></thead><tbody class="divide-y divide-slate-100">`;
 
     franjas.forEach(f => {
-        html += `<tr><td class="p-3 text-left font-bold text-slate-700 bg-slate-50 border-r border-slate-100 text-[11px]">${f.label}</td>`;
+        html += `<tr><td class="${paddingSize} text-left font-bold text-slate-700 bg-slate-50 border-r border-slate-100 ${baseTextSize}">${f.label}</td>`;
         dias.forEach(d => {
             let lista = matriz[f.key][d.key]; let count = lista.length; let bgClass = 'bg-slate-50 text-slate-300';
             if(count > 0) {
                 let hasRiesgo = lista.some(item => item.estado === 'riesgo'); let hasExceso = lista.some(item => item.estado === 'exceso');
-                if(hasRiesgo) bgClass = 'bg-red-100 text-red-800 border border-red-300 font-bold cursor-pointer hover:bg-red-200';
-                else if(hasExceso) bgClass = 'bg-amber-100 text-amber-800 border border-amber-300 font-bold cursor-pointer hover:bg-amber-200';
-                else bgClass = 'bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold cursor-pointer hover:bg-emerald-200';
+                if(hasRiesgo) bgClass = 'bg-red-100 text-red-800 border border-red-300 font-bold cursor-pointer hover:bg-red-200'; else if(hasExceso) bgClass = 'bg-amber-100 text-amber-800 border border-amber-300 font-bold cursor-pointer hover:bg-amber-200'; else bgClass = 'bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold cursor-pointer hover:bg-emerald-200';
             }
-            html += `<td class="p-2.5 ${bgClass} transition-all duration-150 rounded" ${count > 0 ? `onclick="clicRadiografiaTurno('${f.key}', ${d.key}, '${d.label}')" title="Clic para ver Radiografía"` : ''}><div class="text-xs">${count > 0 ? count : ''}</div></td>`;
+            html += `<td class="${paddingSize} ${bgClass} transition-all duration-150 rounded" ${count > 0 ? `onclick="clicRadiografiaTurno('${f.key}', ${d.key}, '${d.label}')" title="Clic para ver Radiografía"` : ''}><div class="${contentTextSize}">${count > 0 ? count : ''}</div></td>`;
         });
         html += `</tr>`;
     });
     html += `</tbody></table></div>`; container.innerHTML = html;
 }
 
-// Radiografía de Turno
+function drawTendenciaHistorica(datos, canvasId = 'historicoChart', isExpanded = false) {
+    let targetInst = isExpanded ? expandedChartInst : historicoInst; if(targetInst) targetInst.destroy();
+    let hist = {}; datos.forEach(r => { let p = PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); if(p) { if(!hist[r.fecha]) hist[r.fecha] = { total:0, conformes:0, excesos:0, riesgos:0 }; hist[r.fecha].total++; let v = parseConcen(r.concen); if(v < p.min) hist[r.fecha].riesgos++; else if(v > p.max) hist[r.fecha].excesos++; else hist[r.fecha].conformes++; } });
+    let fechas = Object.keys(hist).sort(); if(fechas.length === 0) return; if(fechas.length > 30 && fechaInicioGlobal == null) fechas = fechas.slice(-30); 
+    let arrConformes = fechas.map(f => hist[f].conformes); let arrExcesos = fechas.map(f => hist[f].excesos); let arrRiesgos = fechas.map(f => hist[f].riesgos); let arrEficacias = fechas.map(f => (hist[f].conformes / hist[f].total) * 100);
+
+    let newInst = new Chart(document.getElementById(canvasId).getContext('2d'), {
+        type: 'bar',
+        data: { labels: fechas.map(f => f.substring(5)), datasets: [ { type: 'line', label: 'Eficacia (%)', data: arrEficacias, borderColor: '#273c75', borderWidth: isExpanded ? 4 : 2, fill: false, tension: 0.3, pointRadius: isExpanded ? 6 : 4, pointBackgroundColor: '#273c75', yAxisID: 'porcentaje', order: 0 }, { label: 'Conformes', data: arrConformes, backgroundColor: '#10b981', stack: 'Stack 0', yAxisID: 'volumen', order: 1 }, { label: 'Exceso', data: arrExcesos, backgroundColor: '#f59e0b', stack: 'Stack 0', yAxisID: 'volumen', order: 1 }, { label: 'Riesgo', data: arrRiesgos, backgroundColor: '#ef4444', stack: 'Stack 0', yAxisID: 'volumen', order: 1 } ] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: {size: isExpanded ? 14 : 10} } }, tooltip: { mode: 'index', intersect: false, titleFont: {size: isExpanded?16:12}, bodyFont: {size: isExpanded?14:12} } }, scales: { x: { stacked: true, grid: { display: false }, ticks: { font: {size: isExpanded?12:10} } }, volumen: { type: 'linear', position: 'left', stacked: true, title: { display: true, text: 'Volumen', font: {size: isExpanded?12:10, weight: 'bold'}, color: '#64748b' }, ticks: { font: {size: isExpanded?12:10} } }, porcentaje: { type: 'linear', position: 'right', min: 0, max: 100, grid: { drawOnChartArea: false }, ticks: { callback: v => v + '%', font: {size: isExpanded?12:10} } } } }
+    });
+    if(isExpanded) expandedChartInst = newInst; else historicoInst = newInst;
+}
+
+function drawMagicQuadrant(datos, canvasId = 'quadrantChart', isExpanded = false) {
+    let targetInst = isExpanded ? expandedChartInst : quadrantInst; if(targetInst) targetInst.destroy(); if(datos.length === 0) return;
+    let evalSoluciones = {}; datos.forEach(r => { let p = PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); if(p) { if(!evalSoluciones[r.solucion]) evalSoluciones[r.solucion] = { total: 0, ok: 0 }; evalSoluciones[r.solucion].total++; let v = parseConcen(r.concen); if(v >= p.min && v <= p.max) evalSoluciones[r.solucion].ok++; } });
+    let scatterData = []; let tooltipsData = []; Object.keys(evalSoluciones).forEach(sol => { let vol = evalSoluciones[sol].total; let efi = (evalSoluciones[sol].ok / vol) * 100; scatterData.push({ x: efi, y: vol }); tooltipsData.push(sol); });
+    let newInst = new Chart(document.getElementById(canvasId).getContext('2d'), { type: 'scatter', plugins: [quadrantPlugin], data: { datasets: [{ label: 'Soluciones', data: scatterData, backgroundColor: '#6366f1', borderColor: '#ffffff', borderWidth: 2, pointRadius: isExpanded ? 10 : 7, pointHoverRadius: isExpanded ? 14 : 9 }] }, options: { responsive: true, maintainAspectRatio: false, layout: { padding: { right: 10 } }, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#1e293b', padding: 12, titleFont: {size: isExpanded?14:11}, bodyFont: {size: isExpanded?14:11}, callbacks: { label: function(ctx) { return `${tooltipsData[ctx.dataIndex]}: Eficacia ${ctx.raw.x.toFixed(1)}% | Muestras: ${ctx.raw.y}`; } } } }, scales: { x: { title: { display: true, text: 'Eficacia Sanitaria (%)', font: {size: isExpanded?12:10, weight: 'bold'}, color: '#64748b' }, min: 0, max: 100, grid: { display: false }, ticks: { font: {size: isExpanded?12:10} } }, y: { title: { display: true, text: 'Volumen Operativo', font: {size: isExpanded?12:10, weight: 'bold'}, color: '#64748b' }, min: 0, grid: { display: false }, ticks: { font: {size: isExpanded?12:10} } } } });
+    if(isExpanded) expandedChartInst = newInst; else quadrantInst = newInst;
+}
+
+function drawEficaciaSoluciones(datos, canvasId = 'barSolucionesChart', isExpanded = false) {
+    let targetInst = isExpanded ? expandedChartInst : barSolucionesInst; if(targetInst) targetInst.destroy();
+    let d = {}; datos.forEach(r => { let p = PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); if(p) { if(!d[r.solucion]) d[r.solucion] = { t:0, c:0 }; d[r.solucion].t++; let v = parseConcen(r.concen); if(v>=p.min && v<=p.max) d[r.solucion].c++; } });
+    let res = Object.keys(d).map(k => ({ n: k, p: Number(((d[k].c / d[k].t) * 100).toFixed(1)), t: d[k].t })).sort((a,b)=>b.t - a.t); if(res.length === 0) return; let barColors = res.map(x => x.p >= 90 ? '#10b981' : (x.p >= 70 ? '#f59e0b' : '#ef4444'));
+    let newInst = new Chart(document.getElementById(canvasId).getContext('2d'), { type: 'bar', data: { labels: res.map(x => `${x.n} (${x.p}%)`), datasets: [{ data: res.map(x => x.p), backgroundColor: barColors, borderRadius: 4, barThickness: isExpanded ? 24 : 14 }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { titleFont: {size: isExpanded?14:12}, bodyFont: {size: isExpanded?14:12}, callbacks: { label: c => ` Clic para aislar y ver diagrama de dispersión.` } } }, scales: { x: { max: 100, grid: { color: '#f1f5f9' }, ticks: { font: {size: isExpanded?12:10} } }, y: { grid: { display: false }, ticks: { color: '#475569', font: {size: isExpanded?12:9, weight: 'bold'} } } }, onHover: (e, elements) => { e.native.target.style.cursor = elements.length ? 'pointer' : 'default'; }, onClick: (e, elements) => { if (elements.length > 0) abrirModalDrilldown(res[elements[0].index].n); } } });
+    if(isExpanded) expandedChartInst = newInst; else barSolucionesInst = newInst;
+}
+
+function drawRadarFugas(desvios, canvasId = 'fugaQuimicaChart', isExpanded = false) {
+    let targetInst = isExpanded ? expandedChartInst : fugaChartInst; if(targetInst) targetInst.destroy();
+    let excesos = desvios.filter(d => d.tipo.includes('Exceso'));
+    if(!isExpanded) { const msgObj = document.getElementById('fuga-empty-msg'); if(excesos.length === 0) { if(msgObj) msgObj.classList.remove('hidden'); return; } if(msgObj) msgObj.classList.add('hidden'); }
+    if(isExpanded && excesos.length === 0) return; // En modal no dibujamos nada si está vacío
+
+    let fugas = {}; excesos.forEach(e => { if(!fugas[e.solucion]) fugas[e.solucion] = 0; fugas[e.solucion] += e.excesoAbs; }); let labels = Object.keys(fugas); let data = Object.values(fugas);
+    let newInst = new Chart(document.getElementById(canvasId).getContext('2d'), { type: 'radar', data: { labels: labels, datasets: [{ label: 'Índice de Fuga (Σ%)', data: data, backgroundColor: 'rgba(245, 158, 11, 0.25)', borderColor: '#f59e0b', pointBackgroundColor: '#ffffff', pointBorderColor: '#f59e0b', pointBorderWidth: 2, pointRadius: isExpanded ? 6 : 4, borderWidth: isExpanded ? 3 : 2 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { titleFont: {size: isExpanded?14:12}, bodyFont: {size: isExpanded?14:12}, callbacks: { label: c => ` Volumen Desperdiciado: ${c.raw.toFixed(2)} Índice de Fuga (Σ%)` } } }, scales: { r: { angleLines: { color: '#e2e8f0' }, grid: { color: '#e2e8f0', circular: true }, pointLabels: { font: { size: isExpanded?12:9, weight: 'bold' }, color: '#475569' }, ticks: { display: false, beginAtZero: true } } } } });
+    if(isExpanded) expandedChartInst = newInst; else fugaChartInst = newInst;
+}
+
+// ==========================================
+// NUEVO: SISTEMA DE EXPANSIÓN (MODO ENFOQUE)
+// ==========================================
+function expandirGrafico(tipo, titulo) {
+    document.getElementById('expandido-titulo').innerHTML = `<i class="fa-solid fa-expand text-blue-500 mr-2"></i> Vista Detallada: ${titulo}`;
+    document.getElementById('modal-expandido').classList.remove('hidden');
+    
+    const canvas = document.getElementById('expandidoChart');
+    const div = document.getElementById('expandidoDiv');
+    canvas.classList.add('hidden'); div.classList.add('hidden');
+
+    const datos = obtenerDatosFiltrados();
+    
+    if(tipo === 'heatmap') {
+        div.classList.remove('hidden'); drawHeatmapOperativo(datos, 'expandidoDiv', true); 
+    } else {
+        canvas.classList.remove('hidden');
+        if(tipo === 'cuadrante') drawMagicQuadrant(datos, 'expandidoChart', true);
+        if(tipo === 'historico') drawTendenciaHistorica(datos, 'expandidoChart', true);
+        if(tipo === 'barras') drawEficaciaSoluciones(datos, 'expandidoChart', true);
+        if(tipo === 'radar') drawRadarFugas(desviosUltimoFiltro, 'expandidoChart', true);
+    }
+}
+
+function cerrarModalExpandido() {
+    document.getElementById('modal-expandido').classList.add('hidden');
+    if(expandedChartInst) { expandedChartInst.destroy(); expandedChartInst = null; }
+    document.getElementById('expandidoDiv').innerHTML = '';
+}
+
+// Modales Funcionales Existentes (Radiografía, Drilldown, Detalle)
 function clicRadiografiaTurno(franjaKey, diaKey, diaLabel) {
-    let lista = heatmapCache[franjaKey] && heatmapCache[franjaKey][diaKey] ? heatmapCache[franjaKey][diaKey] : [];
-    if(lista.length === 0) return;
-    let dictQuimicos = {}; let dictOperadores = {};
-    lista.forEach(r => { dictQuimicos[r.solucion] = (dictQuimicos[r.solucion] || 0) + 1; let op = r.operario || 'Sin nombre'; dictOperadores[op] = (dictOperadores[op] || 0) + 1; });
-    document.getElementById('turno-titulo').innerHTML = `<i class="fa-solid fa-clipboard-user mr-2"></i> Radiografía Operativa: ${franjaKey.toUpperCase()} (${diaLabel.toUpperCase()})`;
-    document.getElementById('modal-turno').classList.remove('hidden');
-
-    if(turnoQuimInst) turnoQuimInst.destroy();
-    turnoQuimInst = new Chart(document.getElementById('turnoQuimicosChart').getContext('2d'), { type: 'doughnut', data: { labels: Object.keys(dictQuimicos), datasets: [{ data: Object.values(dictQuimicos), backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'], borderWidth: 2, borderColor: '#ffffff' }] }, options: { maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 12, font: {size: 10, family: 'Inter'} } } } } });
-
-    if(turnoOpInst) turnoOpInst.destroy();
-    let opsArr = Object.keys(dictOperadores).map(k => ({ nombre: k, cant: dictOperadores[k] })).sort((a,b)=> b.cant - a.cant);
-    turnoOpInst = new Chart(document.getElementById('turnoOperadoresChart').getContext('2d'), { type: 'bar', data: { labels: opsArr.map(o => o.nombre.split(' ').slice(0,2).join(' ')), datasets: [{ data: opsArr.map(o => o.cant), backgroundColor: '#6366f1', borderRadius: 4 }] }, options: { indexAxis: 'y', maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { stepSize: 1 } }, y: { ticks: { font: {size: 9} } } } } });
+    let lista = heatmapCache[franjaKey] && heatmapCache[franjaKey][diaKey] ? heatmapCache[franjaKey][diaKey] : []; if(lista.length === 0) return; let dictQuimicos = {}; let dictOperadores = {}; lista.forEach(r => { dictQuimicos[r.solucion] = (dictQuimicos[r.solucion] || 0) + 1; let op = r.operario || 'Sin nombre'; dictOperadores[op] = (dictOperadores[op] || 0) + 1; }); document.getElementById('turno-titulo').innerHTML = `<i class="fa-solid fa-clipboard-user mr-2"></i> Radiografía Operativa: ${franjaKey.toUpperCase()} (${diaLabel.toUpperCase()})`; document.getElementById('modal-turno').classList.remove('hidden');
+    if(turnoQuimInst) turnoQuimInst.destroy(); turnoQuimInst = new Chart(document.getElementById('turnoQuimicosChart').getContext('2d'), { type: 'doughnut', data: { labels: Object.keys(dictQuimicos), datasets: [{ data: Object.values(dictQuimicos), backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'], borderWidth: 2, borderColor: '#ffffff' }] }, options: { maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 12, font: {size: 10, family: 'Inter'} } } } } });
+    if(turnoOpInst) turnoOpInst.destroy(); let opsArr = Object.keys(dictOperadores).map(k => ({ nombre: k, cant: dictOperadores[k] })).sort((a,b)=> b.cant - a.cant); turnoOpInst = new Chart(document.getElementById('turnoOperadoresChart').getContext('2d'), { type: 'bar', data: { labels: opsArr.map(o => o.nombre.split(' ').slice(0,2).join(' ')), datasets: [{ data: opsArr.map(o => o.cant), backgroundColor: '#6366f1', borderRadius: 4 }] }, options: { indexAxis: 'y', maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { stepSize: 1 } }, y: { ticks: { font: {size: 9} } } } } });
 }
 function cerrarModalTurno() { document.getElementById('modal-turno').classList.add('hidden'); }
 
-// Combo Histórico
-function drawTendenciaHistorica(datos) {
-    if(historicoInst) historicoInst.destroy();
-    let hist = {};
-    datos.forEach(r => { let p = PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); if(p) { if(!hist[r.fecha]) hist[r.fecha] = { total:0, conformes:0, excesos:0, riesgos:0 }; hist[r.fecha].total++; let v = parseConcen(r.concen); if(v < p.min) hist[r.fecha].riesgos++; else if(v > p.max) hist[r.fecha].excesos++; else hist[r.fecha].conformes++; } });
-    let fechas = Object.keys(hist).sort(); if(fechas.length === 0) return;
-    if(fechas.length > 30 && fechaInicioGlobal == null) fechas = fechas.slice(-30); 
-    let arrConformes = fechas.map(f => hist[f].conformes); let arrExcesos = fechas.map(f => hist[f].excesos); let arrRiesgos = fechas.map(f => hist[f].riesgos); let arrEficacias = fechas.map(f => (hist[f].conformes / hist[f].total) * 100);
-
-    historicoInst = new Chart(document.getElementById('historicoChart').getContext('2d'), {
-        type: 'bar',
-        data: { labels: fechas.map(f => f.substring(5)), datasets: [ { type: 'line', label: 'Eficacia (%)', data: arrEficacias, borderColor: '#273c75', borderWidth: 2, fill: false, tension: 0.3, pointRadius: 4, pointBackgroundColor: '#273c75', yAxisID: 'porcentaje', order: 0 }, { label: 'Conformes', data: arrConformes, backgroundColor: '#10b981', stack: 'Stack 0', yAxisID: 'volumen', order: 1 }, { label: 'Exceso', data: arrExcesos, backgroundColor: '#f59e0b', stack: 'Stack 0', yAxisID: 'volumen', order: 1 }, { label: 'Riesgo', data: arrRiesgos, backgroundColor: '#ef4444', stack: 'Stack 0', yAxisID: 'volumen', order: 1 } ] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: {size: 10} } }, tooltip: { mode: 'index', intersect: false } }, scales: { x: { stacked: true, grid: { display: false } }, volumen: { type: 'linear', position: 'left', stacked: true, title: { display: true, text: 'Volumen', font: {size: 10, weight: 'bold'}, color: '#64748b' } }, porcentaje: { type: 'linear', position: 'right', min: 0, max: 100, grid: { drawOnChartArea: false }, ticks: { callback: v => v + '%' } } } }
-    });
-}
-
-function drawMagicQuadrant(datos) {
-    if(quadrantInst) quadrantInst.destroy(); if(datos.length === 0) return;
-    let evalSoluciones = {}; datos.forEach(r => { let p = PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); if(p) { if(!evalSoluciones[r.solucion]) evalSoluciones[r.solucion] = { total: 0, ok: 0 }; evalSoluciones[r.solucion].total++; let v = parseConcen(r.concen); if(v >= p.min && v <= p.max) evalSoluciones[r.solucion].ok++; } });
-    let scatterData = []; let tooltipsData = []; Object.keys(evalSoluciones).forEach(sol => { let vol = evalSoluciones[sol].total; let efi = (evalSoluciones[sol].ok / vol) * 100; scatterData.push({ x: efi, y: vol }); tooltipsData.push(sol); });
-    quadrantInst = new Chart(document.getElementById('quadrantChart').getContext('2d'), { type: 'scatter', plugins: [quadrantPlugin], data: { datasets: [{ label: 'Soluciones', data: scatterData, backgroundColor: '#6366f1', borderColor: '#ffffff', borderWidth: 2, pointRadius: 7, pointHoverRadius: 9 }] }, options: { responsive: true, maintainAspectRatio: false, layout: { padding: { right: 10 } }, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#1e293b', padding: 10, callbacks: { label: function(ctx) { return `${tooltipsData[ctx.dataIndex]}: Eficacia ${ctx.raw.x.toFixed(1)}% | Muestras: ${ctx.raw.y}`; } } } }, scales: { x: { title: { display: true, text: 'Eficacia Sanitaria (%)', font: {size: 10, weight: 'bold'}, color: '#64748b' }, min: 0, max: 100, grid: { display: false } }, y: { title: { display: true, text: 'Volumen Operativo', font: {size: 10, weight: 'bold'}, color: '#64748b' }, min: 0, grid: { display: false } } } } });
-}
-
-function drawEficaciaSoluciones(datos) {
-    if(barSolucionesInst) barSolucionesInst.destroy();
-    let d = {}; datos.forEach(r => { let p = PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); if(p) { if(!d[r.solucion]) d[r.solucion] = { t:0, c:0 }; d[r.solucion].t++; let v = parseConcen(r.concen); if(v>=p.min && v<=p.max) d[r.solucion].c++; } });
-    let res = Object.keys(d).map(k => ({ n: k, p: Number(((d[k].c / d[k].t) * 100).toFixed(1)), t: d[k].t })).sort((a,b)=>b.t - a.t); 
-    if(res.length === 0) return;
-    let barColors = res.map(x => x.p >= 90 ? '#10b981' : (x.p >= 70 ? '#f59e0b' : '#ef4444'));
-    barSolucionesInst = new Chart(document.getElementById('barSolucionesChart').getContext('2d'), { type: 'bar', data: { labels: res.map(x => `${x.n} (${x.p}%)`), datasets: [{ data: res.map(x => x.p), backgroundColor: barColors, borderRadius: 4, barThickness: 14 }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` Clic para aislar y ver diagrama de dispersión.` } } }, scales: { x: { max: 100, grid: { color: '#f1f5f9' } }, y: { grid: { display: false }, ticks: { color: '#475569', font: {size: 9, weight: 'bold'} } } }, onHover: (e, elements) => { e.native.target.style.cursor = elements.length ? 'pointer' : 'default'; }, onClick: (e, elements) => { if (elements.length > 0) abrirModalDrilldown(res[elements[0].index].n); } } });
-}
-
-function drawRadarFugas(desvios) {
-    if(fugaChartInst) fugaChartInst.destroy(); const msgObj = document.getElementById('fuga-empty-msg'); let excesos = desvios.filter(d => d.tipo.includes('Exceso'));
-    if(excesos.length === 0) { if(msgObj) msgObj.classList.remove('hidden'); return; } if(msgObj) msgObj.classList.add('hidden');
-    let fugas = {}; excesos.forEach(e => { if(!fugas[e.solucion]) fugas[e.solucion] = 0; fugas[e.solucion] += e.excesoAbs; }); let labels = Object.keys(fugas); let data = Object.values(fugas);
-    fugaChartInst = new Chart(document.getElementById('fugaQuimicaChart').getContext('2d'), { type: 'radar', data: { labels: labels, datasets: [{ label: 'Índice de Fuga (Σ%)', data: data, backgroundColor: 'rgba(245, 158, 11, 0.25)', borderColor: '#f59e0b', pointBackgroundColor: '#ffffff', pointBorderColor: '#f59e0b', pointBorderWidth: 2, pointRadius: 4, borderWidth: 2 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { r: { angleLines: { color: '#e2e8f0' }, grid: { color: '#e2e8f0', circular: true }, pointLabels: { font: { size: 9, weight: 'bold' }, color: '#475569' }, ticks: { display: false, beginAtZero: true } } } } });
-}
-
 function abrirModalDrilldown(solucion) {
-    document.getElementById('modal-drilldown').classList.remove('hidden'); document.getElementById('drilldown-titulo').innerHTML = `<i class="fa-solid fa-microscope text-indigo-500 mr-2"></i> Dispersión Técnica: ${solucion}`;
-    const datosBase = obtenerDatosFiltrados(); const subset = datosBase.filter(r => r.solucion === solucion).slice(0, 100).reverse(); const regla = PARAMETROS_TECNICOS.find(p => p.solucion === solucion);
-    if(drilldownInst) drilldownInst.destroy(); if(!regla || subset.length === 0) return; let dataPoints = subset.map(r => parseConcen(r.concen)); let colors = dataPoints.map(v => v < regla.min ? '#ef4444' : (v > regla.max ? '#f59e0b' : '#10b981'));
+    document.getElementById('modal-drilldown').classList.remove('hidden'); document.getElementById('drilldown-titulo').innerHTML = `<i class="fa-solid fa-microscope text-indigo-500 mr-2"></i> Dispersión Técnica: ${solucion}`; const datosBase = obtenerDatosFiltrados(); const subset = datosBase.filter(r => r.solucion === solucion).slice(0, 100).reverse(); const regla = PARAMETROS_TECNICOS.find(p => p.solucion === solucion); if(drilldownInst) drilldownInst.destroy(); if(!regla || subset.length === 0) return; let dataPoints = subset.map(r => parseConcen(r.concen)); let colors = dataPoints.map(v => v < regla.min ? '#ef4444' : (v > regla.max ? '#f59e0b' : '#10b981'));
     drilldownInst = new Chart(document.getElementById('drilldownChart').getContext('2d'), { type: 'line', data: { labels: subset.map(r => `${r.fecha.substring(5)} ${r.hora?r.hora.substring(0,5):''}`), datasets: [ { label: 'Muestras', data: dataPoints, showLine: false, pointBackgroundColor: colors, pointBorderColor: '#ffffff', pointBorderWidth: 1.5, pointRadius: 6, pointHoverRadius: 9 }, { label: 'Max', data: Array(subset.length).fill(regla.max), borderColor: '#f59e0b', borderDash: [5,5], pointRadius: 0, fill: false, borderWidth: 2 }, { label: 'Min', data: Array(subset.length).fill(regla.min), borderColor: '#ef4444', borderDash: [5,5], pointRadius: 0, fill: false, borderWidth: 2 } ] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#1e293b', padding: 12, callbacks: { label: function(ctx) { let obj = subset[ctx.dataIndex]; return [ `Concentración: ${ctx.raw}%`, `Operador: ${obj.operario || obj.laboratorista}`, `Límites: ${regla.min}% - ${regla.max}%` ]; } } } }, scales: { y: { grid: { color: '#f1f5f9' } }, x: { grid: { display: false }, ticks: { maxRotation: 45, minRotation: 45, font: {size: 10} } } } } });
 }
 function cerrarModalDrilldown() { document.getElementById('modal-drilldown').classList.add('hidden'); }
@@ -381,6 +313,7 @@ function abrirModalDetalle(tipo) {
 }
 function cerrarModalDetalle() { document.getElementById('modal-detalle').classList.add('hidden'); }
 
+// IA Gemini
 async function dispararAnalisisIA() {
     const tbody = document.getElementById('ai-action-plan-tbody'); if(desviosUltimoFiltro.length === 0) return;
     if(!obtenerApiKeySegura()) { tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-slate-500 font-bold bg-slate-50 rounded-lg">Falta API Key.</td></tr>`; return; }
