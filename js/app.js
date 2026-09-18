@@ -25,7 +25,7 @@ let listaRegistros = [];
 let desviosUltimoFiltro = [];
 let scatterInst = null, barSolucionesInst = null, fugaChartInst = null;
 let sparkInst = { ef: null, ri: null, ex: null, to: null };
-let tsInstances = {}; // Control global de TomSelect
+let tsInstances = {}; 
 
 // Configuración Global Chart.js (Estética Light Premium)
 Chart.defaults.font.family = "'Inter', sans-serif";
@@ -33,7 +33,7 @@ Chart.defaults.color = '#64748b';
 Chart.defaults.scale.grid.color = '#e2e8f0';
 
 // ==========================================
-// 2. UTILIDADES
+// 2. UTILIDADES Y NORMALIZACIÓN
 // ==========================================
 function n(t) { return t ? String(t).trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : ''; }
 function parseConcen(v) { let num = parseFloat(String(v).replace(',', '.')); return isNaN(num) ? 0 : num; }
@@ -69,7 +69,7 @@ function estandarizarSolucion(nombre) {
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
     actualizarBadgeIA();
-    initFiltrosInteligentes(); // Se inicializan los selectores correctamente primero
+    initFiltrosInteligentes(); 
     try {
         await cargarSupabase();
         setTimeout(() => {
@@ -117,7 +117,7 @@ async function importarArchivoExcel(event) {
 }
 
 // ==========================================
-// 4. FILTROS INTELIGENTES (TOM SELECT) REPARADOS
+// 4. FILTROS INTELIGENTES (TOM SELECT)
 // ==========================================
 function initFiltrosInteligentes() {
     ['filtro-equipo', 'filtro-solucion', 'filtro-anio', 'filtro-mes'].forEach(id => {
@@ -125,7 +125,6 @@ function initFiltrosInteligentes() {
             create: false,
             sortField: { field: "text", direction: "asc" }
         });
-        // Disparar renderizado al cambiar el valor
         tsInstances[id].on('change', () => { renderizarCore(); });
     });
 }
@@ -142,19 +141,16 @@ function actualizarOpcionesFiltros() {
     let currSol = tsInstances['filtro-solucion'].getValue() || 'TODAS';
     let currAn = tsInstances['filtro-anio'].getValue() || 'TODOS';
 
-    // Equipo
     tsInstances['filtro-equipo'].clearOptions();
     tsInstances['filtro-equipo'].addOption({value: 'TODOS', text: 'Todos los Equipos'});
     Array.from(eqSet).sort().forEach(e => tsInstances['filtro-equipo'].addOption({value: e, text: e}));
     tsInstances['filtro-equipo'].setValue(currEq, true);
 
-    // Solución
     tsInstances['filtro-solucion'].clearOptions();
     tsInstances['filtro-solucion'].addOption({value: 'TODAS', text: 'Todas las Soluciones'});
     Array.from(solSet).sort().forEach(s => tsInstances['filtro-solucion'].addOption({value: s, text: s}));
     tsInstances['filtro-solucion'].setValue(currSol, true);
 
-    // Año
     tsInstances['filtro-anio'].clearOptions();
     tsInstances['filtro-anio'].addOption({value: 'TODOS', text: 'Todos los Años'});
     Array.from(anSet).sort().reverse().forEach(a => tsInstances['filtro-anio'].addOption({value: a, text: a}));
@@ -182,7 +178,7 @@ function obtenerDatosFiltrados() {
 }
 
 // ==========================================
-// 5. MOTOR DE RENDERIZADO Y KPIs
+// 5. MOTOR DE RENDERIZADO Y CÁLCULOS
 // ==========================================
 function renderizarCore() {
     const datos = obtenerDatosFiltrados();
@@ -192,9 +188,17 @@ function renderizarCore() {
         const p = PARAMETROS_TECNICOS.find(x => x.solucion === r.solucion);
         if (p) {
             const val = parseConcen(r.concen);
-            if (val < p.min) { stats.riesgo++; stats.desviosList.push({...r, tipo: 'Riesgo (<Min)'}); }
-            else if (val > p.max) { stats.exceso++; stats.desviosList.push({...r, tipo: 'Exceso (>Max)', excesoAbs: val - p.max}); }
-            else stats.conformes++;
+            if (val < p.min) { 
+                stats.riesgo++; 
+                stats.desviosList.push({...r, tipo: 'Riesgo (<Min)', excesoAbs: 0}); 
+            }
+            else if (val > p.max) { 
+                stats.exceso++; 
+                stats.desviosList.push({...r, tipo: 'Exceso (>Max)', excesoAbs: val - p.max}); 
+            }
+            else {
+                stats.conformes++;
+            }
         }
     });
 
@@ -208,8 +212,8 @@ function renderizarCore() {
 
     drawSparklines(datos);
     drawScatter(datos);
-    drawEficaciaSoluciones(datos);
-    drawRadarFugas(stats.desviosList); // Radar Spider Chart
+    drawEficaciaSoluciones(datos); // Drill-down dinámico reactivo
+    drawRadarFugas(stats.desviosList); // Índice de Fuga Química en Red/Radar
     
     desviosUltimoFiltro = stats.desviosList;
     const tbody = document.getElementById('ai-action-plan-tbody');
@@ -217,7 +221,7 @@ function renderizarCore() {
         if(desviosUltimoFiltro.length === 0) {
             tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-green-600 font-medium bg-green-50/50 rounded-lg"><i class="fa-solid fa-check-circle mr-2"></i>Cero desvíos reportados en esta selección.</td></tr>`;
         } else {
-            tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-slate-500 font-medium bg-slate-50/50 rounded-lg">Hay <b>${desviosUltimoFiltro.length} desvíos</b> detectados. Ejecuta el Análisis de IA para diagnosticar las pérdidas.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-slate-500 font-medium bg-slate-50/50 rounded-lg">Hay <b>${desviosUltimoFiltro.length} desvíos</b> detectados. Ejecuta el Análisis de IA para diagnosticar las fugas y excesos.</td></tr>`;
         }
     }
 }
@@ -273,6 +277,7 @@ function drawScatter(datos) {
     });
 }
 
+// DRILL-DOWN DINÁMICO DE EFICACIA POR SOLUCIÓN
 function drawEficaciaSoluciones(datos) {
     if(barSolucionesInst) barSolucionesInst.destroy();
     let d = {};
@@ -284,17 +289,46 @@ function drawEficaciaSoluciones(datos) {
             let v = parseConcen(r.concen); if(v>=p.min && v<=p.max) d[r.solucion].c++;
         }
     });
-    let res = Object.keys(d).map(k => ({ n: k, p: (d[k].c/d[k].t)*100, t: d[k].t })).sort((a,b)=>b.t-a.t).slice(0,5);
-    if(res.length===0) return;
+    
+    let res = Object.keys(d).map(k => ({ 
+        n: k, 
+        p: Number(((d[k].c / d[k].t) * 100).toFixed(1)), 
+        t: d[k].t 
+    })).sort((a,b)=>b.t - a.t).slice(0, 5);
+
+    if(res.length === 0) return;
+
+    // Colores dinámicos según el % de eficacia (Verde >=90%, Amarillo 70-89%, Rojo <70%)
+    let barColors = res.map(x => x.p >= 90 ? '#10b981' : (x.p >= 70 ? '#f59e0b' : '#ef4444'));
 
     barSolucionesInst = new Chart(document.getElementById('barSolucionesChart').getContext('2d'), {
         type: 'bar',
-        data: { labels: res.map(x=>x.n), datasets: [{ data: res.map(x=>x.p), backgroundColor: '#10b981', borderRadius: 4 }] },
-        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { max: 100, grid: { color: '#f1f5f9' } }, y: { grid: { display: false }, ticks: { color: '#475569', font: {size: 10, weight: '600'} } } } }
+        data: { 
+            labels: res.map(x => `${x.n} (${x.p}%)`), 
+            datasets: [{ 
+                data: res.map(x => x.p), 
+                backgroundColor: barColors, 
+                borderRadius: 4,
+                barThickness: 16
+            }] 
+        },
+        options: { 
+            indexAxis: 'y', 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            plugins: { 
+                legend: { display: false },
+                tooltip: { callbacks: { label: function(c) { return ` Conformidad: ${c.raw}%`; } } }
+            }, 
+            scales: { 
+                x: { max: 100, grid: { color: '#f1f5f9' }, ticks: { callback: v => v + '%' } }, 
+                y: { grid: { display: false }, ticks: { color: '#475569', font: {size: 10, weight: '600'} } } 
+            } 
+        }
     });
 }
 
-// GRÁFICA DE ARAÑA / RED (Spider/Radar Chart) PARA FUGAS
+// ÍNDICE DE FUGA QUÍMICA (GRÁFICA DE RED / RADAR)
 function drawRadarFugas(desvios) {
     if(fugaChartInst) fugaChartInst.destroy();
     const msgObj = document.getElementById('fuga-empty-msg');
@@ -306,7 +340,7 @@ function drawRadarFugas(desvios) {
     let fugas = {};
     excesos.forEach(e => {
         if(!fugas[e.solucion]) fugas[e.solucion] = 0;
-        fugas[e.solucion] += e.excesoAbs; 
+        fugas[e.solucion] += e.excesoAbs; // Sumatoria matemática de exceso
     });
 
     let labels = Object.keys(fugas); 
@@ -317,16 +351,14 @@ function drawRadarFugas(desvios) {
         data: { 
             labels: labels, 
             datasets: [{ 
-                label: 'Magnitud de Fuga', 
+                label: 'Volumen Excedente', 
                 data: data, 
-                backgroundColor: 'rgba(245, 158, 11, 0.2)', // warn-yellow transparente
+                backgroundColor: 'rgba(245, 158, 11, 0.25)', 
                 borderColor: '#f59e0b',
                 pointBackgroundColor: '#ffffff',
                 pointBorderColor: '#f59e0b',
                 pointBorderWidth: 2,
                 pointRadius: 4,
-                pointHoverBackgroundColor: '#f59e0b',
-                pointHoverBorderColor: '#ffffff',
                 borderWidth: 2
             }] 
         },
@@ -335,14 +367,14 @@ function drawRadarFugas(desvios) {
             maintainAspectRatio: false, 
             plugins: { 
                 legend: { display: false },
-                tooltip: { callbacks: { label: function(c) { return ` Pérdida Relativa: ${c.raw.toFixed(2)} pts`; } } }
+                tooltip: { callbacks: { label: function(c) { return ` Exceso Acumulado: ${c.raw.toFixed(2)} pts`; } } }
             },
             scales: {
                 r: {
                     angleLines: { color: '#e2e8f0' },
                     grid: { color: '#e2e8f0', circular: true },
                     pointLabels: { font: { size: 9, weight: 'bold' }, color: '#475569' },
-                    ticks: { display: false, beginAtZero: true } // Oculta los números del eje central para más limpieza
+                    ticks: { display: false, beginAtZero: true }
                 }
             }
         }
@@ -350,7 +382,7 @@ function drawRadarFugas(desvios) {
 }
 
 // ==========================================
-// 7. IA RESTRINGIDA A DATOS (SIN CONSEJOS OPERATIVOS)
+// 7. ANÁLISIS DE IA CON DATOS DE FUGAS (ROBUSTO)
 // ==========================================
 function obtenerApiKeySegura() { return localStorage.getItem('poes_gemini_key') || ''; }
 
@@ -369,37 +401,41 @@ async function dispararAnalisisIA() {
     const tbody = document.getElementById('ai-action-plan-tbody');
     if(desviosUltimoFiltro.length === 0) return;
     if(!obtenerApiKeySegura()) {
-        tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-slate-500 font-bold bg-slate-50 rounded-lg">Haz clic en <b>"IA Config"</b> arriba para ingresar tu API Key.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-slate-500 font-bold bg-slate-50 rounded-lg">Haz clic en <b>"IA Config"</b> arriba para ingresar tu API Key de Google AI Studio.</td></tr>`;
         return;
     }
 
-    tbody.innerHTML = `<tr><td colspan="3" class="py-10 text-center text-blue-600 font-bold animate-pulse bg-blue-50/50 rounded-lg"><i class="fa-solid fa-microchip mr-2"></i>Cruzando estadística técnica...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="3" class="py-10 text-center text-blue-600 font-bold animate-pulse bg-blue-50/50 rounded-lg"><i class="fa-solid fa-microchip mr-2"></i>Procesando índices de fuga y estadística...</td></tr>`;
 
-    let muestraIA = desviosUltimoFiltro.slice(0, 15).map(r => `EQ: ${r.equipo} | SOL: ${r.solucion} | FALLA: ${r.tipo} | HR: ${r.hora} | OP: ${r.operario}`);
+    // Preparamos resumen estadístico de excesos para que la IA tenga los datos exactos
+    let totalExcesos = desviosUltimoFiltro.filter(d => d.tipo.includes('Exceso'));
+    let resumenFugas = {};
+    totalExcesos.forEach(e => {
+        resumenFugas[e.solucion] = (resumenFugas[e.solucion] || 0) + e.excesoAbs;
+    });
+
+    let muestraIA = desviosUltimoFiltro.slice(0, 20).map(r => `EQ: ${r.equipo} | SOL: ${r.solucion} \vert{} FALLA:${r.tipo} | HR: ${r.hora} \vert{} OP:${r.operario}`);
     
-    const prompt = `Eres un Analista de Datos y Pérdidas POES. Analiza esta muestra estadística de desvíos:
-${muestraIA.join('\n')}
-
-REGLAS ESTRICTAS DE NEGOCIO:
-1. Tu tarea es EXCLUSIVAMENTE analizar los datos fríos (patrones de horarios, equipos o fugas químicas más frecuentes).
-2. ESTÁ TOTAL Y ABSOLUTAMENTE PROHIBIDO dar recomendaciones mecánicas, operativas o de mantenimiento.
-3. Devuelve la información como hechos estadísticos fríos.
-
-Devuelve un JSON estricto con un arreglo de objetos (máximo 3). Estructura exacta:
-[{"desvio": "Hallazgo principal", "analisis_datos": "Tu análisis sobre la distribución del dato", "responsable": "Nombre del rol u operario implicado"}]
-Sin markdown adicional.`;
+    const prompt = `Eres un Analista de Datos y Pérdidas POES en Lácteos San Antonio. Analiza esta muestra estadística de desvíos y excesos:\n${muestraIA.join('\n')}\n\nREGLAS ESTRICTAS DE NEGOCIO:\n1. Tu tarea es EXCLUSIVAMENTE analizar los datos estadísticos y porcentajes de sobredosificación (ej: "El X% de tus pérdidas químicas provienen de...").\n2. ESTÁ TOTAL Y ABSOLUTAMENTE PROHIBIDO dar recomendaciones mecánicas, operativas o de mantenimiento (no digas ajustar bombas ni calibrar equipos).\n3. Devuelve un JSON estricto con un arreglo de objetos (máximo 3). Estructura exacta:\n[{"desvio": "Hallazgo principal", "analisis_datos": "Análisis estadístico del impacto o distribución de la fuga", "responsable": "Nombre del rol u operario implicado"}]\nSin texto adicional ni markdown (\`\`\`json).`;
 
     const modeloIA = 'gemini-1.5-flash';
 
     try {
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modeloIA}:generateContent?key=${obtenerApiKeySegura()}`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
-        if (!res.ok) throw new Error(`Error de conexión con Google API.`);
+        
+        if (!res.ok) {
+            const errData = await res.json();
+            throw new Error(errData.error?.message || `Error HTTP ${res.status}`);
+        }
         
         const jsonRes = await res.json();
-        let rawText = jsonRes.candidates[0].content.parts[0].text.replace(/```json/gi, '').replace(/```/gi, '').trim();
+        let rawText = jsonRes.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        rawText = rawText.replace(/```json/gi, '').replace(/```/gi, '').trim();
+        
         let plan = JSON.parse(rawText);
 
         let html = '';
@@ -413,7 +449,7 @@ Sin markdown adicional.`;
         tbody.innerHTML = html;
 
     } catch(err) {
-        tbody.innerHTML = `<tr><td colspan="3" class="py-6 px-6 text-center text-red-500 font-bold text-[11px] bg-red-50 rounded-lg"><i class="fa-solid fa-triangle-exclamation mr-1"></i> <b>Fallo IA:</b> Valida tu API Key.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="3" class="py-6 px-6 text-center text-red-500 font-bold text-[11px] bg-red-50 rounded-lg"><i class="fa-solid fa-triangle-exclamation mr-1"></i> <b>Fallo IA:</b> ${err.message}. Verifica tu API Key.</td></tr>`;
     }
 }
 
