@@ -73,11 +73,15 @@
                 </div>
             </section>
 
-            <!-- Tarjetas KPI -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <!-- Tarjetas KPI (Actualizadas a 5 columnas para incluir Conformes) -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
                     <div class="flex justify-between items-start"><div><p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Eficacia Sanitaria</p><h3 id="kpi-eficacia" class="text-3xl font-black text-corporate-blue mt-1">0.0%</h3></div><div class="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center text-green-600 text-lg border border-green-200"><i class="fa-solid fa-shield-halved"></i></div></div>
                     <div class="h-10 mt-4"><canvas id="sparkEficacia"></canvas></div>
+                </div>
+                <div onclick="abrirModalDetalle('conformes')" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between cursor-pointer hover:border-emerald-300 transition group">
+                    <div class="flex justify-between items-start"><div><p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Conformes (Óptimas)</p><h3 id="kpi-conformes" class="text-3xl font-black text-emerald-600 mt-1">0</h3></div><div class="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 text-lg border border-emerald-200"><i class="fa-solid fa-circle-check"></i></div></div>
+                    <div class="h-10 mt-4"><canvas id="sparkConformes"></canvas></div>
                 </div>
                 <div onclick="abrirModalDetalle('riesgo')" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between cursor-pointer hover:border-red-300 transition group">
                     <div class="flex justify-between items-start"><div><p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Riesgo (&lt; Min)</p><h3 id="kpi-riesgo" class="text-3xl font-black text-red-600 mt-1">0</h3></div><div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-red-600 text-lg border border-red-200"><i class="fa-solid fa-triangle-exclamation"></i></div></div>
@@ -128,7 +132,7 @@
                     <div class="h-[230px] w-full relative mt-4"><canvas id="historicoChart"></canvas></div>
                 </div>
 
-                <!-- Barras -->
+                <!-- Barras (Todas las soluciones) -->
                 <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
                     <div>
                         <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-bars-staggered text-blue-500 mr-2"></i> CONFORMIDAD TÉCNICA</h2>
