@@ -17,7 +17,7 @@ const PARAMETROS_TECNICOS = [
 
 let listaRegistros = []; let desviosUltimoFiltro = []; let tsInstances = {}; 
 let barSolucionesInst = null, fugaChartInst = null, historicoInst = null, quadrantInst = null, drilldownInst = null;
-let sparkInst = { ef: null, ri: null, ex: null, to: null };
+let sparkInst = { ef: null, co: null, ri: null, ex: null, to: null };
 let heatmapCache = {}; 
 
 Chart.defaults.font.family = "'Inter', sans-serif";
@@ -132,7 +132,7 @@ function obtenerDatosFiltrados() {
 // 5. RENDERIZADO GENERAL
 // ==========================================
 function renderizarCore() {
-    const datos = obtenerDatosFiltrados(); let stats = { conformes: 0, riesgo: 0, exceso: 0, desviosList: [] };
+    const datos = obtenerDatosFiltrados(); let stats = { conformes: 0, riesgo: 0, exceso: 0, conformesList: [], desviosList: [] };
 
     datos.forEach(r => {
         const p = PARAMETROS_TECNICOS.find(x => x.solucion === r.solucion);
@@ -140,16 +140,19 @@ function renderizarCore() {
             const val = parseConcen(r.concen);
             if (val < p.min) { stats.riesgo++; stats.desviosList.push({...r, tipo: 'Riesgo (<Min)', excesoAbs: 0}); }
             else if (val > p.max) { stats.exceso++; stats.desviosList.push({...r, tipo: 'Exceso (>Max)', excesoAbs: val - p.max}); }
-            else { stats.conformes++; }
+            else { stats.conformes++; stats.conformesList.push({...r, tipo: 'Conforme'}); }
         }
     });
 
     let total = datos.length; let eficacia = total > 0 ? (((stats.conformes) / total) * 100).toFixed(1) : 0;
-    document.getElementById('kpi-eficacia').innerText = eficacia + '%'; document.getElementById('kpi-riesgo').innerText = stats.riesgo.toLocaleString();
-    document.getElementById('kpi-exceso').innerText = stats.exceso.toLocaleString(); document.getElementById('kpi-total').innerText = total.toLocaleString();
+    document.getElementById('kpi-eficacia').innerText = eficacia + '%'; 
+    document.getElementById('kpi-conformes').innerText = stats.conformes.toLocaleString();
+    document.getElementById('kpi-riesgo').innerText = stats.riesgo.toLocaleString(); 
+    document.getElementById('kpi-exceso').innerText = stats.exceso.toLocaleString(); 
+    document.getElementById('kpi-total').innerText = total.toLocaleString();
 
     drawSparklines(datos); 
-    drawHeatmapOperativo(datos); // MAPA DE CALOR CORREGIDO (Todas las muestras mapeadas con colores KPI)
+    drawHeatmapOperativo(datos); 
     drawEficaciaSoluciones(datos); 
     drawRadarFugas(stats.desviosList); 
     drawTendenciaHistorica(datos); 
@@ -163,7 +166,7 @@ function renderizarCore() {
 }
 
 // ==========================================
-// 6. LIBRERÍA DE GRÁFICAS & MAPA DE CALOR (SIN TOOLTIP FLOTANTE, CURSOR MANO, COLORES KPI)
+// 6. LIBRERÍA DE GRÁFICAS & SPARKLES
 // ==========================================
 function getLineSpark(ctxId, data, color) {
     if(sparkInst[ctxId]) sparkInst[ctxId].destroy(); const ctx = document.getElementById(ctxId)?.getContext('2d'); if(!ctx) return;
@@ -172,6 +175,7 @@ function getLineSpark(ctxId, data, color) {
 function drawSparklines(datos) {
     let t = datos.slice(0, 50).reverse();
     getLineSpark('sparkEficacia', t.length ? t.map(r=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); return p&&(parseConcen(r.concen)>=p.min&&parseConcen(r.concen)<=p.max)?1:0}) : [1], '#10b981');
+    getLineSpark('sparkConformes', t.length ? t.map(r=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); return p&&(parseConcen(r.concen)>=p.min&&parseConcen(r.concen)<=p.max)?1:0}) : [1], '#10b981');
     getLineSpark('sparkRiesgo', t.length ? t.map(r=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); return p&&(parseConcen(r.concen)<p.min)?1:0}) : [0], '#ef4444');
     getLineSpark('sparkExceso', t.length ? t.map(r=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); return p&&(parseConcen(r.concen)>p.max)?1:0}) : [0], '#f59e0b');
     getLineSpark('sparkTotal', t.length ? t.map(()=>Math.random()) : [1], '#273c75');
@@ -259,7 +263,6 @@ function drawHeatmapOperativo(datos) {
     container.innerHTML = html;
 }
 
-// Clic en celda del mapa de calor para abrir modal con el detalle completo de las muestras
 function clicCeldaHeatmap(franjaKey, diaKey) {
     let lista = heatmapCache[franjaKey] && heatmapCache[franjaKey][diaKey] ? heatmapCache[franjaKey][diaKey] : [];
     if(lista.length === 0) return;
@@ -332,19 +335,24 @@ function drawTendenciaHistorica(datos) {
     });
 }
 
+// CONFORMIDAD TÉCNICA (MOSTRANDO TODAS LAS SOLUCIONES DEL FILTRO, SIN CORTE DE 5)
 function drawEficaciaSoluciones(datos) {
     if(barSolucionesInst) barSolucionesInst.destroy();
     let d = {}; datos.forEach(r => { let p = PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); if(p) { if(!d[r.solucion]) d[r.solucion] = { t:0, c:0 }; d[r.solucion].t++; let v = parseConcen(r.concen); if(v>=p.min && v<=p.max) d[r.solucion].c++; } });
-    let res = Object.keys(d).map(k => ({ n: k, p: Number(((d[k].c / d[k].t) * 100).toFixed(1)), t: d[k].t })).sort((a,b)=>b.t - a.t).slice(0, 5); if(res.length === 0) return;
+    
+    // Se eliminó .slice(0, 5) para que liste absolutamente todas las soluciones del equipo o filtro activo
+    let res = Object.keys(d).map(k => ({ n: k, p: Number(((d[k].c / d[k].t) * 100).toFixed(1)), t: d[k].t })).sort((a,b)=>b.t - a.t); 
+    if(res.length === 0) return;
+    
     let barColors = res.map(x => x.p >= 90 ? '#10b981' : (x.p >= 70 ? '#f59e0b' : '#ef4444'));
     
     barSolucionesInst = new Chart(document.getElementById('barSolucionesChart').getContext('2d'), { 
         type: 'bar', 
-        data: { labels: res.map(x => `${x.n} (${x.p}%)`), datasets: [{ data: res.map(x => x.p), backgroundColor: barColors, borderRadius: 4, barThickness: 16 }] }, 
+        data: { labels: res.map(x => `${x.n} (${x.p}%)`), datasets: [{ data: res.map(x => x.p), backgroundColor: barColors, borderRadius: 4, barThickness: 14 }] }, 
         options: { 
             indexAxis: 'y', responsive: true, maintainAspectRatio: false, 
             plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` Clic para aislar y ver diagrama de dispersión.` } } }, 
-            scales: { x: { max: 100, grid: { color: '#f1f5f9' } }, y: { grid: { display: false }, ticks: { color: '#475569', font: {size: 10, weight: 'bold'} } } },
+            scales: { x: { max: 100, grid: { color: '#f1f5f9' } }, y: { grid: { display: false }, ticks: { color: '#475569', font: {size: 9, weight: 'bold'} } } },
             onHover: (e, elements) => { e.native.target.style.cursor = elements.length ? 'pointer' : 'default'; },
             onClick: (e, elements) => {
                 if (elements.length > 0) { abrirModalDrilldown(res[elements[0].index].n); }
@@ -442,11 +450,17 @@ async function dispararAnalisisIA() {
 
 function abrirModalDetalle(tipo) {
     const modal = document.getElementById('modal-detalle'); const tbody = document.getElementById('modal-tbody'); if(!modal || !tbody) return; tbody.innerHTML = ''; const datos = obtenerDatosFiltrados(); let rsl = [];
+    if(tipo === 'conformes') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)>=p.min && parseConcen(f.concen)<=p.max;});
     if(tipo === 'riesgo') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)<p.min;});
     if(tipo === 'exceso') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)>p.max;});
-    document.getElementById('modal-titulo').innerText = tipo === 'riesgo' ? "Desvíos por Riesgo (< Mínimo)" : "Desvíos por Sobredosificación (> Máximo)";
+    
+    document.getElementById('modal-titulo').innerText = tipo === 'conformes' ? "Muestras Conformes (Óptimas)" : (tipo === 'riesgo' ? "Desvíos por Riesgo (< Mínimo)" : "Desvíos por Sobredosificación (> Máximo)");
+    
     if(rsl.length===0) { tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-500 font-bold bg-slate-50">Sin registros.</td></tr>`; } 
-    else { rsl.slice(0, 100).forEach(r => { tbody.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-100"><td class="py-3 px-6">${r.fecha} ${r.hora?r.hora.substring(0,5):''}</td><td class="py-3 px-6 font-bold text-slate-800">${r.equipo}</td><td class="py-3 px-6 text-slate-600">${r.solucion}</td><td class="py-3 px-6 text-center font-black ${tipo==='riesgo'?'text-red-500':'text-amber-500'}">${r.concen}</td><td class="py-3 px-6 text-[10px] text-slate-500">${r.operario || r.laboratorista}</td></tr>`; }); }
+    else { rsl.slice(0, 100).forEach(r => { 
+        let badgeColor = tipo === 'conformes' ? 'text-emerald-600 bg-emerald-50' : (tipo === 'riesgo' ? 'text-red-600 bg-red-50' : 'text-amber-600 bg-amber-50');
+        tbody.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-100"><td class="py-3 px-6">${r.fecha} ${r.hora?r.hora.substring(0,5):''}</td><td class="py-3 px-6 font-bold text-slate-800">${r.equipo}</td><td class="py-3 px-6 text-slate-600">${r.solucion}</td><td class="py-3 px-6 text-center font-black ${badgeColor}">${r.concen}</td><td class="py-3 px-6 text-[10px] text-slate-500">${r.operario || r.laboratorista}</td></tr>`; 
+    }); }
     modal.classList.remove('hidden');
 }
 function cerrarModalDetalle() { document.getElementById('modal-detalle').classList.add('hidden'); }
