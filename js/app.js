@@ -306,12 +306,23 @@ function renderizarCore() {
     });
 
     let total = datos.length; 
-    let eficacia = total > 0 ? (((stats.conformes) / total) * 100).toFixed(1) : 0;
-    
+    let eficacia = total > 0 ? (((stats.conformes) / total) * 100).toFixed(1) : '0.0';
+    let pctConformes = total > 0 ? ((stats.conformes / total) * 100).toFixed(1) : '0.0';
+    let pctRiesgo = total > 0 ? ((stats.riesgo / total) * 100).toFixed(1) : '0.0';
+    let pctExceso = total > 0 ? ((stats.exceso / total) * 100).toFixed(1) : '0.0';
+
+    // Actualización de KPIs con Porcentajes
     document.getElementById('kpi-eficacia').innerText = eficacia + '%'; 
+    
     document.getElementById('kpi-conformes').innerText = stats.conformes.toLocaleString();
+    document.getElementById('kpi-conformes-pct').innerText = `(${pctConformes}%)`;
+    
     document.getElementById('kpi-riesgo').innerText = stats.riesgo.toLocaleString(); 
+    document.getElementById('kpi-riesgo-pct').innerText = `(${pctRiesgo}%)`;
+    
     document.getElementById('kpi-exceso').innerText = stats.exceso.toLocaleString(); 
+    document.getElementById('kpi-exceso-pct').innerText = `(${pctExceso}%)`;
+    
     document.getElementById('kpi-total').innerText = total.toLocaleString();
 
     drawSparklines(datos); 
