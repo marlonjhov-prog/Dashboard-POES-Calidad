@@ -18,6 +18,7 @@ const PARAMETROS_TECNICOS = [
 let listaRegistros = []; let desviosUltimoFiltro = []; let tsInstances = {}; 
 let barSolucionesInst = null, fugaChartInst = null, historicoInst = null, quadrantInst = null, drilldownInst = null;
 let sparkInst = { ef: null, ri: null, ex: null, to: null };
+let heatmapCache = {}; // Caché global para interactividad del mapa de calor
 
 Chart.defaults.font.family = "'Inter', sans-serif";
 Chart.defaults.color = '#64748b'; 
@@ -148,7 +149,7 @@ function renderizarCore() {
     document.getElementById('kpi-exceso').innerText = stats.exceso.toLocaleString(); document.getElementById('kpi-total').innerText = total.toLocaleString();
 
     drawSparklines(datos); 
-    drawHeatmapOperativo(datos); 
+    drawHeatmapOperativo(datos); // MAPA DE CALOR INTERACTIVO
     drawEficaciaSoluciones(datos); 
     drawRadarFugas(stats.desviosList); 
     drawTendenciaHistorica(datos); 
@@ -162,7 +163,7 @@ function renderizarCore() {
 }
 
 // ==========================================
-// 6. LIBRERÍA DE GRÁFICAS & MAPA DE CALOR
+// 6. LIBRERÍA DE GRÁFICAS & MAPA DE CALOR INTERACTIVO
 // ==========================================
 function getLineSpark(ctxId, data, color) {
     if(sparkInst[ctxId]) sparkInst[ctxId].destroy(); const ctx = document.getElementById(ctxId)?.getContext('2d'); if(!ctx) return;
@@ -205,7 +206,7 @@ function drawHeatmapOperativo(datos) {
     ];
 
     let matriz = {};
-    franjas.forEach(f => { matriz[f.key] = {}; dias.forEach(d => { matriz[f.key][d.key] = 0; }); });
+    franjas.forEach(f => { matriz[f.key] = {}; dias.forEach(d => { matriz[f.key][d.key] = []; }); });
 
     desvios.forEach(r => {
         let horaStr = r.hora || '00:00:00';
@@ -215,14 +216,17 @@ function drawHeatmapOperativo(datos) {
 
         let fMatch = franjas.find(f => f.test(h));
         if(fMatch && matriz[fMatch.key] && matriz[fMatch.key][dKey] !== undefined) {
-            matriz[fMatch.key][dKey]++;
+            matriz[fMatch.key][dKey].push(r);
         }
     });
 
-    let maxVal = 1;
-    franjas.forEach(f => { dias.forEach(d => { if(matriz[f.key][d.key] > maxVal) maxVal = matriz[f.key][d.key]; }); });
+    heatmapCache = matriz; // Almacenar en caché para eventos interactivos
 
-    let html = `<table class="w-full text-center border-collapse text-xs">
+    let maxVal = 1;
+    franjas.forEach(f => { dias.forEach(d => { if(matriz[f.key][d.key].length > maxVal) maxVal = matriz[f.key][d.key].length; }); });
+
+    let html = `<div class="relative w-full overflow-x-auto">
+        <table class="w-full text-center border-collapse text-xs">
         <thead>
             <tr class="bg-slate-100 text-slate-600 font-bold text-[10px] uppercase">
                 <th class="p-2.5 text-left border-b border-slate-200">Turno / Franja</th>`;
@@ -232,7 +236,8 @@ function drawHeatmapOperativo(datos) {
     franjas.forEach(f => {
         html += `<tr><td class="p-3 text-left font-bold text-slate-700 bg-slate-50 border-r border-slate-100 text-[11px]">${f.label}</td>`;
         dias.forEach(d => {
-            let count = matriz[f.key][d.key];
+            let lista = matriz[f.key][d.key];
+            let count = lista.length;
             let intensity = count / maxVal;
             let bgClass = 'bg-slate-50 text-slate-400';
             if(count > 0) {
@@ -240,14 +245,82 @@ function drawHeatmapOperativo(datos) {
                 else if(intensity <= 0.7) bgClass = 'bg-orange-300 text-orange-950 font-bold';
                 else bgClass = 'bg-red-500 text-white font-black shadow-sm';
             }
-            html += `<td class="p-2.5 ${bgClass} transition-all duration-150 rounded cursor-pointer" title="${count} desvíos en ${f.label} (${d.label})">
-                <div class="text-xs font-bold">${count}</div>
+            html += `<td class="p-2.5 ${bgClass} transition-all duration-150 rounded cursor-pointer relative group"
+                onmouseenter="mostrarTooltipHeatmap(event, '${f.key}', ${d.key})"
+                onmouseleave="ocultarTooltipHeatmap()"
+                onclick="clicCeldaHeatmap('${f.key}', ${d.key})">
+                <div class="text-xs font-bold">${count > 0 ? count : ''}</div>
             </td>`;
         });
         html += `</tr>`;
     });
-    html += `</tbody></table>`;
+    html += `</tbody></table>
+    <!-- Tooltip flotante interactivo -->
+    <div id="heatmap-tooltip" class="absolute z-50 hidden bg-slate-900 text-white text-[11px] rounded-xl p-3 shadow-2xl pointer-events-none max-w-xs border border-slate-700"></div>
+    </div>`;
     container.innerHTML = html;
+}
+
+// Funciones para Tooltip Interactivo del Mapa de Calor
+function mostrarTooltipHeatmap(event, franjaKey, diaKey) {
+    let lista = heatmapCache[franjaKey] && heatmapCache[franjaKey][diaKey] ? heatmapCache[franjaKey][diaKey] : [];
+    if(lista.length === 0) return;
+
+    let tooltip = document.getElementById('heatmap-tooltip');
+    if(!tooltip) return;
+
+    let content = `<div class="font-bold text-amber-400 mb-1 border-b border-slate-700 pb-1">Desvíos Detectados (${lista.length}):</div>`;
+    lista.forEach((item, idx) => {
+        content += `<div class="mb-1.5 last:mb-0">
+            <div><b>Fecha:</b> ${item.fecha} (${item.hora ? item.hora.substring(0,5) : 'N/A'})</div>
+            <div><b>Equipo:</b> ${item.equipo} | <b>Solución:</b> ${item.solucion}</div>
+            <div><b>Concentración:</b> <span class="text-red-300 font-bold">${item.concen}%</span></div>
+            <div><b>Operario:</b> ${item.operario || 'N/A'}</div>
+            <div><b>Laboratorista:</b> ${item.laboratorista || 'N/A'}</div>
+            ${idx < lista.length - 1 ? '<div class="border-t border-slate-800 my-1"></div>' : ''}
+        </div>`;
+    });
+
+    tooltip.innerHTML = content;
+    tooltip.classList.remove('hidden');
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const parentRect = document.getElementById('heatmap-container').getBoundingClientRect();
+    
+    let left = rect.left - parentRect.left + (rect.width / 2);
+    let top = rect.top - parentRect.top - 10;
+
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
+    tooltip.style.transform = `translate(-50%, -100%)`;
+}
+
+function ocultarTooltipHeatmap() {
+    let tooltip = document.getElementById('heatmap-tooltip');
+    if(tooltip) tooltip.classList.add('hidden');
+}
+
+function clicCeldaHeatmap(franjaKey, diaKey) {
+    let lista = heatmapCache[franjaKey] && heatmapCache[franjaKey][diaKey] ? heatmapCache[franjaKey][diaKey] : [];
+    if(lista.length === 0) return;
+
+    const modal = document.getElementById('modal-detalle'); 
+    const tbody = document.getElementById('modal-tbody'); 
+    if(!modal || !tbody) return; 
+    tbody.innerHTML = '';
+    
+    document.getElementById('modal-titulo').innerText = `Auditoría Detallada - Turno ${franjaKey.toUpperCase()}`;
+    
+    lista.forEach(r => {
+        tbody.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-100">
+            <td class="py-3 px-6">${r.fecha} ${r.hora?r.hora.substring(0,5):''}</td>
+            <td class="py-3 px-6 font-bold text-slate-800">${r.equipo}</td>
+            <td class="py-3 px-6 text-slate-600">${r.solucion}</td>
+            <td class="py-3 px-6 text-center font-black text-red-500">${r.concen}</td>
+            <td class="py-3 px-6 text-[10px] text-slate-500"><b>Op:</b> ${r.operario || 'N/A'}<br><b>Lab:</b> ${r.laboratorista || 'N/A'}</td>
+        </tr>`;
+    });
+    modal.classList.remove('hidden');
 }
 
 function drawMagicQuadrant(datos) {
