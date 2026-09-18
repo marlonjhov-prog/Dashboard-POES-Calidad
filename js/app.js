@@ -16,7 +16,7 @@ const PARAMETROS_TECNICOS = [
 ];
 
 let listaRegistros = []; let desviosUltimoFiltro = []; let tsInstances = {}; 
-let scatterInst = null, barSolucionesInst = null, fugaChartInst = null, historicoInst = null, quadrantInst = null, drilldownInst = null;
+let barSolucionesInst = null, fugaChartInst = null, historicoInst = null, quadrantInst = null, drilldownInst = null;
 let sparkInst = { ef: null, ri: null, ex: null, to: null };
 
 Chart.defaults.font.family = "'Inter', sans-serif";
@@ -42,13 +42,10 @@ const quadrantPlugin = {
         ctx.beginPath(); ctx.moveTo(left, midY); ctx.lineTo(right, midY); ctx.stroke();
         
         ctx.fillStyle = '#94a3b8'; ctx.font = 'bold 9px Inter';
-        
-        // Textos a la izquierda (Alineación normal)
         ctx.textAlign = 'left';
         ctx.fillText('CRÍTICO (ALTO RIESGO)', left + 10, top + 15);
         ctx.fillText('A MEJORAR (BAJO VOL)', left + 10, midY + 15); 
         
-        // Textos a la derecha (Alineados estrictamente al borde derecho para que no se corten)
         if(midX > left) {
             ctx.textAlign = 'right';
             ctx.fillText('LÍDERES (ESTABLES)', right - 10, top + 15); 
@@ -150,7 +147,9 @@ function renderizarCore() {
     document.getElementById('kpi-eficacia').innerText = eficacia + '%'; document.getElementById('kpi-riesgo').innerText = stats.riesgo.toLocaleString();
     document.getElementById('kpi-exceso').innerText = stats.exceso.toLocaleString(); document.getElementById('kpi-total').innerText = total.toLocaleString();
 
-    drawSparklines(datos); drawScatterPremium(datos); drawEficaciaSoluciones(datos); drawRadarFugas(stats.desviosList); 
+    drawSparklines(datos); 
+    drawHeatmapOperativo(datos); // NUEVO MAPA DE CALOR OPERATIVO
+    drawEficaciaSoluciones(datos); drawRadarFugas(stats.desviosList); 
     drawTendenciaHistorica(datos); drawMagicQuadrant(datos); 
     
     desviosUltimoFiltro = stats.desviosList; const tbody = document.getElementById('ai-action-plan-tbody');
@@ -161,7 +160,7 @@ function renderizarCore() {
 }
 
 // ==========================================
-// 6. LIBRERÍA DE GRÁFICAS (CHART.JS)
+// 6. LIBRERÍA DE GRÁFICAS & MAPA DE CALOR
 // ==========================================
 function getLineSpark(ctxId, data, color) {
     if(sparkInst[ctxId]) sparkInst[ctxId].destroy(); const ctx = document.getElementById(ctxId)?.getContext('2d'); if(!ctx) return;
@@ -175,40 +174,79 @@ function drawSparklines(datos) {
     getLineSpark('sparkTotal', t.length ? t.map(()=>Math.random()) : [1], '#273c75');
 }
 
-function drawScatterPremium(datos) {
-    let sol = tsInstances['filtro-solucion'].getValue() || 'TODAS';
-    if(sol === 'TODAS') {
-        let count={}; datos.forEach(r => count[r.solucion] = (count[r.solucion]||0)+1);
-        sol = Object.keys(count).length ? Object.keys(count).reduce((a,b)=>count[a]>count[b]?a:b) : 'SOSA';
-        document.getElementById('label-scatter').innerText = `${sol} (Predominante)`;
-    } else { document.getElementById('label-scatter').innerText = sol; }
+// NUEVA FUNCIÓN: MAPA DE CALOR OPERATIVO (FRANJA HORARIA VS DÍA)
+function drawHeatmapOperativo(datos) {
+    const container = document.getElementById('heatmap-container');
+    const labelTotal = document.getElementById('label-heatmap-total');
+    if(!container) return;
 
-    const regla = PARAMETROS_TECNICOS.find(p => p.solucion === sol); const subset = datos.filter(r => r.solucion === sol).slice(0, 60).reverse();
-    if(scatterInst) scatterInst.destroy(); if(!regla || subset.length===0) return;
-    let dataPoints = subset.map(r => parseConcen(r.concen)); let colors = dataPoints.map(v => v < regla.min ? '#ef4444' : (v > regla.max ? '#f59e0b' : '#10b981'));
-
-    scatterInst = new Chart(document.getElementById('scatterChart').getContext('2d'), {
-        type: 'line',
-        data: {
-            labels: subset.map(r => r.fecha.substring(5)),
-            datasets: [
-                { label: 'Muestras', data: dataPoints, showLine: false, pointBackgroundColor: colors, pointBorderColor: '#ffffff', pointBorderWidth: 1.5, pointRadius: 5, pointHoverRadius: 8 },
-                { label: 'Max', data: Array(subset.length).fill(regla.max), borderColor: '#f59e0b', borderDash: [5,5], pointRadius: 0, fill: false, borderWidth: 1.5 },
-                { label: 'Min', data: Array(subset.length).fill(regla.min), borderColor: '#ef4444', borderDash: [5,5], pointRadius: 0, fill: false, borderWidth: 1.5 }
-            ]
-        },
-        options: { 
-            responsive: true, maintainAspectRatio: false, 
-            plugins: { 
-                legend: { display: false },
-                tooltip: { 
-                    backgroundColor: '#ffffff', titleColor: '#273c75', bodyColor: '#475569', borderColor: '#e2e8f0', borderWidth: 1, padding: 12, boxPadding: 6,
-                    titleFont: { size: 12, family: 'Inter', weight: 'bold' }, bodyFont: { size: 11, family: 'Inter' }, displayColors: false, cornerRadius: 8,
-                    callbacks: { title: function(ctx) { return `Fecha: ${subset[ctx[0].dataIndex].fecha}`; }, label: function(ctx) { let obj = subset[ctx.dataIndex]; return [ `Químico: ${obj.solucion} (${ctx.raw}%)`, `Límites: Min ${regla.min}% - Max ${regla.max}%`, `Hora: ${obj.hora ? obj.hora.substring(0,5) : 'N/A'}`, `Operador: ${obj.operario || obj.laboratorista || 'N/A'}` ]; } } 
-                }
-            }, scales: { y: { grid: { color: '#f8fafc' } }, x: { grid: { display: false } } } 
+    let desvios = [];
+    datos.forEach(r => {
+        const p = PARAMETROS_TECNICOS.find(x => x.solucion === r.solucion);
+        if(p) {
+            const val = parseConcen(r.concen);
+            if(val < p.min || val > p.max) desvios.push(r);
         }
     });
+
+    if(labelTotal) labelTotal.innerText = `${desvios.length} Desvíos Mapeados`;
+
+    const franjas = [
+        { key: 'madrugada', label: 'Madrugada [00h - 06h]', test: h => h >= 0 && h < 6 },
+        { key: 'manana', label: 'Mañana [06h - 14h]', test: h => h >= 6 && h < 14 },
+        { key: 'tarde', label: 'Tarde [14h - 22h]', test: h => h >= 14 && h < 22 },
+        { key: 'noche', label: 'Noche [22h - 24h]', test: h => h >= 22 && h <= 23 }
+    ];
+
+    const dias = [
+        { key: 1, label: 'Lun' }, { key: 2, label: 'Mar' }, { key: 3, label: 'Mié' },
+        { key: 4, label: 'Jue' }, { key: 5, label: 'Vie' }, { key: 6, label: 'Sáb' }, { key: 0, label: 'Dom' }
+    ];
+
+    let matriz = {};
+    franjas.forEach(f => { matriz[f.key] = {}; dias.forEach(d => { matriz[f.key][d.key] = 0; }); });
+
+    desvios.forEach(r => {
+        let horaStr = r.hora || '00:00:00';
+        let h = parseInt(horaStr.split(':')[0]) || 0;
+        let fechaObj = new Date(r.fecha || Date.now());
+        let dKey = isNaN(fechaObj.getDay()) ? 1 : fechaObj.getDay();
+
+        let fMatch = franjas.find(f => f.test(h));
+        if(fMatch && matriz[fMatch.key] && matriz[fMatch.key][dKey] !== undefined) {
+            matriz[fMatch.key][dKey]++;
+        }
+    });
+
+    let maxVal = 1;
+    franjas.forEach(f => { dias.forEach(d => { if(matriz[f.key][d.key] > maxVal) maxVal = matriz[f.key][d.key]; }); });
+
+    let html = `<table class="w-full text-center border-collapse text-xs">
+        <thead>
+            <tr class="bg-slate-100 text-slate-600 font-bold text-[10px] uppercase">
+                <th class="p-2.5 text-left border-b border-slate-200">Turno / Franja</th>`;
+    dias.forEach(d => { html += `<th class="p-2.5 border-b border-slate-200">${d.label}</th>`; });
+    html += `</tr></thead><tbody class="divide-y divide-slate-100">`;
+
+    franjas.forEach(f => {
+        html += `<tr><td class="p-3 text-left font-bold text-slate-700 bg-slate-50 border-r border-slate-100 text-[11px]">${f.label}</td>`;
+        dias.forEach(d => {
+            let count = matriz[f.key][d.key];
+            let intensity = count / maxVal;
+            let bgClass = 'bg-slate-50 text-slate-400';
+            if(count > 0) {
+                if(intensity <= 0.3) bgClass = 'bg-amber-100 text-amber-900 font-semibold';
+                else if(intensity <= 0.7) bgClass = 'bg-orange-300 text-orange-950 font-bold';
+                else bgClass = 'bg-red-500 text-white font-black shadow-sm';
+            }
+            html += `<td class="p-2.5 ${bgClass} transition-all duration-150 rounded cursor-pointer" title="${count} desvíos en ${f.label} (${d.label})">
+                <div class="text-xs font-bold">${count}</div>
+            </td>`;
+        });
+        html += `</tr>`;
+    });
+    html += `</tbody></table>`;
+    container.innerHTML = html;
 }
 
 function drawMagicQuadrant(datos) {
@@ -226,7 +264,7 @@ function drawMagicQuadrant(datos) {
         data: { datasets: [{ label: 'Soluciones', data: scatterData, backgroundColor: '#6366f1', borderColor: '#ffffff', borderWidth: 2, pointRadius: 7, pointHoverRadius: 9 }] },
         options: {
             responsive: true, maintainAspectRatio: false,
-            layout: { padding: { right: 10 } }, // Extra margen derecho para evitar que el círculo final se corte
+            layout: { padding: { right: 10 } },
             plugins: {
                 legend: { display: false },
                 tooltip: { backgroundColor: '#1e293b', titleFont: { size: 11 }, bodyFont: { size: 11 }, padding: 10, callbacks: { label: function(ctx) { return `${tooltipsData[ctx.dataIndex]}: Eficacia ${ctx.raw.x.toFixed(1)}% | Muestras: ${ctx.raw.y}`; } } }
@@ -255,7 +293,6 @@ function drawTendenciaHistorica(datos) {
     });
 }
 
-// 6.4 BARRAS DE CONFORMIDAD CON EVENTO ONCLICK (DRILL-DOWN)
 function drawEficaciaSoluciones(datos) {
     if(barSolucionesInst) barSolucionesInst.destroy();
     let d = {}; datos.forEach(r => { let p = PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); if(p) { if(!d[r.solucion]) d[r.solucion] = { t:0, c:0 }; d[r.solucion].t++; let v = parseConcen(r.concen); if(v>=p.min && v<=p.max) d[r.solucion].c++; } });
@@ -269,14 +306,9 @@ function drawEficaciaSoluciones(datos) {
             indexAxis: 'y', responsive: true, maintainAspectRatio: false, 
             plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` Clic para aislar y ver diagrama de dispersión.` } } }, 
             scales: { x: { max: 100, grid: { color: '#f1f5f9' } }, y: { grid: { display: false }, ticks: { color: '#475569', font: {size: 10, weight: 'bold'} } } },
-            // ACTIVACIÓN DE EVENTOS DE CLIC PARA DRILL DOWN
             onHover: (e, elements) => { e.native.target.style.cursor = elements.length ? 'pointer' : 'default'; },
             onClick: (e, elements) => {
-                if (elements.length > 0) {
-                    const index = elements[0].index;
-                    const fullLabel = res[index].n; // Nombre exacto del químico
-                    abrirModalDrilldown(fullLabel);
-                }
+                if (elements.length > 0) { abrirModalDrilldown(res[elements[0].index].n); }
             }
         } 
     });
@@ -292,19 +324,15 @@ function drawRadarFugas(desvios) {
 }
 
 // ==========================================
-// 7. FUNCIONES DEL NUEVO MODAL DRILL-DOWN (GRÁFICA AISLADA)
+// 7. DRILL-DOWN DISPERSIÓN (MODAL)
 // ==========================================
 function abrirModalDrilldown(solucion) {
     document.getElementById('modal-drilldown').classList.remove('hidden');
     document.getElementById('drilldown-titulo').innerHTML = `<i class="fa-solid fa-microscope text-indigo-500 mr-2"></i> Dispersión Técnica: ${solucion}`;
-    
     const datosBase = obtenerDatosFiltrados();
     const subset = datosBase.filter(r => r.solucion === solucion).slice(0, 100).reverse(); 
     const regla = PARAMETROS_TECNICOS.find(p => p.solucion === solucion);
-    
-    if(drilldownInst) drilldownInst.destroy();
-    if(!regla || subset.length === 0) return; 
-    
+    if(drilldownInst) drilldownInst.destroy(); if(!regla || subset.length === 0) return; 
     let dataPoints = subset.map(r => parseConcen(r.concen));
     let colors = dataPoints.map(v => v < regla.min ? '#ef4444' : (v > regla.max ? '#f59e0b' : '#10b981'));
 
@@ -322,21 +350,12 @@ function abrirModalDrilldown(solucion) {
             responsive: true, maintainAspectRatio: false,
             plugins: {
                 legend: { display: false },
-                tooltip: {
-                    backgroundColor: '#1e293b', titleFont: { size: 12 }, bodyFont: { size: 12 }, padding: 12,
-                    callbacks: {
-                        label: function(ctx) {
-                            let obj = subset[ctx.dataIndex];
-                            return [ `Concentración: ${ctx.raw}%`, `Operador: ${obj.operario || obj.laboratorista}`, `Límites: ${regla.min}% - ${regla.max}%` ];
-                        }
-                    }
-                }
+                tooltip: { backgroundColor: '#1e293b', titleFont: { size: 12 }, bodyFont: { size: 12 }, padding: 12, callbacks: { label: function(ctx) { let obj = subset[ctx.dataIndex]; return [ `Concentración: ${ctx.raw}%`, `Operador: ${obj.operario || obj.laboratorista}`, `Límites: ${regla.min}% - ${regla.max}%` ]; } } }
             },
             scales: { y: { grid: { color: '#f1f5f9' } }, x: { grid: { display: false }, ticks: { maxRotation: 45, minRotation: 45, font: {size: 10} } } }
         }
     });
 }
-
 function cerrarModalDrilldown() { document.getElementById('modal-drilldown').classList.add('hidden'); }
 
 // ==========================================
