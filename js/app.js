@@ -405,20 +405,14 @@ async function dispararAnalisisIA() {
         return;
     }
 
-    tbody.innerHTML = `<tr><td colspan="3" class="py-10 text-center text-blue-600 font-bold animate-pulse bg-blue-50/50 rounded-lg"><i class="fa-solid fa-microchip mr-2"></i>Procesando índices de fuga y estadística...</td></tr>`;
-
-    // Preparamos resumen estadístico de excesos para que la IA tenga los datos exactos
-    let totalExcesos = desviosUltimoFiltro.filter(d => d.tipo.includes('Exceso'));
-    let resumenFugas = {};
-    totalExcesos.forEach(e => {
-        resumenFugas[e.solucion] = (resumenFugas[e.solucion] || 0) + e.excesoAbs;
-    });
+    tbody.innerHTML = `<tr><td colspan="3" class="py-10 text-center text-blue-600 font-bold animate-pulse bg-blue-50/50 rounded-lg"><i class="fa-solid fa-microchip mr-2"></i>Procesando índices de fuga con 3.5 Flash-Lite...</td></tr>`;
 
     let muestraIA = desviosUltimoFiltro.slice(0, 20).map(r => `EQ: ${r.equipo} | SOL: ${r.solucion} \vert{} FALLA:${r.tipo} | HR: ${r.hora} \vert{} OP:${r.operario}`);
     
     const prompt = `Eres un Analista de Datos y Pérdidas POES en Lácteos San Antonio. Analiza esta muestra estadística de desvíos y excesos:\n${muestraIA.join('\n')}\n\nREGLAS ESTRICTAS DE NEGOCIO:\n1. Tu tarea es EXCLUSIVAMENTE analizar los datos estadísticos y porcentajes de sobredosificación (ej: "El X% de tus pérdidas químicas provienen de...").\n2. ESTÁ TOTAL Y ABSOLUTAMENTE PROHIBIDO dar recomendaciones mecánicas, operativas o de mantenimiento (no digas ajustar bombas ni calibrar equipos).\n3. Devuelve un JSON estricto con un arreglo de objetos (máximo 3). Estructura exacta:\n[{"desvio": "Hallazgo principal", "analisis_datos": "Análisis estadístico del impacto o distribución de la fuga", "responsable": "Nombre del rol u operario implicado"}]\nSin texto adicional ni markdown (\`\`\`json).`;
 
-    const modeloIA = 'gemini-1.5-flash';
+    // CAMBIO DE MODELO APLICADO: 3.5 Flash-Lite
+    const modeloIA = 'gemini-3.5-flash-lite';
 
     try {
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modeloIA}:generateContent?key=${obtenerApiKeySegura()}`, {
@@ -452,7 +446,6 @@ async function dispararAnalisisIA() {
         tbody.innerHTML = `<tr><td colspan="3" class="py-6 px-6 text-center text-red-500 font-bold text-[11px] bg-red-50 rounded-lg"><i class="fa-solid fa-triangle-exclamation mr-1"></i> <b>Fallo IA:</b> ${err.message}. Verifica tu API Key.</td></tr>`;
     }
 }
-
 // ==========================================
 // 8. MODALES
 // ==========================================
