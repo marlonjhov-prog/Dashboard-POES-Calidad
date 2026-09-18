@@ -19,9 +19,7 @@
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
     
     <script>
-        tailwind.config = {
-            theme: { extend: { colors: { 'corporate-blue': '#273c75', 'accent-green': '#10b981', 'risk-red': '#ef4444', 'warn-yellow': '#f59e0b' } } }
-        }
+        tailwind.config = { theme: { extend: { colors: { 'corporate-blue': '#273c75', 'accent-green': '#10b981', 'risk-red': '#ef4444', 'warn-yellow': '#f59e0b' } } } }
     </script>
     <style>
         .ts-control { background-color: #f8fafc !important; border: 1px solid #cbd5e1 !important; border-radius: 0.5rem !important; color: #334155 !important; font-size: 0.875rem !important; padding: 0.6rem 0.75rem !important; font-weight: 600 !important; box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05); cursor: pointer; }
@@ -95,30 +93,30 @@
                 </div>
             </div>
 
-            <!-- Fila 1 de Gráficas: Dispersión y Matriz Mágica -->
+            <!-- Fila 1 -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <!-- Dispersión Premium -->
+                <!-- Dispersión -->
                 <div class="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
                     <div class="flex justify-between items-center mb-4">
-                        <div><h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-magnifying-glass-chart text-blue-500 mr-2"></i> MAPA DE DISPERSIÓN BROMATOLÓGICA</h2><p class="text-[11px] text-slate-500 mt-0.5">Muestreo vs Límites Técnicos (Pase el cursor para auditar)</p></div>
+                        <div><h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-magnifying-glass-chart text-blue-500 mr-2"></i> MAPA DE DISPERSIÓN BROMATOLÓGICA</h2><p class="text-[11px] text-slate-500 mt-0.5">Solución predominante por límite de escala técnica</p></div>
                         <span id="label-scatter" class="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-200">SOSA</span>
                     </div>
                     <div class="h-[280px] w-full relative"><canvas id="scatterChart"></canvas></div>
                 </div>
 
-                <!-- Matriz Mágica de Gartner (Soluciones) -->
+                <!-- Matriz Mágica -->
                 <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col relative overflow-hidden">
                     <div class="mb-2">
                         <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-table-cells-large text-indigo-500 mr-2"></i> MATRIZ DE DESEMPEÑO</h2>
-                        <p class="text-[11px] text-slate-500 mt-0.5">Volumen vs Eficacia por Solución (Diagnóstico)</p>
+                        <p class="text-[11px] text-slate-500 mt-0.5">Volumen vs Eficacia por Solución</p>
                     </div>
                     <div class="h-[250px] w-full relative mt-2"><canvas id="quadrantChart"></canvas></div>
                 </div>
             </div>
 
-            <!-- Fila 2 de Gráficas: Tendencia, Barras y Radar -->
+            <!-- Fila 2 -->
             <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                <!-- Tendencia Histórica -->
+                <!-- Histórico -->
                 <div class="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
                     <div>
                         <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-chart-area text-accent-green mr-2"></i> TENDENCIA HISTÓRICA DE EFICACIA</h2>
@@ -127,16 +125,16 @@
                     <div class="h-[230px] w-full relative mt-4"><canvas id="historicoChart"></canvas></div>
                 </div>
 
-                <!-- Eficacia por Solución (Drill Down) -->
+                <!-- Barras (CON DRILL-DOWN INTERACTIVO) -->
                 <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
                     <div>
                         <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-bars-staggered text-blue-500 mr-2"></i> CONFORMIDAD TÉCNICA</h2>
-                        <p class="text-[11px] text-slate-500 mt-0.5">Eficacia % (Selección Actual)</p>
+                        <p class="text-[11px] text-slate-500 mt-0.5">Clic en cualquier barra para ver el detalle de dispersión</p>
                     </div>
                     <div class="h-[230px] w-full relative mt-4"><canvas id="barSolucionesChart"></canvas></div>
                 </div>
 
-                <!-- Red de Fuga Química -->
+                <!-- Radar -->
                 <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
                     <div class="mb-4">
                         <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-spider text-amber-500 mr-2"></i> ÍNDICE DE FUGA QUÍMICA</h2>
@@ -151,7 +149,7 @@
                 </div>
             </div>
 
-            <!-- Fila 3: Motor IA Matemático -->
+            <!-- Fila 3: IA -->
             <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 pb-3 border-b border-slate-100 gap-3">
                     <div>
@@ -168,11 +166,7 @@
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse min-w-[800px]">
                         <thead>
-                            <tr class="text-[10px] uppercase font-bold text-slate-400 border-b border-slate-100">
-                                <th class="py-2 px-2 w-1/4">Desvío Principal</th>
-                                <th class="py-2 px-2">Análisis Estadístico Ejecutivo (Basado en Datos Reales)</th>
-                                <th class="py-2 px-2 w-48">Responsables Implicados</th>
-                            </tr>
+                            <tr class="text-[10px] uppercase font-bold text-slate-400 border-b border-slate-100"><th class="py-2 px-2 w-1/4">Desvío Principal</th><th class="py-2 px-2">Análisis Estadístico Ejecutivo (Basado en Datos Reales)</th><th class="py-2 px-2 w-48">Responsables Implicados</th></tr>
                         </thead>
                         <tbody id="ai-action-plan-tbody" class="divide-y divide-slate-50 text-xs">
                             <tr><td colspan="3" class="py-10 text-center text-slate-400 font-medium bg-slate-50/50 rounded-lg border border-slate-100">Selecciona filtros y ejecuta la auditoría para generar el diagnóstico técnico.</td></tr>
@@ -180,11 +174,11 @@
                     </table>
                 </div>
             </div>
-
         </main>
     </div>
 
     <!-- Modales -->
+    <!-- Modal Listado Desvíos -->
     <div id="modal-detalle" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white border border-slate-200 w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
@@ -197,16 +191,32 @@
                     <tbody id="modal-tbody" class="divide-y divide-slate-100 text-slate-700"></tbody>
                 </table>
             </div>
-            <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
-                <button onclick="cerrarModalDetalle()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs py-2 px-5 rounded-lg transition">Cerrar</button>
-            </div>
+            <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end"><button onclick="cerrarModalDetalle()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs py-2 px-5 rounded-lg transition">Cerrar</button></div>
         </div>
     </div>
 
+    <!-- NUEVO MODAL: Drill-down Dispersión -->
+    <div id="modal-drilldown" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
+        <div class="bg-white border border-slate-200 w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <div>
+                    <h3 id="drilldown-titulo" class="font-black text-corporate-blue text-lg flex items-center"><i class="fa-solid fa-microscope text-indigo-500 mr-2"></i> Análisis Profundo de Dispersión</h3>
+                    <p class="text-[11px] text-slate-500 mt-1">Muestras vs Límites técnicos (Segmento aislado)</p>
+                </div>
+                <button onclick="cerrarModalDrilldown()" class="text-slate-400 hover:text-slate-700 text-2xl font-bold px-2 py-1">&times;</button>
+            </div>
+            <div class="p-6 bg-white border-b border-slate-100">
+                <div class="h-[400px] w-full relative"><canvas id="drilldownChart"></canvas></div>
+            </div>
+            <div class="px-6 py-4 bg-slate-50 flex justify-end"><button onclick="cerrarModalDrilldown()" class="bg-corporate-blue hover:bg-blue-800 text-white font-bold text-xs py-2 px-6 rounded-lg transition shadow-sm">Volver al Dashboard principal</button></div>
+        </div>
+    </div>
+
+    <!-- Modal IA -->
     <div id="modal-config-ia" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white border border-slate-200 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4">
             <div class="flex justify-between items-center pb-3 border-b border-slate-100">
-                <h3 class="font-bold text-slate-800 text-sm flex items-center"><i class="fa-solid fa-key text-blue-500 mr-2"></i> Clave API Gemini (Google AI Studio)</h3>
+                <h3 class="font-bold text-slate-800 text-sm flex items-center"><i class="fa-solid fa-key text-blue-500 mr-2"></i> Clave API Gemini</h3>
                 <button onclick="cerrarConfigIA()" class="text-slate-400 hover:text-slate-700 text-lg font-bold px-2">&times;</button>
             </div>
             <p class="text-xs text-slate-500 leading-relaxed">Local storage seguro.</p>
