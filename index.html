@@ -73,10 +73,10 @@
                 </div>
             </section>
 
-            <!-- Tarjetas KPI (Actualizadas a 5 columnas para incluir Conformes) -->
+            <!-- Tarjetas KPI -->
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
-                    <div class="flex justify-between items-start"><div><p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Eficacia Sanitaria</p><h3 id="kpi-eficacia" class="text-3xl font-black text-corporate-blue mt-1">0.0%</h3></div><div class="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center text-green-600 text-lg border border-green-200"><i class="fa-solid fa-shield-halved"></i></div></div>
+                    <div class="flex justify-between items-start"><div><p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Eficacia Sanitaria</p><h3 id="kpi-eficacia" class="text-3xl font-black text-corporate-blue mt-1">0.0%</h3></div><div class="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 text-lg border border-blue-100"><i class="fa-solid fa-chart-line"></i></div></div>
                     <div class="h-10 mt-4"><canvas id="sparkEficacia"></canvas></div>
                 </div>
                 <div onclick="abrirModalDetalle('conformes')" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between cursor-pointer hover:border-emerald-300 transition group">
@@ -92,7 +92,7 @@
                     <div class="h-10 mt-4"><canvas id="sparkExceso"></canvas></div>
                 </div>
                 <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
-                    <div class="flex justify-between items-start"><div><p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Muestras Totales</p><h3 id="kpi-total" class="text-3xl font-black text-blue-600 mt-1">0</h3></div><div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 text-lg border border-blue-200"><i class="fa-solid fa-vials"></i></div></div>
+                    <div class="flex justify-between items-start"><div><p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Muestras Totales</p><h3 id="kpi-total" class="text-3xl font-black text-slate-700 mt-1">0</h3></div><div class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600 text-lg border border-slate-200"><i class="fa-solid fa-vials"></i></div></div>
                     <div class="h-10 mt-4"><canvas id="sparkTotal"></canvas></div>
                 </div>
             </div>
@@ -104,7 +104,7 @@
                     <div class="flex justify-between items-center mb-4">
                         <div>
                             <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-fire text-orange-500 mr-2"></i> MAPA DE CALOR OPERATIVO (DISTRIBUCIÓN DE MUESTRAS)</h2>
-                            <p class="text-[11px] text-slate-500 mt-0.5">Clasificación por turno, día y estado técnico (Haz clic en una celda para auditar)</p>
+                            <p class="text-[11px] text-slate-500 mt-0.5">Clasificación por turno, día y estado técnico (Haz clic en una celda para ver la radiografía del turno)</p>
                         </div>
                         <span id="label-heatmap-total" class="bg-orange-50 text-orange-600 text-xs font-bold px-3 py-1.5 rounded-lg border border-orange-200 shadow-sm">0 Muestras Mapeadas</span>
                     </div>
@@ -121,24 +121,24 @@
                 </div>
             </div>
 
-            <!-- Fila 2 -->
+            <!-- Fila 2 (NUEVO GRÁFICO COMBINADO) -->
             <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                <!-- Histórico -->
+                <!-- Histórico Combinado -->
                 <div class="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
                     <div>
-                        <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-chart-area text-accent-green mr-2"></i> TENDENCIA HISTÓRICA DE EFICACIA</h2>
-                        <p class="text-[11px] text-slate-500 mt-0.5">Evolución temporal del porcentaje de conformidad</p>
+                        <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-chart-line text-blue-500 mr-2"></i> TENDENCIA HISTÓRICA & VOLUMEN</h2>
+                        <p class="text-[11px] text-slate-500 mt-0.5">Volumen apilado diario vs Porcentaje de Eficacia General</p>
                     </div>
-                    <div class="h-[230px] w-full relative mt-4"><canvas id="historicoChart"></canvas></div>
+                    <div class="h-[250px] w-full relative mt-4"><canvas id="historicoChart"></canvas></div>
                 </div>
 
-                <!-- Barras (Todas las soluciones) -->
+                <!-- Barras -->
                 <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
                     <div>
-                        <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-bars-staggered text-blue-500 mr-2"></i> CONFORMIDAD TÉCNICA</h2>
+                        <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-bars-staggered text-emerald-500 mr-2"></i> CONFORMIDAD TÉCNICA</h2>
                         <p class="text-[11px] text-slate-500 mt-0.5">Clic en barra para ver dispersión aislada</p>
                     </div>
-                    <div class="h-[230px] w-full relative mt-4"><canvas id="barSolucionesChart"></canvas></div>
+                    <div class="h-[250px] w-full relative mt-4"><canvas id="barSolucionesChart"></canvas></div>
                 </div>
 
                 <!-- Radar -->
@@ -147,7 +147,7 @@
                         <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-spider text-amber-500 mr-2"></i> ÍNDICE DE FUGA QUÍMICA</h2>
                         <p class="text-[11px] text-slate-500 mt-0.5">Volumen Acumulado de Desperdicio (Σ%)</p>
                     </div>
-                    <div class="h-[200px] w-full relative flex items-center justify-center">
+                    <div class="h-[220px] w-full relative flex items-center justify-center">
                         <canvas id="fugaQuimicaChart"></canvas>
                         <div id="fuga-empty-msg" class="absolute inset-0 flex items-center justify-center hidden">
                             <span class="text-green-600 text-xs font-bold bg-green-50 px-4 py-2 rounded-xl border border-green-200"><i class="fa-solid fa-check mr-1"></i> Sin sobredosificaciones</span>
@@ -185,10 +185,12 @@
     </div>
 
     <!-- Modales -->
+    
+    <!-- Modal 1: Tabla de KPIs (Auditoría cruda) -->
     <div id="modal-detalle" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white border border-slate-200 w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <h3 id="modal-titulo" class="font-bold text-slate-800 text-base">Detalle</h3>
+                <h3 id="modal-titulo" class="font-bold text-slate-800 text-base">Auditoría de Registros</h3>
                 <button onclick="cerrarModalDetalle()" class="text-slate-400 hover:text-slate-700 text-lg font-bold px-2 py-1">&times;</button>
             </div>
             <div class="p-6 overflow-y-auto flex-grow bg-white">
@@ -201,7 +203,7 @@
         </div>
     </div>
 
-    <!-- Modal Drill-down Dispersión -->
+    <!-- Modal 2: Dispersión del Químico -->
     <div id="modal-drilldown" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
         <div class="bg-white border border-slate-200 w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden flex flex-col">
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
@@ -218,8 +220,33 @@
         </div>
     </div>
 
+    <!-- Modal 3: Radiografía de Turno (INFORMACIÓN ÚNICA PARA EL MAPA DE CALOR) -->
+    <div id="modal-turno" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
+        <div class="bg-white border border-slate-200 w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <div>
+                    <h3 id="turno-titulo" class="font-black text-orange-600 text-lg flex items-center"><i class="fa-solid fa-clipboard-user mr-2"></i> Radiografía Operativa</h3>
+                    <p class="text-[11px] text-slate-500 mt-1">Desglose de químicos manipulados y personal involucrado en esta franja.</p>
+                </div>
+                <button onclick="cerrarModalTurno()" class="text-slate-400 hover:text-slate-700 text-2xl font-bold px-2 py-1">&times;</button>
+            </div>
+            <div class="p-6 bg-slate-50 grid grid-cols-1 md:grid-cols-2 gap-8 border-b border-slate-100">
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                    <h4 class="text-xs font-bold text-slate-500 text-center mb-4 uppercase tracking-wider">Químicos Intervenidos</h4>
+                    <div class="h-[200px] relative"><canvas id="turnoQuimicosChart"></canvas></div>
+                </div>
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                    <h4 class="text-xs font-bold text-slate-500 text-center mb-4 uppercase tracking-wider">Volumen por Operador</h4>
+                    <div class="h-[200px] relative"><canvas id="turnoOperadoresChart"></canvas></div>
+                </div>
+            </div>
+            <div class="px-6 py-4 bg-white flex justify-end"><button onclick="cerrarModalTurno()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs py-2 px-6 rounded-lg transition shadow-sm">Cerrar Radiografía</button></div>
+        </div>
+    </div>
+
     <!-- Modal IA -->
     <div id="modal-config-ia" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <!-- Contenido IA existente... -->
         <div class="bg-white border border-slate-200 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4">
             <div class="flex justify-between items-center pb-3 border-b border-slate-100">
                 <h3 class="font-bold text-slate-800 text-sm flex items-center"><i class="fa-solid fa-key text-blue-500 mr-2"></i> Clave API Gemini</h3>
