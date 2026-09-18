@@ -27,8 +27,9 @@ const PARAMETROS_TECNICOS = [
 let listaRegistros = [];
 let desviosUltimoFiltro = [];
 let scatterInst = null;
-let radarInst = null;
+let barSolucionesInst = null;
 let sparkInst = { ef: null, ri: null, ex: null, to: null };
+let tomSelectInstancias = {}; // Gestor de búsquedas inteligentes
 
 // ==========================================
 // 3. NORMALIZADORES
@@ -69,11 +70,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     actualizarBadgeIA();
     try {
         await cargarSupabase();
-        poblarFiltros();
         
-        ['filtro-solucion', 'filtro-equipo', 'filtro-anio', 'filtro-mes'].forEach(id => {
-            document.getElementById(id).addEventListener('change', renderizarCore);
-        });
+        // Inicializar TomSelect manualmente en el filtro de mes (ya que es estático)
+        initTomSelect('filtro-mes');
 
         const loader = document.getElementById('loader');
         const content = document.getElementById('dashboard-content');
@@ -100,7 +99,8 @@ async function cargarSupabase() {
     const infoRegistros = document.getElementById('info-registros-totales');
     if (infoRegistros) infoRegistros.innerText = `${listaRegistros.length.toLocaleString()} Registros BD`;
     
-    actualizarSelectores();
+    poblarFiltrosEstaticos();
+    actualizarSelectoresDinamicos();
     renderizarCore();
 }
 
@@ -128,44 +128,61 @@ async function importarArchivoExcel(event) {
 }
 
 // ==========================================
-// 5. FILTROS Y BÚSQUEDA ÁGIL
+// 5. FILTROS INTELIGENTES (TOM SELECT)
 // ==========================================
-function poblarFiltros() {
-    const s = document.getElementById('filtro-solucion');
-    if(!s) return;
-    s.innerHTML = `<option value="TODAS">TODAS LAS SOLUCIONES</option>`;
-    [...new Set(PARAMETROS_TECNICOS.map(p => p.solucion))].forEach(sol => s.appendChild(new Option(sol, sol)));
+function initTomSelect(id) {
+    if (tomSelectInstancias[id]) {
+        tomSelectInstancias[id].destroy();
+    }
+    tomSelectInstancias[id] = new TomSelect(`#${id}`, {
+        create: false,
+        sortField: { field: "text", direction: "asc" }
+    });
+    tomSelectInstancias[id].on('change', () => { renderizarCore(); });
 }
 
-function actualizarSelectores() {
-    const eq = document.getElementById('filtro-equipo'); const an = document.getElementById('filtro-anio');
+function poblarFiltrosEstaticos() {
+    const s = document.getElementById('filtro-solucion');
+    if(!s) return;
+    let valActual = tomSelectInstancias['filtro-solucion'] ? tomSelectInstancias['filtro-solucion'].getValue() : 'TODAS';
+    
+    s.innerHTML = `<option value="TODAS">TODAS LAS SOLUCIONES</option>`;
+    [...new Set(PARAMETROS_TECNICOS.map(p => p.solucion))].forEach(sol => s.appendChild(new Option(sol, sol)));
+    
+    initTomSelect('filtro-solucion');
+    tomSelectInstancias['filtro-solucion'].setValue(valActual, true);
+}
+
+function actualizarSelectoresDinamicos() {
+    const eq = document.getElementById('filtro-equipo'); 
+    const an = document.getElementById('filtro-anio');
     if(!eq || !an) return;
     
+    let valEq = tomSelectInstancias['filtro-equipo'] ? tomSelectInstancias['filtro-equipo'].getValue() : 'TODOS';
+    let valAn = tomSelectInstancias['filtro-anio'] ? tomSelectInstancias['filtro-anio'].getValue() : 'TODOS';
+
     let eqSet = new Set(), anSet = new Set();
     listaRegistros.forEach(r => { if (r.equipo) eqSet.add(r.equipo); if (r.fecha) anSet.add(r.fecha.substring(0, 4)); });
     
-    let eqVal = eq.value; eq.innerHTML = `<option value="TODOS">TODOS LOS EQUIPOS</option>`;
-    Array.from(eqSet).sort().forEach(e => eq.appendChild(new Option(e, e))); eq.value = eqVal;
+    eq.innerHTML = `<option value="TODOS">TODOS LOS EQUIPOS</option>`;
+    Array.from(eqSet).sort().forEach(e => eq.appendChild(new Option(e, e))); 
     
-    let anVal = an.value; an.innerHTML = `<option value="TODOS">AÑO</option>`;
-    Array.from(anSet).sort().reverse().forEach(a => an.appendChild(new Option(a, a))); an.value = anVal;
-}
+    an.innerHTML = `<option value="TODOS">TODOS LOS AÑOS</option>`;
+    Array.from(anSet).sort().reverse().forEach(a => an.appendChild(new Option(a, a))); 
+    
+    initTomSelect('filtro-equipo');
+    initTomSelect('filtro-anio');
 
-function filtrarPorTextoAgil() {
-    renderizarCore();
+    tomSelectInstancias['filtro-equipo'].setValue(valEq, true);
+    tomSelectInstancias['filtro-anio'].setValue(valAn, true);
 }
 
 function obtenerDatosFiltrados() {
-    const elS = document.getElementById('filtro-solucion');
-    const elE = document.getElementById('filtro-equipo');
-    const elA = document.getElementById('filtro-anio');
-    const elM = document.getElementById('filtro-mes');
-    const elBusqueda = document.getElementById('input-busqueda-agil');
-    
-    if(!elS || !elE || !elA || !elM) return [];
-
-    const s = elS.value, e = elE.value, a = elA.value, m = elM.value;
-    const textoBusqueda = elBusqueda ? n(elBusqueda.value) : '';
+    // Usar la API de Tom Select para obtener los valores reales
+    const s = tomSelectInstancias['filtro-solucion'] ? tomSelectInstancias['filtro-solucion'].getValue() : 'TODAS';
+    const e = tomSelectInstancias['filtro-equipo'] ? tomSelectInstancias['filtro-equipo'].getValue() : 'TODOS';
+    const a = tomSelectInstancias['filtro-anio'] ? tomSelectInstancias['filtro-anio'].getValue() : 'TODOS';
+    const m = tomSelectInstancias['filtro-mes'] ? tomSelectInstancias['filtro-mes'].getValue() : 'TODOS';
     
     return listaRegistros.filter(r => {
         let mMes = true;
@@ -175,19 +192,10 @@ function obtenerDatosFiltrados() {
             mMes = (mesBD === m || n(r.mes) === mapMeses[m] || n(r.mes).includes(mapMeses[m]));
         }
 
-        let cumpleFiltros = (s === 'TODAS' || r.solucion === s) && 
-                           (e === 'TODOS' || r.equipo === e) && 
-                           (a === 'TODOS' || (r.fecha && r.fecha.startsWith(a))) && 
-                           mMes;
-
-        if (!cumpleFiltros) return false;
-
-        if (textoBusqueda) {
-            let cadenaRegistro = `${n(r.equipo)} ${n(r.solucion)} ${n(r.operario)} ${n(r.laboratorista)} ${n(r.proceso)}`;
-            return cadenaRegistro.includes(textoBusqueda);
-        }
-
-        return true;
+        return (s === 'TODAS' || r.solucion === s) && 
+               (e === 'TODOS' || r.equipo === e) && 
+               (a === 'TODOS' || (r.fecha && r.fecha.startsWith(a))) && 
+               mMes;
     });
 }
 
@@ -218,7 +226,7 @@ function renderizarCore() {
 
     drawSparklines(datos);
     drawScatter(datos);
-    drawRadar(datos);
+    drawEficaciaSoluciones(datos); // Nuevo Gráfico Dinámico
     drawHeatmap(datos, stats.desviosList);
     
     desviosUltimoFiltro = stats.desviosList;
@@ -236,7 +244,7 @@ function renderizarCore() {
 // 7. GRÁFICAS (Chart.js y HTML dinámico)
 // ==========================================
 Chart.defaults.font.family = "'Inter', 'Segoe UI', sans-serif";
-Chart.defaults.color = '#64748b';
+Chart.defaults.color = '#94a3b8'; // Texto más adaptado al slate oscuro
 
 function getLineSpark(ctxId, data, color) {
     if(sparkInst[ctxId]) sparkInst[ctxId].destroy();
@@ -260,16 +268,16 @@ function drawSparklines(datos) {
     getLineSpark('sparkEficacia', dataEf.length ? dataEf : [1,1,1], '#10b981');
     getLineSpark('sparkRiesgo', dataRi.length ? dataRi : [0,0,0], '#ef4444');
     getLineSpark('sparkExceso', dataEx.length ? dataEx : [0,0,0], '#f59e0b');
-    getLineSpark('sparkTotal', dataTo.length ? dataTo : [5,6,7], '#2563eb');
+    getLineSpark('sparkTotal', dataTo.length ? dataTo : [5,6,7], '#3b82f6'); // Azul para el total
 }
 
 function drawScatter(datos) {
-    const elS = document.getElementById('filtro-solucion');
+    const solActual = tomSelectInstancias['filtro-solucion'] ? tomSelectInstancias['filtro-solucion'].getValue() : 'TODAS';
     const elLabel = document.getElementById('label-scatter');
     const canvas = document.getElementById('scatterChart');
-    if(!elS || !canvas) return;
+    if(!canvas) return;
 
-    let sol = elS.value;
+    let sol = solActual;
     if(sol === 'TODAS') {
         let count={}; datos.forEach(r => count[r.solucion] = (count[r.solucion]||0)+1);
         sol = Object.keys(count).length ? Object.keys(count).reduce((a,b)=>count[a]>count[b]?a:b) : 'SOSA';
@@ -296,40 +304,77 @@ function drawScatter(datos) {
         data: {
             labels: labels,
             datasets: [
-                { label: 'Muestras ('+sol+')', data: dataPoints, showLine: false, pointBackgroundColor: pointColors, pointBorderColor: '#fff', pointBorderWidth: 1, pointRadius: pointSizes, pointHoverRadius: 8 },
+                { label: 'Muestras ('+sol+')', data: dataPoints, showLine: false, pointBackgroundColor: pointColors, pointBorderColor: '#1e293b', pointBorderWidth: 1.5, pointRadius: pointSizes, pointHoverRadius: 8 },
                 { label: 'Máx Permitido', data: Array(labels.length).fill(max), borderColor: '#f59e0b', borderWidth: 2, borderDash: [5,5], pointRadius: 0, fill: false },
                 { label: 'Mín Requerido', data: Array(labels.length).fill(min), borderColor: '#ef4444', borderWidth: 2, borderDash: [5,5], pointRadius: 0, fill: false }
             ]
         },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { tooltip: { callbacks: { label: function(c) { return `Valor: ${c.raw}`; } } } }, scales: { y: { min: min - (min*0.5), max: max + (max*0.5), grid: { color: '#f1f5f9' } }, x: { ticks: { maxRotation: 45, minRotation: 45, font: {size: 9} }, grid: {display:false} } } }
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            plugins: { tooltip: { callbacks: { label: function(c) { return `Valor: ${c.raw}`; } } } }, 
+            scales: { 
+                y: { min: min - (min*0.5), max: max + (max*0.5), grid: { color: '#334155' } }, 
+                x: { ticks: { maxRotation: 45, minRotation: 45, font: {size: 9} }, grid: {display:false} } 
+            } 
+        }
     });
 }
 
-function drawRadar(datos) {
-    const canvas = document.getElementById('radarChart');
+// NUEVA FUNCIÓN: Barras Horizontales Dinámicas (Sustituye al Radar inútil)
+function drawEficaciaSoluciones(datos) {
+    const canvas = document.getElementById('barSolucionesChart');
     if(!canvas) return;
     const ctx = canvas.getContext('2d');
-    if (radarInst) radarInst.destroy();
+    if (barSolucionesInst) barSolucionesInst.destroy();
 
-    let procs = {};
+    let solsData = {};
     datos.forEach(r => {
-        let pr = r.proceso || 'CIP';
-        if(!procs[pr]) procs[pr] = { tot:0, conf:0 };
-        procs[pr].tot++;
-        let p = PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion);
-        if(p) { let v = parseConcen(r.concen); if(v>=p.min && v<=p.max) procs[pr].conf++; }
+        let s = r.solucion || 'OTRA';
+        if(!solsData[s]) solsData[s] = { tot:0, conf:0 };
+        solsData[s].tot++;
+        let p = PARAMETROS_TECNICOS.find(x=>x.solucion===s);
+        if(p) { 
+            let v = parseConcen(r.concen); 
+            if(v>=p.min && v<=p.max) solsData[s].conf++; 
+        }
     });
 
-    let keys = Object.keys(procs).sort((a,b)=>procs[b].tot - procs[a].tot).slice(0, 6);
-    if(keys.length === 0) { radarInst = new Chart(ctx, {type:'radar', data:{labels:[],datasets:[]}}); return; }
+    // Calcular el porcentaje de cada solución y tomar el Top 5 más utilizadas en los filtros actuales
+    let resultados = Object.keys(solsData).map(k => ({
+        nombre: k,
+        porcentaje: ((solsData[k].conf / solsData[k].tot)*100).toFixed(1),
+        total: solsData[k].tot
+    })).sort((a,b) => b.total - a.total).slice(0, 5);
 
-    let labels = keys;
-    let dataPcts = keys.map(k => ((procs[k].conf / procs[k].tot)*100).toFixed(1));
+    if(resultados.length === 0) { 
+        barSolucionesInst = new Chart(ctx, {type:'bar', data:{labels:[],datasets:[]}}); 
+        return; 
+    }
 
-    radarInst = new Chart(ctx, {
-        type: 'radar',
-        data: { labels: labels, datasets: [{ label: '% Cumplimiento', data: dataPcts, backgroundColor: 'rgba(16, 185, 129, 0.2)', borderColor: '#10b981', pointBackgroundColor: '#10b981', pointBorderColor: '#fff', pointHoverBackgroundColor: '#fff', pointHoverBorderColor: '#10b981', borderWidth: 2 }] },
-        options: { responsive: true, maintainAspectRatio: false, scales: { r: { angleLines: { color: '#e2e8f0' }, grid: { color: '#e2e8f0' }, pointLabels: { font: { size: 10, weight: 'bold' } }, suggestedMin: 0, suggestedMax: 100 } } }
+    barSolucionesInst = new Chart(ctx, {
+        type: 'bar',
+        data: { 
+            labels: resultados.map(x => x.nombre), 
+            datasets: [{ 
+                label: '% Conformidad', 
+                data: resultados.map(x => x.porcentaje), 
+                backgroundColor: 'rgba(16, 185, 129, 0.8)', // accent-green
+                borderColor: '#10b981', 
+                borderWidth: 1,
+                borderRadius: 4
+            }] 
+        },
+        options: { 
+            indexAxis: 'y', // Lo hace horizontal
+            responsive: true, 
+            maintainAspectRatio: false, 
+            plugins: { legend: { display: false } },
+            scales: { 
+                x: { max: 100, grid: { color: '#334155' }, ticks: { callback: function(value){return value+"%"} } }, 
+                y: { grid: { display: false }, ticks: { font: { size: 10, weight: 'bold' }, color: '#e2e8f0' } } 
+            } 
+        }
     });
 }
 
@@ -337,7 +382,7 @@ function drawHeatmap(datos, desviosList) {
     const container = document.getElementById('heatmap-container');
     if(!container) return;
 
-    if(desviosList.length === 0) { container.innerHTML = `<div class="h-full flex items-center justify-center text-slate-400 italic">No hay desvíos en el periodo para dibujar el mapa de calor.</div>`; return; }
+    if(desviosList.length === 0) { container.innerHTML = `<div class="h-full flex items-center justify-center text-slate-400 italic">No hay desvíos en la selección actual para dibujar el mapa de calor.</div>`; return; }
 
     let heatmapData = {};
     desviosList.forEach(r => {
@@ -351,15 +396,15 @@ function drawHeatmap(datos, desviosList) {
     let turnos = ['Madrugada', 'Mañana', 'Tarde', 'Noche'];
     let html = `<table class="w-full text-center border-collapse"><thead><tr><th class="py-2 text-left w-1/3">Equipo Crítico</th>`;
     turnos.forEach(t => html += `<th class="py-2 text-[10px] text-slate-400 uppercase tracking-wide font-bold">${t}</th>`);
-    html += `</tr></thead><tbody class="divide-y divide-slate-100">`;
+    html += `</tr></thead><tbody class="divide-y divide-slate-800">`;
 
     topEquipos.forEach(eq => {
-        html += `<tr><td class="py-2.5 text-left text-[11px] font-bold text-slate-700 truncate pr-2" title="${eq}">${eq}</td>`;
+        html += `<tr><td class="py-2.5 text-left text-[11px] font-bold text-slate-300 truncate pr-2" title="${eq}">${eq}</td>`;
         turnos.forEach(t => {
             let count = heatmapData[eq][t];
-            let bg = 'bg-slate-50', txt = 'text-slate-300';
-            if(count > 0 && count <= 2) { bg = 'bg-amber-100'; txt = 'text-amber-700 font-bold'; }
-            else if(count > 2) { bg = 'bg-red-200'; txt = 'text-red-700 font-bold'; }
+            let bg = 'bg-slate-900', txt = 'text-slate-500';
+            if(count > 0 && count <= 2) { bg = 'bg-amber-500/20'; txt = 'text-amber-400 font-bold'; }
+            else if(count > 2) { bg = 'bg-red-500/20'; txt = 'text-red-400 font-bold'; }
             html += `<td class="p-1"><div class="${bg} ${txt} rounded-md py-1.5 transition hover:scale-105 cursor-default">${count}</div></td>`;
         });
         html += `</tr>`;
@@ -370,9 +415,7 @@ function drawHeatmap(datos, desviosList) {
 // ==========================================
 // 8. ASISTENTE IA GEMINI (3.5 FLASH-LITE / gemini-3.5-flash-lite)
 // ==========================================
-function obtenerApiKeySegura() {
-    return localStorage.getItem('poes_gemini_key') || '';
-}
+function obtenerApiKeySegura() { return localStorage.getItem('poes_gemini_key') || ''; }
 
 function actualizarBadgeIA() {
     const badge = document.getElementById('badge-ia-status');
@@ -387,21 +430,17 @@ function actualizarBadgeIA() {
     }
 }
 
-async function dispararAnalisisIA() {
-    await generarPlanAccionIA(desviosUltimoFiltro);
-}
+async function dispararAnalisisIA() { await generarPlanAccionIA(desviosUltimoFiltro); }
 
 async function generarPlanAccionIA(desviosList) {
     const tbody = document.getElementById('ai-action-plan-tbody');
     if(!tbody) return;
-    
     const apiKey = obtenerApiKeySegura();
     
     if(desviosList.length === 0) {
         tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-emerald-400 font-medium"><i class="fa-solid fa-check-circle mr-2"></i>Cero desvíos reportados. No se requieren acciones correctivas.</td></tr>`;
         return;
     }
-
     if(!apiKey) {
         tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-slate-500 font-mono italic">Haz clic en <b>"IA Config"</b> en la barra superior para ingresar tu API Key y habilitar la predicción.</td></tr>`;
         return;
@@ -412,7 +451,6 @@ async function generarPlanAccionIA(desviosList) {
     let muestraIA = desviosList.slice(0, 10).map(r => `Equipo: ${r.equipo} | Solución: ${r.solucion} | Conc: ${r.concen} | Falla: ${r.tipo} | Resp: ${r.operario || r.laboratorista}`);
     const prompt = `Eres un Auditor Jefe de POES. Analiza estos desvíos en planta láctea:\n${muestraIA.join('\n')}\n\nGenera un "Plan de Acciones Correctivas" en formato JSON estricto, sin markdown adicional, con un arreglo de objetos. Usa esta estructura exacta:\n[{"hallazgo": "Resumen del desvío", "causa_raiz": "Causa técnica probable", "accion": "Acción inmediata", "responsable": "Rol o nombre del operador/técnico"}]\nDevuelve máximo 4 acciones críticas consolidadas.`;
 
-    // MODELO OFICIAL EXACTO PARA 3.5 FLASH-LITE
     const modeloIA = 'gemini-3.5-flash-lite';
 
     try {
@@ -421,12 +459,8 @@ async function generarPlanAccionIA(desviosList) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
-
-        if (!res.ok) {
-            const errorData = await res.json();
-            throw new Error(`Google Error (${res.status}): ${errorData.error?.message || 'Error desconocido'}`);
-        }
-
+        if (!res.ok) throw new Error(`Google Error (${res.status})`);
+        
         const jsonRes = await res.json();
         let rawText = jsonRes.candidates?.[0]?.content?.parts?.[0]?.text || '';
         rawText = rawText.replace(/```json/gi, '').replace(/```/gi, '').trim();
@@ -435,7 +469,7 @@ async function generarPlanAccionIA(desviosList) {
         let html = '';
         plan.forEach(item => {
             html += `<tr class="hover:bg-slate-700/30 transition">
-                        <td class="py-3 px-2 align-top text-red-300 font-semibold text-[11px]"><i class="fa-solid fa-circle-xmark mr-1.5 text-red-500"></i> ${item.hallazgo}</td>
+                        <td class="py-3 px-2 align-top text-red-400 font-semibold text-[11px]"><i class="fa-solid fa-circle-xmark mr-1.5 text-red-500"></i> ${item.hallazgo}</td>
                         <td class="py-3 px-2 align-top text-slate-300 text-[11px]">${item.causa_raiz}</td>
                         <td class="py-3 px-2 align-top text-emerald-300 font-medium text-[11px]">${item.accion}</td>
                         <td class="py-3 px-2 align-top text-slate-400 font-mono text-[10px]"><i class="fa-regular fa-user mr-1"></i> ${item.responsable}</td>
@@ -445,20 +479,16 @@ async function generarPlanAccionIA(desviosList) {
 
     } catch(err) {
         tbody.innerHTML = `<tr><td colspan="4" class="py-4 px-6 text-center text-red-400 font-mono text-[11px]"><i class="fa-solid fa-triangle-exclamation mr-1"></i> <b>Fallo IA (Flash-Lite):</b> ${err.message}</td></tr>`;
-        console.error("Gemini Debug Error:", err);
     }
 }
 
 // ==========================================
-// 9. MODALES (DETALLE E IA CONFIG)
+// 9. MODALES
 // ==========================================
 function abrirModalDetalle(tipo) {
     const modal = document.getElementById('modal-detalle'); const tbody = document.getElementById('modal-tbody'); 
     if(!modal || !tbody) return;
-    
-    tbody.innerHTML = '';
-    const datos = obtenerDatosFiltrados();
-    let rsl = [];
+    tbody.innerHTML = ''; const datos = obtenerDatosFiltrados(); let rsl = [];
     if(tipo === 'riesgo') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)<p.min;});
     if(tipo === 'exceso') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)>p.max;});
     
@@ -466,53 +496,17 @@ function abrirModalDetalle(tipo) {
     if(rsl.length===0) { tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-400 font-bold">Sin registros de desviación bajo los filtros actuales.</td></tr>`; } 
     else {
         rsl.slice(0, 100).forEach(r => {
-            tbody.innerHTML += `<tr class="hover:bg-slate-50 transition border-b border-slate-100">
-                <td class="py-3 px-6 whitespace-nowrap">${r.fecha} ${r.hora?r.hora.substring(0,5):''}</td>
-                <td class="py-3 px-6 font-bold text-slate-800">${r.equipo}</td>
-                <td class="py-3 px-6 text-slate-600">${r.solucion}</td>
-                <td class="py-3 px-6 text-center font-black ${tipo==='riesgo'?'text-risk-red':'text-warn-yellow'}">${r.concen}</td>
-                <td class="py-3 px-6 text-[10px] text-slate-400">${r.operario || r.laboratorista}</td>
+            tbody.innerHTML += `<tr class="hover:bg-slate-800 transition border-b border-slate-700/50">
+                <td class="py-3 px-6 whitespace-nowrap">${r.fecha} ${r.hora?r.hora.substring(0,5):''}</td><td class="py-3 px-6 font-bold text-slate-200">${r.equipo}</td>
+                <td class="py-3 px-6 text-slate-400">${r.solucion}</td><td class="py-3 px-6 text-center font-black ${tipo==='riesgo'?'text-risk-red':'text-warn-yellow'}">${r.concen}</td>
+                <td class="py-3 px-6 text-[10px] text-slate-500">${r.operario || r.laboratorista}</td>
             </tr>`;
         });
     }
     modal.classList.remove('hidden');
 }
-
-function cerrarModalDetalle() { 
-    const modal = document.getElementById('modal-detalle');
-    if(modal) modal.classList.add('hidden'); 
-}
-
-function abrirConfigIA() {
-    const modal = document.getElementById('modal-config-ia');
-    const input = document.getElementById('input-api-key');
-    if(!modal || !input) return;
-    input.value = obtenerApiKeySegura();
-    modal.classList.remove('hidden');
-}
-
-function cerrarConfigIA() { 
-    const modal = document.getElementById('modal-config-ia');
-    if(modal) modal.classList.add('hidden'); 
-}
-
-function guardarApiKey() {
-    const inputVal = document.getElementById('input-api-key').value.trim();
-    if(inputVal) {
-        localStorage.setItem('poes_gemini_key', inputVal);
-        cerrarConfigIA();
-        actualizarBadgeIA();
-        renderizarCore(); 
-    } else {
-        alert("Por favor, ingresa una clave válida.");
-    }
-}
-
-function limpiarApiKey() {
-    localStorage.removeItem('poes_gemini_key');
-    const input = document.getElementById('input-api-key');
-    if(input) input.value = '';
-    cerrarConfigIA();
-    actualizarBadgeIA();
-    renderizarCore();
-}
+function cerrarModalDetalle() { document.getElementById('modal-detalle')?.classList.add('hidden'); }
+function abrirConfigIA() { const m=document.getElementById('modal-config-ia'), i=document.getElementById('input-api-key'); if(m&&i){ i.value = obtenerApiKeySegura(); m.classList.remove('hidden'); } }
+function cerrarConfigIA() { document.getElementById('modal-config-ia')?.classList.add('hidden'); }
+function guardarApiKey() { const val=document.getElementById('input-api-key').value.trim(); if(val){ localStorage.setItem('poes_gemini_key',val); cerrarConfigIA(); actualizarBadgeIA(); renderizarCore(); }else{ alert("Ingresa una clave válida."); } }
+function limpiarApiKey() { localStorage.removeItem('poes_gemini_key'); const i=document.getElementById('input-api-key'); if(i)i.value=''; cerrarConfigIA(); actualizarBadgeIA(); renderizarCore(); }
