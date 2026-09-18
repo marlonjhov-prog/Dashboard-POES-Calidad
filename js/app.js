@@ -23,40 +23,45 @@ Chart.defaults.font.family = "'Inter', sans-serif";
 Chart.defaults.color = '#64748b'; 
 Chart.defaults.scale.grid.color = '#f1f5f9';
 
-// PLUGIN: Cuadrante Mágico (Estilo Gartner)
+// ==========================================
+// PLUGIN SEGURO: Cuadrante Mágico (AISLADO)
+// ==========================================
 const quadrantPlugin = {
     id: 'quadrantPlugin',
     beforeDraw(chart) {
-        if(chart.config.options.plugins.quadrantPlugin === false) return;
-        const { ctx, chartArea: { left, top, right, bottom }, scales: { x, y } } = chart;
+        if (!chart.chartArea) return; // Evita crashes iniciales antes de renderizar
+        const { ctx, chartArea: { left, top, right, bottom }, scales: { x } } = chart;
         
-        // Línea vertical en 85% de Eficacia (Límite aceptable)
+        // El límite de eficiencia se fija en 85% en el eje X
         const midX = x.getPixelForValue(85); 
-        // Línea horizontal en la mitad del eje Y dinámico
-        const midY = y.getPixelForValue((y.max + y.min) / 2);
+        // El centro horizontal lo sacamos de las coordenadas físicas exactas del lienzo
+        const midY = top + ((bottom - top) / 2);
         
         ctx.save();
         ctx.lineWidth = 1;
-        ctx.strokeStyle = '#cbd5e1'; // slate-300
+        ctx.strokeStyle = '#cbd5e1'; 
         ctx.setLineDash([4, 4]);
         
         // Eje vertical (X)
         if(midX > left && midX < right) { ctx.beginPath(); ctx.moveTo(midX, top); ctx.lineTo(midX, bottom); ctx.stroke(); }
         // Eje horizontal (Y)
-        if(midY > top && midY < bottom) { ctx.beginPath(); ctx.moveTo(left, midY); ctx.lineTo(right, midY); ctx.stroke(); }
+        ctx.beginPath(); ctx.moveTo(left, midY); ctx.lineTo(right, midY); ctx.stroke();
         
-        // Textos Estratégicos (Background Quadrants)
-        ctx.fillStyle = '#94a3b8'; // slate-400
+        // Textos Estratégicos (Zonas)
+        ctx.fillStyle = '#94a3b8'; 
         ctx.font = 'bold 9px Inter';
-        ctx.fillText('CRÍTICO (ALTO RIESGO)', left + 10, top + 15); // Top Left
-        ctx.fillText('LÍDERES (ESTABLES)', midX + 10, top + 15); // Top Right
-        ctx.fillText('A MEJORAR (BAJO VOL)', left + 10, midY + 15); // Bottom Left
-        ctx.fillText('NICHO (CONTROLADO)', midX + 10, midY + 15); // Bottom Right
+        ctx.fillText('CRÍTICO (ALTO RIESGO)', left + 10, top + 15);
+        if(midX > left) {
+            ctx.fillText('LÍDERES (ESTABLES)', midX + 10, top + 15); 
+            ctx.fillText('NICHO (CONTROLADO)', midX + 10, midY + 15);
+        }
+        ctx.fillText('A MEJORAR (BAJO VOL)', left + 10, midY + 15); 
         
         ctx.restore();
     }
 };
-Chart.register(quadrantPlugin);
+
+// NOTA IMPORTANTE: SE ELIMINÓ Chart.register(quadrantPlugin) PARA EVITAR QUE COLAPSE OTRAS GRÁFICAS.
 
 // ==========================================
 // 2. UTILIDADES
@@ -164,7 +169,7 @@ function renderizarCore() {
     document.getElementById('kpi-exceso').innerText = stats.exceso.toLocaleString(); document.getElementById('kpi-total').innerText = total.toLocaleString();
 
     drawSparklines(datos); drawScatterPremium(datos); drawEficaciaSoluciones(datos); drawRadarFugas(stats.desviosList); 
-    drawTendenciaHistorica(datos); drawMagicQuadrant(datos); // NUEVOS GRÁFICOS
+    drawTendenciaHistorica(datos); drawMagicQuadrant(datos); 
     
     desviosUltimoFiltro = stats.desviosList;
     const tbody = document.getElementById('ai-action-plan-tbody');
@@ -179,7 +184,7 @@ function renderizarCore() {
 // ==========================================
 function getLineSpark(ctxId, data, color) {
     if(sparkInst[ctxId]) sparkInst[ctxId].destroy(); const ctx = document.getElementById(ctxId)?.getContext('2d'); if(!ctx) return;
-    sparkInst[ctxId] = new Chart(ctx, { type: 'line', data: { labels: data.map((_,i)=>i), datasets: [{ data: data, borderColor: color, borderWidth: 2, pointRadius: 0, fill: false, tension: 0.3 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false }, quadrantPlugin: false }, scales: { x: { display: false }, y: { display: false } } } });
+    sparkInst[ctxId] = new Chart(ctx, { type: 'line', data: { labels: data.map((_,i)=>i), datasets: [{ data: data, borderColor: color, borderWidth: 2, pointRadius: 0, fill: false, tension: 0.3 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } } });
 }
 function drawSparklines(datos) {
     let t = datos.slice(0, 50).reverse();
@@ -189,7 +194,6 @@ function drawSparklines(datos) {
     getLineSpark('sparkTotal', t.length ? t.map(()=>Math.random()) : [1], '#273c75');
 }
 
-// 6.1. SCATTER PREMIUM (TOOLTIPS MEJORADOS)
 function drawScatterPremium(datos) {
     let sol = tsInstances['filtro-solucion'].getValue() || 'TODAS';
     if(sol === 'TODAS') {
@@ -219,7 +223,6 @@ function drawScatterPremium(datos) {
         options: { 
             responsive: true, maintainAspectRatio: false, 
             plugins: { 
-                quadrantPlugin: false, // Desactivar plugin aquí
                 legend: { display: false },
                 tooltip: { 
                     backgroundColor: '#ffffff', titleColor: '#273c75', bodyColor: '#475569', 
@@ -245,7 +248,6 @@ function drawScatterPremium(datos) {
     });
 }
 
-// 6.2 MATRIZ MÁGICA (GARTNER) PARA SOLUCIONES
 function drawMagicQuadrant(datos) {
     if(quadrantInst) quadrantInst.destroy();
     if(datos.length === 0) return;
@@ -271,6 +273,7 @@ function drawMagicQuadrant(datos) {
 
     quadrantInst = new Chart(document.getElementById('quadrantChart').getContext('2d'), {
         type: 'scatter',
+        plugins: [quadrantPlugin], // INYECCIÓN LOCAL DEL PLUGIN
         data: {
             datasets: [{
                 label: 'Soluciones', data: scatterData, 
@@ -280,7 +283,6 @@ function drawMagicQuadrant(datos) {
         options: {
             responsive: true, maintainAspectRatio: false,
             plugins: {
-                quadrantPlugin: true, // Plugin Activo
                 legend: { display: false },
                 tooltip: {
                     backgroundColor: '#1e293b', titleFont: { size: 11 }, bodyFont: { size: 11 }, padding: 10,
@@ -297,11 +299,9 @@ function drawMagicQuadrant(datos) {
     });
 }
 
-// 6.3 TENDENCIA HISTÓRICA (ÁREA)
 function drawTendenciaHistorica(datos) {
     if(historicoInst) historicoInst.destroy();
     
-    // Agrupar por fecha
     let hist = {};
     datos.forEach(r => {
         let p = PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion);
@@ -312,18 +312,16 @@ function drawTendenciaHistorica(datos) {
         }
     });
 
-    let fechas = Object.keys(hist).sort(); // Orden cronológico
+    let fechas = Object.keys(hist).sort(); 
     if(fechas.length === 0) return;
     
-    // Si hay muchos días, tomar los últimos 30
     fechas = fechas.slice(-30); 
     let eficacias = fechas.map(f => (hist[f].c / hist[f].t) * 100);
 
     let ctx = document.getElementById('historicoChart').getContext('2d');
     
-    // Crear Gradiente
     let gradient = ctx.createLinearGradient(0, 0, 0, 200);
-    gradient.addColorStop(0, 'rgba(16, 185, 129, 0.4)'); // Verde suave
+    gradient.addColorStop(0, 'rgba(16, 185, 129, 0.4)');
     gradient.addColorStop(1, 'rgba(16, 185, 129, 0.0)');
 
     historicoInst = new Chart(ctx, {
@@ -331,7 +329,7 @@ function drawTendenciaHistorica(datos) {
         data: { labels: fechas.map(f => f.substring(5)), datasets: [{ label: 'Conformidad Diaria', data: eficacias, borderColor: '#10b981', backgroundColor: gradient, borderWidth: 2, fill: true, tension: 0.4, pointRadius: 3 }] },
         options: { 
             responsive: true, maintainAspectRatio: false, 
-            plugins: { quadrantPlugin: false, legend: { display: false }, tooltip: { callbacks: { label: c => ` Eficacia: ${c.raw.toFixed(1)}%` } } },
+            plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` Eficacia: ${c.raw.toFixed(1)}%` } } },
             scales: { y: { min: 0, max: 100, grid: { color: '#f1f5f9' }, ticks: { callback: v => v + '%' } }, x: { grid: { display: false } } }
         }
     });
@@ -342,7 +340,7 @@ function drawEficaciaSoluciones(datos) {
     let d = {}; datos.forEach(r => { let p = PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); if(p) { if(!d[r.solucion]) d[r.solucion] = { t:0, c:0 }; d[r.solucion].t++; let v = parseConcen(r.concen); if(v>=p.min && v<=p.max) d[r.solucion].c++; } });
     let res = Object.keys(d).map(k => ({ n: k, p: Number(((d[k].c / d[k].t) * 100).toFixed(1)), t: d[k].t })).sort((a,b)=>b.t - a.t).slice(0, 5); if(res.length === 0) return;
     let barColors = res.map(x => x.p >= 90 ? '#10b981' : (x.p >= 70 ? '#f59e0b' : '#ef4444'));
-    barSolucionesInst = new Chart(document.getElementById('barSolucionesChart').getContext('2d'), { type: 'bar', data: { labels: res.map(x => `${x.n} (${x.p}%)`), datasets: [{ data: res.map(x => x.p), backgroundColor: barColors, borderRadius: 4, barThickness: 16 }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { quadrantPlugin: false, legend: { display: false } }, scales: { x: { max: 100, grid: { color: '#f1f5f9' } }, y: { grid: { display: false }, ticks: { color: '#475569', font: {size: 10, weight: '600'} } } } } });
+    barSolucionesInst = new Chart(document.getElementById('barSolucionesChart').getContext('2d'), { type: 'bar', data: { labels: res.map(x => `${x.n} (${x.p}%)`), datasets: [{ data: res.map(x => x.p), backgroundColor: barColors, borderRadius: 4, barThickness: 16 }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { max: 100, grid: { color: '#f1f5f9' } }, y: { grid: { display: false }, ticks: { color: '#475569', font: {size: 10, weight: '600'} } } } } });
 }
 
 function drawRadarFugas(desvios) {
@@ -351,7 +349,7 @@ function drawRadarFugas(desvios) {
     if(excesos.length === 0) { if(msgObj) msgObj.classList.remove('hidden'); return; } if(msgObj) msgObj.classList.add('hidden');
     let fugas = {}; excesos.forEach(e => { if(!fugas[e.solucion]) fugas[e.solucion] = 0; fugas[e.solucion] += e.excesoAbs; });
     let labels = Object.keys(fugas); let data = Object.values(fugas);
-    fugaChartInst = new Chart(document.getElementById('fugaQuimicaChart').getContext('2d'), { type: 'radar', data: { labels: labels, datasets: [{ label: 'Índice de Fuga (Σ%)', data: data, backgroundColor: 'rgba(245, 158, 11, 0.25)', borderColor: '#f59e0b', pointBackgroundColor: '#ffffff', pointBorderColor: '#f59e0b', pointBorderWidth: 2, pointRadius: 4, borderWidth: 2 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { quadrantPlugin: false, legend: { display: false }, tooltip: { callbacks: { label: c => ` Volumen Desperdiciado: ${c.raw.toFixed(2)} Índice de Fuga (Σ%)` } } }, scales: { r: { angleLines: { color: '#e2e8f0' }, grid: { color: '#e2e8f0', circular: true }, pointLabels: { font: { size: 9, weight: 'bold' }, color: '#475569' }, ticks: { display: false, beginAtZero: true } } } } });
+    fugaChartInst = new Chart(document.getElementById('fugaQuimicaChart').getContext('2d'), { type: 'radar', data: { labels: labels, datasets: [{ label: 'Índice de Fuga (Σ%)', data: data, backgroundColor: 'rgba(245, 158, 11, 0.25)', borderColor: '#f59e0b', pointBackgroundColor: '#ffffff', pointBorderColor: '#f59e0b', pointBorderWidth: 2, pointRadius: 4, borderWidth: 2 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` Volumen Desperdiciado: ${c.raw.toFixed(2)} Índice de Fuga (Σ%)` } } }, scales: { r: { angleLines: { color: '#e2e8f0' }, grid: { color: '#e2e8f0', circular: true }, pointLabels: { font: { size: 9, weight: 'bold' }, color: '#475569' }, ticks: { display: false, beginAtZero: true } } } } });
 }
 
 // ==========================================
@@ -388,7 +386,7 @@ async function dispararAnalisisIA() {
     let opsArray = Object.keys(opsStats).map(op => `${op} (${opsStats[op]} eventos)`).join(', ');
 
     const prompt = `Eres Analista de Datos en Lácteos San Antonio. El sistema calculó la matemática exacta de las fugas. NO recalcules, usa ESTOS DATOS DUROS:\n\n${desgloseTexto}\nOperadores implicados: ${opsArray}\n\nREGLAS ESTRICTAS:\n1. Usa los porcentajes exactos provistos.\n2. Redacta el análisis explicando qué químico representa el mayor desperdicio.\n3. PROHIBIDO dar recomendaciones operativas mecánicas (no digas calibrar, ajustar equipos).\n4. Devuelve un JSON estricto con un arreglo de objetos (máx 3). Formato:\n[{"desvio": "Hallazgo principal", "analisis_datos": "Análisis estadístico", "responsable": "Nombre del operario"}]\nSin markdown adicional.`;
-    const modeloIA = 'gemini-3.5-flash-lite'; // VERSIÓN EXIGIDA
+    const modeloIA = 'gemini-3.5-flash-lite'; 
 
     try {
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modeloIA}:generateContent?key=${obtenerApiKeySegura()}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) });
