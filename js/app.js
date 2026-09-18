@@ -27,13 +27,13 @@ let scatterInst = null, barSolucionesInst = null, fugaChartInst = null;
 let sparkInst = { ef: null, ri: null, ex: null, to: null };
 let tsInstances = {}; 
 
-// Configuración Global Chart.js (Estética Light Premium)
+// Configuración Global Chart.js
 Chart.defaults.font.family = "'Inter', sans-serif";
 Chart.defaults.color = '#64748b'; 
 Chart.defaults.scale.grid.color = '#e2e8f0';
 
 // ==========================================
-// 2. UTILIDADES Y NORMALIZACIÓN
+// 2. UTILIDADES
 // ==========================================
 function n(t) { return t ? String(t).trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : ''; }
 function parseConcen(v) { let num = parseFloat(String(v).replace(',', '.')); return isNaN(num) ? 0 : num; }
@@ -65,7 +65,7 @@ function estandarizarSolucion(nombre) {
 }
 
 // ==========================================
-// 3. INICIALIZACIÓN Y CARGA DE DATOS
+// 3. INICIALIZACIÓN Y CARGA
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
     actualizarBadgeIA();
@@ -87,33 +87,9 @@ async function cargarSupabase() {
         if (data && data.length > 0) { acumulador = acumulador.concat(data); offset += chunkSize; if (data.length < chunkSize) keepFetching = false; } else { keepFetching = false; }
     }
     listaRegistros = acumulador.map(r => ({ ...r, solucion: estandarizarSolucion(r.solucion), equipo: String(r.equipo || 'N/A').trim(), proceso: String(r.proceso || 'CIP').trim().toUpperCase() }));
-    
     document.getElementById('info-registros-totales').innerText = `${listaRegistros.length.toLocaleString()} Registros BD`;
     actualizarOpcionesFiltros(); 
     renderizarCore();
-}
-
-async function importarArchivoExcel(event) {
-    const f = event.target.files[0]; if (!f) return;
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-        try {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-            if(json.length===0) return;
-            alert(`Sincronizando ${json.length} filas...`);
-            let records = json.map(row => ({
-                fecha: estandarizarFecha(row.FECHA || row.fecha), mes: n(row.MES || row.mes || 'N/A'), hora: row.HORA || row.hora || '00:00:00',
-                solucion: estandarizarSolucion(row.SOLUCION || row.solucion), equipo: String(row.EQUIPO || row.equipo || 'N/A').trim(),
-                proceso: n(row.PROCESO || row.proceso || 'CIP'), concen: parseConcen(row.CONCEN || row.concen),
-                operario: n(row.OPERARIO || row.operario || 'S/N'), laboratorista: n(row.LABORATORISTA || row.laboratorista || 'S/N')
-            }));
-            for (let i = 0; i < records.length; i += 500) { await clienteSupabase.from('registros_limpieza').insert(records.slice(i, i + 500)); }
-            alert("Sincronización exitosa."); await cargarSupabase();
-        } catch (err) { alert("Error Excel"); }
-    };
-    reader.readAsArrayBuffer(f);
 }
 
 // ==========================================
@@ -121,40 +97,29 @@ async function importarArchivoExcel(event) {
 // ==========================================
 function initFiltrosInteligentes() {
     ['filtro-equipo', 'filtro-solucion', 'filtro-anio', 'filtro-mes'].forEach(id => {
-        tsInstances[id] = new TomSelect(`#${id}`, {
-            create: false,
-            sortField: { field: "text", direction: "asc" }
-        });
-        tsInstances[id].on('change', () => { renderizarCore(); });
+        tsInstances[id] = new TomSelect(`#${id}`, { create: false, sortField: { field: "text", direction: "asc" } });
+        tsInstances[id].on('change', renderizarCore);
     });
 }
 
 function actualizarOpcionesFiltros() {
     let eqSet = new Set(), solSet = new Set(), anSet = new Set();
     listaRegistros.forEach(r => { 
-        if (r.equipo) eqSet.add(r.equipo); 
-        if (r.solucion) solSet.add(r.solucion);
-        if (r.fecha) anSet.add(r.fecha.substring(0, 4)); 
+        if (r.equipo) eqSet.add(r.equipo); if (r.solucion) solSet.add(r.solucion); if (r.fecha) anSet.add(r.fecha.substring(0, 4)); 
     });
 
     let currEq = tsInstances['filtro-equipo'].getValue() || 'TODOS';
     let currSol = tsInstances['filtro-solucion'].getValue() || 'TODAS';
     let currAn = tsInstances['filtro-anio'].getValue() || 'TODOS';
 
-    tsInstances['filtro-equipo'].clearOptions();
-    tsInstances['filtro-equipo'].addOption({value: 'TODOS', text: 'Todos los Equipos'});
-    Array.from(eqSet).sort().forEach(e => tsInstances['filtro-equipo'].addOption({value: e, text: e}));
-    tsInstances['filtro-equipo'].setValue(currEq, true);
+    tsInstances['filtro-equipo'].clearOptions(); tsInstances['filtro-equipo'].addOption({value: 'TODOS', text: 'Todos los Equipos'});
+    Array.from(eqSet).sort().forEach(e => tsInstances['filtro-equipo'].addOption({value: e, text: e})); tsInstances['filtro-equipo'].setValue(currEq, true);
 
-    tsInstances['filtro-solucion'].clearOptions();
-    tsInstances['filtro-solucion'].addOption({value: 'TODAS', text: 'Todas las Soluciones'});
-    Array.from(solSet).sort().forEach(s => tsInstances['filtro-solucion'].addOption({value: s, text: s}));
-    tsInstances['filtro-solucion'].setValue(currSol, true);
+    tsInstances['filtro-solucion'].clearOptions(); tsInstances['filtro-solucion'].addOption({value: 'TODAS', text: 'Todas las Soluciones'});
+    Array.from(solSet).sort().forEach(s => tsInstances['filtro-solucion'].addOption({value: s, text: s})); tsInstances['filtro-solucion'].setValue(currSol, true);
 
-    tsInstances['filtro-anio'].clearOptions();
-    tsInstances['filtro-anio'].addOption({value: 'TODOS', text: 'Todos los Años'});
-    Array.from(anSet).sort().reverse().forEach(a => tsInstances['filtro-anio'].addOption({value: a, text: a}));
-    tsInstances['filtro-anio'].setValue(currAn, true);
+    tsInstances['filtro-anio'].clearOptions(); tsInstances['filtro-anio'].addOption({value: 'TODOS', text: 'Todos los Años'});
+    Array.from(anSet).sort().reverse().forEach(a => tsInstances['filtro-anio'].addOption({value: a, text: a})); tsInstances['filtro-anio'].setValue(currAn, true);
 }
 
 function obtenerDatosFiltrados() {
@@ -170,10 +135,7 @@ function obtenerDatosFiltrados() {
             let mapMeses = {'01':'ENERO','02':'FEBRERO','03':'MARZO','04':'ABRIL','05':'MAYO','06':'JUNIO','07':'JULIO','08':'AGOSTO','09':'SEPTIEMBRE','10':'OCTUBRE','11':'NOVIEMBRE','12':'DICIEMBRE'};
             mMes = (mesBD === m || n(r.mes) === mapMeses[m] || n(r.mes).includes(mapMeses[m]));
         }
-        return (!s || s === 'TODAS' || r.solucion === s) && 
-               (!e || e === 'TODOS' || r.equipo === e) && 
-               (!a || a === 'TODOS' || (r.fecha && r.fecha.startsWith(a))) && 
-               mMes;
+        return (!s || s === 'TODAS' || r.solucion === s) && (!e || e === 'TODOS' || r.equipo === e) && (!a || a === 'TODOS' || (r.fecha && r.fecha.startsWith(a))) && mMes;
     });
 }
 
@@ -188,17 +150,9 @@ function renderizarCore() {
         const p = PARAMETROS_TECNICOS.find(x => x.solucion === r.solucion);
         if (p) {
             const val = parseConcen(r.concen);
-            if (val < p.min) { 
-                stats.riesgo++; 
-                stats.desviosList.push({...r, tipo: 'Riesgo (<Min)', excesoAbs: 0}); 
-            }
-            else if (val > p.max) { 
-                stats.exceso++; 
-                stats.desviosList.push({...r, tipo: 'Exceso (>Max)', excesoAbs: val - p.max}); 
-            }
-            else {
-                stats.conformes++;
-            }
+            if (val < p.min) { stats.riesgo++; stats.desviosList.push({...r, tipo: 'Riesgo (<Min)', excesoAbs: 0}); }
+            else if (val > p.max) { stats.exceso++; stats.desviosList.push({...r, tipo: 'Exceso (>Max)', excesoAbs: val - p.max}); }
+            else { stats.conformes++; }
         }
     });
 
@@ -212,8 +166,8 @@ function renderizarCore() {
 
     drawSparklines(datos);
     drawScatter(datos);
-    drawEficaciaSoluciones(datos); // Drill-down dinámico reactivo
-    drawRadarFugas(stats.desviosList); // Índice de Fuga Química en Red/Radar
+    drawEficaciaSoluciones(datos); 
+    drawRadarFugas(stats.desviosList); 
     
     desviosUltimoFiltro = stats.desviosList;
     const tbody = document.getElementById('ai-action-plan-tbody');
@@ -221,7 +175,7 @@ function renderizarCore() {
         if(desviosUltimoFiltro.length === 0) {
             tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-green-600 font-medium bg-green-50/50 rounded-lg"><i class="fa-solid fa-check-circle mr-2"></i>Cero desvíos reportados en esta selección.</td></tr>`;
         } else {
-            tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-slate-500 font-medium bg-slate-50/50 rounded-lg">Hay <b>${desviosUltimoFiltro.length} desvíos</b> detectados. Ejecuta el Análisis de IA para diagnosticar las fugas y excesos.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-slate-500 font-medium bg-slate-50/50 rounded-lg">Hay <b>${desviosUltimoFiltro.length} desvíos</b> detectados. Ejecuta el Análisis de IA para diagnosticar las fugas exactas.</td></tr>`;
         }
     }
 }
@@ -233,12 +187,8 @@ function getLineSpark(ctxId, data, color) {
     if(sparkInst[ctxId]) sparkInst[ctxId].destroy();
     const ctx = document.getElementById(ctxId)?.getContext('2d');
     if(!ctx) return;
-    sparkInst[ctxId] = new Chart(ctx, {
-        type: 'line', data: { labels: data.map((_,i)=>i), datasets: [{ data: data, borderColor: color, borderWidth: 2, pointRadius: 0, fill: false, tension: 0.3 }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } }
-    });
+    sparkInst[ctxId] = new Chart(ctx, { type: 'line', data: { labels: data.map((_,i)=>i), datasets: [{ data: data, borderColor: color, borderWidth: 2, pointRadius: 0, fill: false, tension: 0.3 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } } });
 }
-
 function drawSparklines(datos) {
     let t = datos.slice(0, 50).reverse();
     getLineSpark('sparkEficacia', t.length ? t.map(r=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); return p&&(parseConcen(r.concen)>=p.min&&parseConcen(r.concen)<=p.max)?1:0}) : [1], '#10b981');
@@ -247,6 +197,7 @@ function drawSparklines(datos) {
     getLineSpark('sparkTotal', t.length ? t.map(()=>Math.random()) : [1], '#273c75');
 }
 
+// TOOLTIP PREMIUM EN SCATTER CHART
 function drawScatter(datos) {
     let sol = tsInstances['filtro-solucion'].getValue() || 'TODAS';
     if(sol === 'TODAS') {
@@ -273,11 +224,34 @@ function drawScatter(datos) {
                 { label: 'Min', data: Array(subset.length).fill(regla.min), borderColor: '#ef4444', borderDash: [5,5], pointRadius: 0, fill: false }
             ]
         },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#f1f5f9' } }, x: { grid: { display: false } } } }
+        options: { 
+            responsive: true, maintainAspectRatio: false, 
+            plugins: { 
+                legend: { display: false },
+                tooltip: { 
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                    titleFont: { size: 12, family: 'Inter' },
+                    bodyFont: { size: 11, family: 'Inter' },
+                    padding: 10,
+                    callbacks: { 
+                        label: function(context) { 
+                            let index = context.dataIndex;
+                            let obj = subset[index];
+                            return [
+                                `Químico: ${obj.solucion} (${context.raw}%)`,
+                                `Límite Máximo: ${regla.max}%`,
+                                `Hora Exacta: ${obj.hora ? obj.hora.substring(0,5) : 'N/A'}`,
+                                `Operador: ${obj.operario || obj.laboratorista || 'Desconocido'}`
+                            ];
+                        } 
+                    } 
+                }
+            }, 
+            scales: { y: { grid: { color: '#f1f5f9' } }, x: { grid: { display: false } } } 
+        }
     });
 }
 
-// DRILL-DOWN DINÁMICO DE EFICACIA POR SOLUCIÓN
 function drawEficaciaSoluciones(datos) {
     if(barSolucionesInst) barSolucionesInst.destroy();
     let d = {};
@@ -289,46 +263,19 @@ function drawEficaciaSoluciones(datos) {
             let v = parseConcen(r.concen); if(v>=p.min && v<=p.max) d[r.solucion].c++;
         }
     });
-    
-    let res = Object.keys(d).map(k => ({ 
-        n: k, 
-        p: Number(((d[k].c / d[k].t) * 100).toFixed(1)), 
-        t: d[k].t 
-    })).sort((a,b)=>b.t - a.t).slice(0, 5);
-
+    let res = Object.keys(d).map(k => ({ n: k, p: Number(((d[k].c / d[k].t) * 100).toFixed(1)), t: d[k].t })).sort((a,b)=>b.t - a.t).slice(0, 5);
     if(res.length === 0) return;
 
-    // Colores dinámicos según el % de eficacia (Verde >=90%, Amarillo 70-89%, Rojo <70%)
     let barColors = res.map(x => x.p >= 90 ? '#10b981' : (x.p >= 70 ? '#f59e0b' : '#ef4444'));
 
     barSolucionesInst = new Chart(document.getElementById('barSolucionesChart').getContext('2d'), {
         type: 'bar',
-        data: { 
-            labels: res.map(x => `${x.n} (${x.p}%)`), 
-            datasets: [{ 
-                data: res.map(x => x.p), 
-                backgroundColor: barColors, 
-                borderRadius: 4,
-                barThickness: 16
-            }] 
-        },
-        options: { 
-            indexAxis: 'y', 
-            responsive: true, 
-            maintainAspectRatio: false, 
-            plugins: { 
-                legend: { display: false },
-                tooltip: { callbacks: { label: function(c) { return ` Conformidad: ${c.raw}%`; } } }
-            }, 
-            scales: { 
-                x: { max: 100, grid: { color: '#f1f5f9' }, ticks: { callback: v => v + '%' } }, 
-                y: { grid: { display: false }, ticks: { color: '#475569', font: {size: 10, weight: '600'} } } 
-            } 
-        }
+        data: { labels: res.map(x => `${x.n} (${x.p}%)`), datasets: [{ data: res.map(x => x.p), backgroundColor: barColors, borderRadius: 4, barThickness: 16 }] },
+        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return ` Conformidad: ${c.raw}%`; } } } }, scales: { x: { max: 100, grid: { color: '#f1f5f9' }, ticks: { callback: v => v + '%' } }, y: { grid: { display: false }, ticks: { color: '#475569', font: {size: 10, weight: '600'} } } } }
     });
 }
 
-// ÍNDICE DE FUGA QUÍMICA (GRÁFICA DE RED / RADAR)
+// RADAR CHART E ÍNDICE DE FUGA QUÍMICA
 function drawRadarFugas(desvios) {
     if(fugaChartInst) fugaChartInst.destroy();
     const msgObj = document.getElementById('fuga-empty-msg');
@@ -340,7 +287,7 @@ function drawRadarFugas(desvios) {
     let fugas = {};
     excesos.forEach(e => {
         if(!fugas[e.solucion]) fugas[e.solucion] = 0;
-        fugas[e.solucion] += e.excesoAbs; // Sumatoria matemática de exceso
+        fugas[e.solucion] += e.excesoAbs; 
     });
 
     let labels = Object.keys(fugas); 
@@ -351,7 +298,7 @@ function drawRadarFugas(desvios) {
         data: { 
             labels: labels, 
             datasets: [{ 
-                label: 'Volumen Excedente', 
+                label: 'Índice de Fuga (Σ%)', 
                 data: data, 
                 backgroundColor: 'rgba(245, 158, 11, 0.25)', 
                 borderColor: '#f59e0b',
@@ -363,37 +310,27 @@ function drawRadarFugas(desvios) {
             }] 
         },
         options: { 
-            responsive: true, 
-            maintainAspectRatio: false, 
+            responsive: true, maintainAspectRatio: false, 
             plugins: { 
                 legend: { display: false },
-                tooltip: { callbacks: { label: function(c) { return ` Exceso Acumulado: ${c.raw.toFixed(2)} pts`; } } }
+                tooltip: { callbacks: { label: function(c) { return ` Volumen Desperdiciado: ${c.raw.toFixed(2)} Índice de Fuga (Σ%)`; } } }
             },
-            scales: {
-                r: {
-                    angleLines: { color: '#e2e8f0' },
-                    grid: { color: '#e2e8f0', circular: true },
-                    pointLabels: { font: { size: 9, weight: 'bold' }, color: '#475569' },
-                    ticks: { display: false, beginAtZero: true }
-                }
-            }
+            scales: { r: { angleLines: { color: '#e2e8f0' }, grid: { color: '#e2e8f0', circular: true }, pointLabels: { font: { size: 9, weight: 'bold' }, color: '#475569' }, ticks: { display: false, beginAtZero: true } } }
         }
     });
 }
 
 // ==========================================
-// 7. ANÁLISIS DE IA CON DATOS DE FUGAS (ROBUSTO)
+// 7. MOTOR MATEMÁTICO PREVIO A LA IA (CERO ALUCINACIONES)
 // ==========================================
 function obtenerApiKeySegura() { return localStorage.getItem('poes_gemini_key') || ''; }
 
 function actualizarBadgeIA() {
     const b = document.getElementById('badge-ia-status'); if(!b) return;
     if(obtenerApiKeySegura()) {
-        b.innerHTML = `<i class="fa-solid fa-check text-green-500 mr-1"></i> IA Lista`;
-        b.className = "text-[10px] font-bold px-2 py-1 rounded bg-green-50 text-green-700 border border-green-200 shadow-sm";
+        b.innerHTML = `<i class="fa-solid fa-check text-green-500 mr-1"></i> IA Lista`; b.className = "text-[10px] font-bold px-2 py-1 rounded bg-green-50 text-green-700 border border-green-200 shadow-sm";
     } else {
-        b.innerHTML = `<i class="fa-solid fa-lock mr-1"></i> Falta API Key`;
-        b.className = "text-[10px] font-bold px-2 py-1 rounded bg-slate-100 text-slate-400 border border-slate-200 shadow-sm";
+        b.innerHTML = `<i class="fa-solid fa-lock mr-1"></i> Falta API Key`; b.className = "text-[10px] font-bold px-2 py-1 rounded bg-slate-100 text-slate-400 border border-slate-200 shadow-sm";
     }
 }
 
@@ -401,30 +338,58 @@ async function dispararAnalisisIA() {
     const tbody = document.getElementById('ai-action-plan-tbody');
     if(desviosUltimoFiltro.length === 0) return;
     if(!obtenerApiKeySegura()) {
-        tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-slate-500 font-bold bg-slate-50 rounded-lg">Haz clic en <b>"IA Config"</b> arriba para ingresar tu API Key de Google AI Studio.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-slate-500 font-bold bg-slate-50 rounded-lg">Haz clic en <b>"IA Config"</b> arriba para ingresar tu API Key.</td></tr>`;
         return;
     }
 
-    tbody.innerHTML = `<tr><td colspan="3" class="py-10 text-center text-blue-600 font-bold animate-pulse bg-blue-50/50 rounded-lg"><i class="fa-solid fa-microchip mr-2"></i>Procesando índices de fuga con 3.5 Flash-Lite...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="3" class="py-10 text-center text-blue-600 font-bold animate-pulse bg-blue-50/50 rounded-lg"><i class="fa-solid fa-microchip mr-2"></i>Evaluando matemáticas de fuga con 3.5 Flash-Lite...</td></tr>`;
 
-    let muestraIA = desviosUltimoFiltro.slice(0, 20).map(r => `EQ: ${r.equipo} | SOL: ${r.solucion} \vert{} FALLA:${r.tipo} | HR: ${r.hora} \vert{} OP:${r.operario}`);
+    // 1. EL JAVASCRIPT HACE LAS MATEMÁTICAS EXACTAS (Para evitar la alucinación de la IA)
+    let excesos = desviosUltimoFiltro.filter(d => d.tipo.includes('Exceso'));
+    let totalExcesos = excesos.length;
     
-    const prompt = `Eres un Analista de Datos y Pérdidas POES en Lácteos San Antonio. Analiza esta muestra estadística de desvíos y excesos:\n${muestraIA.join('\n')}\n\nREGLAS ESTRICTAS DE NEGOCIO:\n1. Tu tarea es EXCLUSIVAMENTE analizar los datos estadísticos y porcentajes de sobredosificación (ej: "El X% de tus pérdidas químicas provienen de...").\n2. ESTÁ TOTAL Y ABSOLUTAMENTE PROHIBIDO dar recomendaciones mecánicas, operativas o de mantenimiento (no digas ajustar bombas ni calibrar equipos).\n3. Devuelve un JSON estricto con un arreglo de objetos (máximo 3). Estructura exacta:\n[{"desvio": "Hallazgo principal", "analisis_datos": "Análisis estadístico del impacto o distribución de la fuga", "responsable": "Nombre del rol u operario implicado"}]\nSin texto adicional ni markdown (\`\`\`json).`;
+    let statsFugas = {};
+    let opsStats = {};
+    excesos.forEach(e => {
+        if(!statsFugas[e.solucion]) statsFugas[e.solucion] = { conteo: 0, volumenPerdido: 0 };
+        statsFugas[e.solucion].conteo++;
+        statsFugas[e.solucion].volumenPerdido += e.excesoAbs;
 
-    // CAMBIO DE MODELO APLICADO: 3.5 Flash-Lite
+        let op = e.operario || e.laboratorista || 'Operador No Identificado';
+        opsStats[op] = (opsStats[op] || 0) + 1;
+    });
+
+    let desgloseTexto = `TOTAL DE EVENTOS POR SOBREDOSIFICACIÓN (EXCESO): ${totalExcesos}\n`;
+    Object.keys(statsFugas).forEach(sol => {
+        let pctConteo = ((statsFugas[sol].conteo / totalExcesos) * 100).toFixed(1);
+        desgloseTexto += `- Químico ${sol}: Responsable del ${pctConteo}% de los eventos (ocurrió ${statsFugas[sol].conteo} veces). Índice de Fuga (Volumen desperdiciado): ${statsFugas[sol].volumenPerdido.toFixed(2)}.\n`;
+    });
+
+    let opsArray = Object.keys(opsStats).map(op => `${op} (${opsStats[op]} eventos)`).join(', ');
+
+    // 2. EL PROMPT RECIBE LA INFORMACIÓN "PRE-MASTICADA"
+    const prompt = `Eres un Analista Ejecutivo de Datos en Lácteos San Antonio. El sistema ya calculó la matemática exacta de las fugas químicas. NO recalcules, usa ESTOS DATOS DUROS:
+
+${desgloseTexto}
+Operadores implicados en las fugas: ${opsArray}
+
+REGLAS ESTRICTAS DE NEGOCIO:
+1. Usa LOS PORCENTAJES EXACTOS que te di arriba. No inventes números.
+2. Redacta el análisis explicando hacia qué químico se inclina la mayor pérdida económica o desperdicio relativo.
+3. ESTÁ ESTRICTAMENTE PROHIBIDO dar recomendaciones operativas, mecánicas o de mantenimiento (no digas calibrar, ajustar equipos, etc.).
+4. Devuelve un JSON estricto con un arreglo de objetos (máximo 3).
+Formato: [{"desvio": "Hallazgo principal", "analisis_datos": "Análisis estadístico basado en los datos exactos provistos", "responsable": "Nombre del rol u operario implicado"}]
+Sin markdown adicional.`;
+
     const modeloIA = 'gemini-3.5-flash-lite';
 
     try {
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modeloIA}:generateContent?key=${obtenerApiKeySegura()}`, {
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
         
-        if (!res.ok) {
-            const errData = await res.json();
-            throw new Error(errData.error?.message || `Error HTTP ${res.status}`);
-        }
+        if (!res.ok) { const errData = await res.json(); throw new Error(errData.error?.message || `Error HTTP ${res.status}`); }
         
         const jsonRes = await res.json();
         let rawText = jsonRes.candidates?.[0]?.content?.parts?.[0]?.text || '';
@@ -443,9 +408,10 @@ async function dispararAnalisisIA() {
         tbody.innerHTML = html;
 
     } catch(err) {
-        tbody.innerHTML = `<tr><td colspan="3" class="py-6 px-6 text-center text-red-500 font-bold text-[11px] bg-red-50 rounded-lg"><i class="fa-solid fa-triangle-exclamation mr-1"></i> <b>Fallo IA:</b> ${err.message}. Verifica tu API Key.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="3" class="py-6 px-6 text-center text-red-500 font-bold text-[11px] bg-red-50 rounded-lg"><i class="fa-solid fa-triangle-exclamation mr-1"></i> <b>Fallo IA:</b> ${err.message}.</td></tr>`;
     }
 }
+
 // ==========================================
 // 8. MODALES
 // ==========================================
