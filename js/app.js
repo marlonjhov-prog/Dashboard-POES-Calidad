@@ -25,15 +25,15 @@ let listaRegistros = [];
 let desviosUltimoFiltro = [];
 let scatterInst = null, barSolucionesInst = null, fugaChartInst = null;
 let sparkInst = { ef: null, ri: null, ex: null, to: null };
-let tsInstances = {}; // Gestor de TomSelect
+let tsInstances = {}; // Control global de TomSelect
 
-// Configuración Chart.js
+// Configuración Global Chart.js (Estética Light Premium)
 Chart.defaults.font.family = "'Inter', sans-serif";
 Chart.defaults.color = '#64748b'; 
 Chart.defaults.scale.grid.color = '#e2e8f0';
 
 // ==========================================
-// 2. NORMALIZACIÓN Y UTILIDADES
+// 2. UTILIDADES
 // ==========================================
 function n(t) { return t ? String(t).trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : ''; }
 function parseConcen(v) { let num = parseFloat(String(v).replace(',', '.')); return isNaN(num) ? 0 : num; }
@@ -65,11 +65,11 @@ function estandarizarSolucion(nombre) {
 }
 
 // ==========================================
-// 3. INICIALIZACIÓN
+// 3. INICIALIZACIÓN Y CARGA DE DATOS
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
     actualizarBadgeIA();
-    initFiltrosInteligentes(); // Inicializa los selectores con buscador
+    initFiltrosInteligentes(); // Se inicializan los selectores correctamente primero
     try {
         await cargarSupabase();
         setTimeout(() => {
@@ -89,7 +89,7 @@ async function cargarSupabase() {
     listaRegistros = acumulador.map(r => ({ ...r, solucion: estandarizarSolucion(r.solucion), equipo: String(r.equipo || 'N/A').trim(), proceso: String(r.proceso || 'CIP').trim().toUpperCase() }));
     
     document.getElementById('info-registros-totales').innerText = `${listaRegistros.length.toLocaleString()} Registros BD`;
-    actualizarOpcionesFiltros();
+    actualizarOpcionesFiltros(); 
     renderizarCore();
 }
 
@@ -117,16 +117,16 @@ async function importarArchivoExcel(event) {
 }
 
 // ==========================================
-// 4. FILTROS INTELIGENTES (TOM SELECT)
+// 4. FILTROS INTELIGENTES (TOM SELECT) REPARADOS
 // ==========================================
 function initFiltrosInteligentes() {
     ['filtro-equipo', 'filtro-solucion', 'filtro-anio', 'filtro-mes'].forEach(id => {
         tsInstances[id] = new TomSelect(`#${id}`, {
             create: false,
-            sortField: { field: "text", direction: "asc" },
-            placeholder: `Buscar...`
+            sortField: { field: "text", direction: "asc" }
         });
-        tsInstances[id].on('change', renderizarCore);
+        // Disparar renderizado al cambiar el valor
+        tsInstances[id].on('change', () => { renderizarCore(); });
     });
 }
 
@@ -142,16 +142,19 @@ function actualizarOpcionesFiltros() {
     let currSol = tsInstances['filtro-solucion'].getValue() || 'TODAS';
     let currAn = tsInstances['filtro-anio'].getValue() || 'TODOS';
 
+    // Equipo
     tsInstances['filtro-equipo'].clearOptions();
     tsInstances['filtro-equipo'].addOption({value: 'TODOS', text: 'Todos los Equipos'});
     Array.from(eqSet).sort().forEach(e => tsInstances['filtro-equipo'].addOption({value: e, text: e}));
     tsInstances['filtro-equipo'].setValue(currEq, true);
 
+    // Solución
     tsInstances['filtro-solucion'].clearOptions();
     tsInstances['filtro-solucion'].addOption({value: 'TODAS', text: 'Todas las Soluciones'});
     Array.from(solSet).sort().forEach(s => tsInstances['filtro-solucion'].addOption({value: s, text: s}));
     tsInstances['filtro-solucion'].setValue(currSol, true);
 
+    // Año
     tsInstances['filtro-anio'].clearOptions();
     tsInstances['filtro-anio'].addOption({value: 'TODOS', text: 'Todos los Años'});
     Array.from(anSet).sort().reverse().forEach(a => tsInstances['filtro-anio'].addOption({value: a, text: a}));
@@ -206,15 +209,15 @@ function renderizarCore() {
     drawSparklines(datos);
     drawScatter(datos);
     drawEficaciaSoluciones(datos);
-    drawRadarFugas(stats.desviosList); 
+    drawRadarFugas(stats.desviosList); // Radar Spider Chart
     
     desviosUltimoFiltro = stats.desviosList;
     const tbody = document.getElementById('ai-action-plan-tbody');
     if(tbody) {
         if(desviosUltimoFiltro.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-green-600 font-medium"><i class="fa-solid fa-check-circle mr-2"></i>Cero desvíos reportados en esta selección.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-green-600 font-medium bg-green-50/50 rounded-lg"><i class="fa-solid fa-check-circle mr-2"></i>Cero desvíos reportados en esta selección.</td></tr>`;
         } else {
-            tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-slate-500 font-medium bg-slate-50 rounded-lg">Hay <b>${desviosUltimoFiltro.length} desvíos</b> detectados. Ejecuta el Análisis de IA para evaluar la pérdida económica relativa.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-slate-500 font-medium bg-slate-50/50 rounded-lg">Hay <b>${desviosUltimoFiltro.length} desvíos</b> detectados. Ejecuta el Análisis de IA para diagnosticar las pérdidas.</td></tr>`;
         }
     }
 }
@@ -261,7 +264,7 @@ function drawScatter(datos) {
         data: {
             labels: subset.map(r => r.fecha.substring(5)),
             datasets: [
-                { label: 'Muestras', data: dataPoints, showLine: false, pointBackgroundColor: colors, pointBorderColor: '#ffffff', pointBorderWidth: 1.5, pointRadius: 5 },
+                { label: 'Muestras', data: dataPoints, showLine: false, pointBackgroundColor: colors, pointBorderColor: '#ffffff', pointBorderWidth: 1.5, pointRadius: 5, pointHoverRadius: 7 },
                 { label: 'Max', data: Array(subset.length).fill(regla.max), borderColor: '#f59e0b', borderDash: [5,5], pointRadius: 0, fill: false },
                 { label: 'Min', data: Array(subset.length).fill(regla.min), borderColor: '#ef4444', borderDash: [5,5], pointRadius: 0, fill: false }
             ]
@@ -287,11 +290,11 @@ function drawEficaciaSoluciones(datos) {
     barSolucionesInst = new Chart(document.getElementById('barSolucionesChart').getContext('2d'), {
         type: 'bar',
         data: { labels: res.map(x=>x.n), datasets: [{ data: res.map(x=>x.p), backgroundColor: '#10b981', borderRadius: 4 }] },
-        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { max: 100, grid: { color: '#f1f5f9' } }, y: { grid: { display: false }, ticks: { color: '#475569', font: {size: 10, weight: 'bold'} } } } }
+        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { max: 100, grid: { color: '#f1f5f9' } }, y: { grid: { display: false }, ticks: { color: '#475569', font: {size: 10, weight: '600'} } } } }
     });
 }
 
-// NUEVO: Gráfica de Red / Araña (Radar) para Fugas Químicas
+// GRÁFICA DE ARAÑA / RED (Spider/Radar Chart) PARA FUGAS
 function drawRadarFugas(desvios) {
     if(fugaChartInst) fugaChartInst.destroy();
     const msgObj = document.getElementById('fuga-empty-msg');
@@ -314,14 +317,16 @@ function drawRadarFugas(desvios) {
         data: { 
             labels: labels, 
             datasets: [{ 
-                label: 'Fuga (Pérdida Relativa)', 
+                label: 'Magnitud de Fuga', 
                 data: data, 
-                backgroundColor: 'rgba(245, 158, 11, 0.25)', // warn-yellow translucent
+                backgroundColor: 'rgba(245, 158, 11, 0.2)', // warn-yellow transparente
                 borderColor: '#f59e0b',
-                pointBackgroundColor: '#f59e0b',
-                pointBorderColor: '#fff',
-                pointHoverBackgroundColor: '#fff',
-                pointHoverBorderColor: '#f59e0b',
+                pointBackgroundColor: '#ffffff',
+                pointBorderColor: '#f59e0b',
+                pointBorderWidth: 2,
+                pointRadius: 4,
+                pointHoverBackgroundColor: '#f59e0b',
+                pointHoverBorderColor: '#ffffff',
                 borderWidth: 2
             }] 
         },
@@ -330,14 +335,14 @@ function drawRadarFugas(desvios) {
             maintainAspectRatio: false, 
             plugins: { 
                 legend: { display: false },
-                tooltip: { callbacks: { label: function(c) { return ` ${c.raw.toFixed(2)} pts (Exceso)`; } } }
+                tooltip: { callbacks: { label: function(c) { return ` Pérdida Relativa: ${c.raw.toFixed(2)} pts`; } } }
             },
             scales: {
                 r: {
                     angleLines: { color: '#e2e8f0' },
-                    grid: { color: '#e2e8f0' },
-                    pointLabels: { font: { size: 10, weight: 'bold' }, color: '#475569' },
-                    ticks: { display: false, beginAtZero: true }
+                    grid: { color: '#e2e8f0', circular: true },
+                    pointLabels: { font: { size: 9, weight: 'bold' }, color: '#475569' },
+                    ticks: { display: false, beginAtZero: true } // Oculta los números del eje central para más limpieza
                 }
             }
         }
@@ -353,10 +358,10 @@ function actualizarBadgeIA() {
     const b = document.getElementById('badge-ia-status'); if(!b) return;
     if(obtenerApiKeySegura()) {
         b.innerHTML = `<i class="fa-solid fa-check text-green-500 mr-1"></i> IA Lista`;
-        b.className = "text-[10px] font-bold px-2 py-1 rounded bg-green-50 text-green-700 border border-green-200";
+        b.className = "text-[10px] font-bold px-2 py-1 rounded bg-green-50 text-green-700 border border-green-200 shadow-sm";
     } else {
         b.innerHTML = `<i class="fa-solid fa-lock mr-1"></i> Falta API Key`;
-        b.className = "text-[10px] font-bold px-2 py-1 rounded bg-slate-100 text-slate-400";
+        b.className = "text-[10px] font-bold px-2 py-1 rounded bg-slate-100 text-slate-400 border border-slate-200 shadow-sm";
     }
 }
 
@@ -368,7 +373,7 @@ async function dispararAnalisisIA() {
         return;
     }
 
-    tbody.innerHTML = `<tr><td colspan="3" class="py-10 text-center text-blue-600 font-bold animate-pulse bg-blue-50/50 rounded-lg"><i class="fa-solid fa-microchip mr-2"></i>Evaluando impacto de fugas y estadística de datos...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="3" class="py-10 text-center text-blue-600 font-bold animate-pulse bg-blue-50/50 rounded-lg"><i class="fa-solid fa-microchip mr-2"></i>Cruzando estadística técnica...</td></tr>`;
 
     let muestraIA = desviosUltimoFiltro.slice(0, 15).map(r => `EQ: ${r.equipo} | SOL: ${r.solucion} | FALLA: ${r.tipo} | HR: ${r.hora} | OP: ${r.operario}`);
     
