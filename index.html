@@ -6,44 +6,28 @@
     <title>Centro de Control POES - Calidad</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome Icons -->
+    <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Supabase Client -->
+    <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- SheetJS (Excel) -->
+    <!-- SheetJS -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <!-- Tom Select (Para Búsqueda Integrada) -->
+    <!-- Tom Select -->
     <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.default.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
     
     <script>
         tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        'corporate-blue': '#273c75', 
-                        'accent-green': '#10b981',
-                        'risk-red': '#ef4444',
-                        'warn-yellow': '#f59e0b'
-                    }
-                }
-            }
+            theme: { extend: { colors: { 'corporate-blue': '#273c75', 'accent-green': '#10b981', 'risk-red': '#ef4444', 'warn-yellow': '#f59e0b' } } }
         }
     </script>
-
-    <!-- CSS TomSelect (Premium Light) -->
     <style>
-        .ts-control { 
-            background-color: #f8fafc !important; border: 1px solid #cbd5e1 !important; border-radius: 0.5rem !important; color: #334155 !important; font-size: 0.875rem !important; padding: 0.6rem 0.75rem !important; font-weight: 600 !important; box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05); cursor: pointer; 
-        }
+        .ts-control { background-color: #f8fafc !important; border: 1px solid #cbd5e1 !important; border-radius: 0.5rem !important; color: #334155 !important; font-size: 0.875rem !important; padding: 0.6rem 0.75rem !important; font-weight: 600 !important; box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05); cursor: pointer; }
         .ts-control > input { color: #334155 !important; font-size: 0.875rem !important; font-weight: 500 !important; }
         .ts-wrapper.single .ts-control:after { border-color: #64748b transparent transparent transparent !important; }
-        .ts-dropdown { 
-            background-color: #ffffff !important; border: 1px solid #e2e8f0 !important; border-radius: 0.5rem !important; color: #475569 !important; font-size: 0.875rem !important; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important; margin-top: 4px !important; 
-        }
-        .ts-dropdown .option { padding: 0.6rem 0.75rem !important; transition: all 0.15s ease-in-out; }
+        .ts-dropdown { background-color: #ffffff !important; border: 1px solid #e2e8f0 !important; border-radius: 0.5rem !important; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1) !important; margin-top: 4px !important; }
         .ts-dropdown .option:hover, .ts-dropdown .option.active { background-color: #273c75 !important; color: #ffffff !important; font-weight: 600; }
         .ts-wrapper.focus .ts-control { border-color: #273c75 !important; box-shadow: 0 0 0 1px #273c75 !important; background-color: #ffffff !important; }
     </style>
@@ -58,22 +42,16 @@
     <div id="dashboard-content" class="opacity-0 transition-opacity duration-500 flex flex-col flex-grow">
         <header class="bg-corporate-blue border-b border-blue-900 px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4 sticky top-0 z-30 shadow-md">
             <div class="flex items-center space-x-4">
-                <div class="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white font-bold text-xl shadow-inner border border-white/20">
-                    <i class="fa-solid fa-shield-virus"></i>
-                </div>
+                <div class="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white font-bold text-xl shadow-inner border border-white/20"><i class="fa-solid fa-shield-virus"></i></div>
                 <div>
-                    <div class="flex items-center space-x-2">
-                        <h1 class="font-bold text-white text-xl tracking-wide">Centro de Control POES</h1>
-                        <span class="bg-blue-500/30 text-white text-[10px] font-extrabold px-2 py-0.5 rounded border border-blue-400/50 shadow-sm">V.3 AI</span>
-                    </div>
-                    <p class="text-xs text-blue-200 tracking-wide">Lácteos San Antonio | Inocuidad Predictiva & Analytics</p>
+                    <div class="flex items-center space-x-2"><h1 class="font-bold text-white text-xl tracking-wide">Centro de Control POES</h1><span class="bg-blue-500/30 text-white text-[10px] font-extrabold px-2 py-0.5 rounded border border-blue-400/50">V.4 BI</span></div>
+                    <p class="text-xs text-blue-200 tracking-wide">Lácteos San Antonio | Inteligencia Predictiva & Analytics</p>
                 </div>
             </div>
             <div class="flex items-center space-x-3">
-                <span id="info-registros-totales" class="text-xs font-bold text-blue-100 bg-black/20 px-4 py-2 rounded-lg border border-black/10">Sincronizando BD...</span>
+                <span id="info-registros-totales" class="text-xs font-bold text-blue-100 bg-black/20 px-4 py-2 rounded-lg border border-black/10">Sincronizando...</span>
                 <label class="bg-white/10 hover:bg-white/20 text-white text-xs font-bold py-2 px-4 rounded-lg cursor-pointer border border-white/20 transition flex items-center shadow-sm">
-                    <i class="fa-solid fa-cloud-arrow-up mr-2"></i> Importar BD
-                    <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" class="hidden" onchange="importarArchivoExcel(event)">
+                    <i class="fa-solid fa-cloud-arrow-up mr-2"></i> Importar BD <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" class="hidden" onchange="importarArchivoExcel(event)">
                 </label>
                 <button onclick="abrirConfigIA()" class="bg-white hover:bg-slate-100 text-corporate-blue text-xs font-bold py-2 px-4 rounded-lg border border-slate-200 transition flex items-center shadow-sm">
                     <i class="fa-solid fa-microchip mr-2"></i> IA Config
@@ -83,120 +61,123 @@
 
         <main class="p-6 space-y-6 flex-grow max-w-[1600px] w-full mx-auto">
             
+            <!-- Filtros -->
             <section class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 items-end">
-                    <div><label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-2">Equipo / Máquina:</label><select id="filtro-equipo" placeholder="Buscar equipo..."><option value="TODOS">Todos los Equipos</option></select></div>
-                    <div><label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-2">Solución Química:</label><select id="filtro-solucion" placeholder="Buscar solución..."><option value="TODAS">Todas las Soluciones</option></select></div>
-                    <div><label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-2">Año:</label><select id="filtro-anio" placeholder="Buscar año..."><option value="TODOS">Todos los Años</option></select></div>
+                    <div><label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-2">Equipo / Máquina:</label><select id="filtro-equipo"><option value="TODOS">Todos los Equipos</option></select></div>
+                    <div><label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-2">Solución Química:</label><select id="filtro-solucion"><option value="TODAS">Todas las Soluciones</option></select></div>
+                    <div><label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-2">Año:</label><select id="filtro-anio"><option value="TODOS">Todos los Años</option></select></div>
                     <div><label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-2">Mes:</label>
-                        <select id="filtro-mes" placeholder="Buscar mes...">
-                            <option value="TODOS">Todos los Meses</option>
-                            <option value="01">Enero</option><option value="02">Febrero</option><option value="03">Marzo</option>
-                            <option value="04">Abril</option><option value="05">Mayo</option><option value="06">Junio</option>
-                            <option value="07">Julio</option><option value="08">Agosto</option><option value="09">Septiembre</option>
-                            <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+                        <select id="filtro-mes">
+                            <option value="TODOS">Todos los Meses</option><option value="01">Enero</option><option value="02">Febrero</option><option value="03">Marzo</option><option value="04">Abril</option><option value="05">Mayo</option><option value="06">Junio</option><option value="07">Julio</option><option value="08">Agosto</option><option value="09">Septiembre</option><option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
                         </select>
                     </div>
                 </div>
             </section>
 
+            <!-- Tarjetas KPI -->
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                 <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
-                    <div class="flex justify-between items-start">
-                        <div><p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Eficacia Sanitaria</p><h3 id="kpi-eficacia" class="text-3xl font-black text-corporate-blue mt-1">0.0%</h3></div>
-                        <div class="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center text-green-600 text-lg border border-green-200"><i class="fa-solid fa-shield-halved"></i></div>
-                    </div><div class="h-10 mt-4"><canvas id="sparkEficacia"></canvas></div>
+                    <div class="flex justify-between items-start"><div><p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Eficacia Sanitaria</p><h3 id="kpi-eficacia" class="text-3xl font-black text-corporate-blue mt-1">0.0%</h3></div><div class="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center text-green-600 text-lg border border-green-200"><i class="fa-solid fa-shield-halved"></i></div></div>
+                    <div class="h-10 mt-4"><canvas id="sparkEficacia"></canvas></div>
                 </div>
-                <div onclick="abrirModalDetalle('riesgo')" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between cursor-pointer hover:border-red-300 hover:shadow-md transition group">
-                    <div class="flex justify-between items-start">
-                        <div><p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Riesgo (&lt; Min)</p><h3 id="kpi-riesgo" class="text-3xl font-black text-red-600 mt-1">0</h3></div>
-                        <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-red-600 text-lg border border-red-200 group-hover:scale-110 transition-transform"><i class="fa-solid fa-triangle-exclamation"></i></div>
-                    </div><div class="h-10 mt-4"><canvas id="sparkRiesgo"></canvas></div>
+                <div onclick="abrirModalDetalle('riesgo')" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between cursor-pointer hover:border-red-300 transition group">
+                    <div class="flex justify-between items-start"><div><p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Riesgo (&lt; Min)</p><h3 id="kpi-riesgo" class="text-3xl font-black text-red-600 mt-1">0</h3></div><div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-red-600 text-lg border border-red-200"><i class="fa-solid fa-triangle-exclamation"></i></div></div>
+                    <div class="h-10 mt-4"><canvas id="sparkRiesgo"></canvas></div>
                 </div>
-                <div onclick="abrirModalDetalle('exceso')" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between cursor-pointer hover:border-amber-300 hover:shadow-md transition group">
-                    <div class="flex justify-between items-start">
-                        <div><p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Exceso (&gt; Max)</p><h3 id="kpi-exceso" class="text-3xl font-black text-amber-500 mt-1">0</h3></div>
-                        <div class="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 text-lg border border-amber-200 group-hover:scale-110 transition-transform"><i class="fa-solid fa-flask"></i></div>
-                    </div><div class="h-10 mt-4"><canvas id="sparkExceso"></canvas></div>
+                <div onclick="abrirModalDetalle('exceso')" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between cursor-pointer hover:border-amber-300 transition group">
+                    <div class="flex justify-between items-start"><div><p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Exceso (&gt; Max)</p><h3 id="kpi-exceso" class="text-3xl font-black text-amber-500 mt-1">0</h3></div><div class="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 text-lg border border-amber-200"><i class="fa-solid fa-flask"></i></div></div>
+                    <div class="h-10 mt-4"><canvas id="sparkExceso"></canvas></div>
                 </div>
                 <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
-                    <div class="flex justify-between items-start">
-                        <div><p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Muestras Totales</p><h3 id="kpi-total" class="text-3xl font-black text-blue-600 mt-1">0</h3></div>
-                        <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 text-lg border border-blue-200"><i class="fa-solid fa-vials"></i></div>
-                    </div><div class="h-10 mt-4"><canvas id="sparkTotal"></canvas></div>
+                    <div class="flex justify-between items-start"><div><p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Muestras Totales</p><h3 id="kpi-total" class="text-3xl font-black text-blue-600 mt-1">0</h3></div><div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 text-lg border border-blue-200"><i class="fa-solid fa-vials"></i></div></div>
+                    <div class="h-10 mt-4"><canvas id="sparkTotal"></canvas></div>
                 </div>
             </div>
 
+            <!-- Fila 1 de Gráficas: Dispersión y Matriz Mágica -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <!-- Mapa de Dispersión -->
+                <!-- Dispersión Premium -->
                 <div class="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
                     <div class="flex justify-between items-center mb-4">
-                        <div>
-                            <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-chart-line text-blue-500 mr-2"></i> MAPA DE DISPERSIÓN BROMATOLÓGICA</h2>
-                            <p class="text-[11px] text-slate-500 mt-0.5">Auditoría detallada de concentración vs Límites Técnicos</p>
-                        </div>
-                        <span id="label-scatter" class="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">SOSA</span>
+                        <div><h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-magnifying-glass-chart text-blue-500 mr-2"></i> MAPA DE DISPERSIÓN BROMATOLÓGICA</h2><p class="text-[11px] text-slate-500 mt-0.5">Muestreo vs Límites Técnicos (Pase el cursor para auditar)</p></div>
+                        <span id="label-scatter" class="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-200">SOSA</span>
                     </div>
                     <div class="h-[280px] w-full relative"><canvas id="scatterChart"></canvas></div>
                 </div>
 
-                <!-- Eficacia por Solución -->
-                <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
-                    <div>
-                        <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-bars-staggered text-green-500 mr-2"></i> EFICACIA POR SOLUCIÓN</h2>
-                        <p class="text-[11px] text-slate-500 mt-0.5">Porcentaje de conformidad (Selección actual)</p>
+                <!-- Matriz Mágica de Gartner (Soluciones) -->
+                <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col relative overflow-hidden">
+                    <div class="mb-2">
+                        <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-table-cells-large text-indigo-500 mr-2"></i> MATRIZ DE DESEMPEÑO</h2>
+                        <p class="text-[11px] text-slate-500 mt-0.5">Volumen vs Eficacia por Solución (Diagnóstico)</p>
                     </div>
-                    <div class="h-[260px] w-full relative mt-4"><canvas id="barSolucionesChart"></canvas></div>
+                    <div class="h-[250px] w-full relative mt-2"><canvas id="quadrantChart"></canvas></div>
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <!-- Gráfica Radar Fugas -->
+            <!-- Fila 2 de Gráficas: Tendencia, Barras y Radar -->
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <!-- Tendencia Histórica -->
+                <div class="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
+                    <div>
+                        <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-chart-area text-accent-green mr-2"></i> TENDENCIA HISTÓRICA DE EFICACIA</h2>
+                        <p class="text-[11px] text-slate-500 mt-0.5">Evolución temporal del porcentaje de conformidad</p>
+                    </div>
+                    <div class="h-[230px] w-full relative mt-4"><canvas id="historicoChart"></canvas></div>
+                </div>
+
+                <!-- Eficacia por Solución (Drill Down) -->
+                <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
+                    <div>
+                        <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-bars-staggered text-blue-500 mr-2"></i> CONFORMIDAD TÉCNICA</h2>
+                        <p class="text-[11px] text-slate-500 mt-0.5">Eficacia % (Selección Actual)</p>
+                    </div>
+                    <div class="h-[230px] w-full relative mt-4"><canvas id="barSolucionesChart"></canvas></div>
+                </div>
+
+                <!-- Red de Fuga Química -->
                 <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
                     <div class="mb-4">
-                        <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-spider text-amber-500 mr-2"></i> RED DE FUGA QUÍMICA</h2>
-                        <p class="text-[11px] text-slate-500 mt-0.5">Medición del desperdicio operativo relativo</p>
+                        <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-spider text-amber-500 mr-2"></i> ÍNDICE DE FUGA QUÍMICA</h2>
+                        <p class="text-[11px] text-slate-500 mt-0.5">Volumen Acumulado de Desperdicio (Σ%)</p>
                     </div>
-                    <div class="h-[230px] w-full relative flex items-center justify-center">
+                    <div class="h-[200px] w-full relative flex items-center justify-center">
                         <canvas id="fugaQuimicaChart"></canvas>
                         <div id="fuga-empty-msg" class="absolute inset-0 flex items-center justify-center hidden">
-                            <span class="text-green-600 text-xs font-bold bg-green-50 px-4 py-2 rounded-xl border border-green-200 shadow-sm"><i class="fa-solid fa-check mr-1"></i> Sin sobredosificaciones</span>
+                            <span class="text-green-600 text-xs font-bold bg-green-50 px-4 py-2 rounded-xl border border-green-200"><i class="fa-solid fa-check mr-1"></i> Sin sobredosificaciones</span>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- IA Auditoría -->
-                <div class="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
-                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 pb-3 border-b border-slate-100 gap-3">
-                        <div>
-                            <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-robot text-corporate-blue mr-2"></i> AUDITORÍA DE DATOS CON IA</h2>
-                            <p class="text-[11px] text-slate-500 mt-0.5">Análisis estadístico automatizado de pérdidas</p>
-                        </div>
-                        <div class="flex items-center space-x-3">
-                            <span id="badge-ia-status" class="text-[10px] font-bold px-2 py-1 rounded bg-slate-100 text-slate-400 border border-slate-200">IA Inactiva</span>
-                            <button onclick="dispararAnalisisIA()" class="bg-corporate-blue hover:bg-blue-800 text-white text-xs font-bold px-4 py-2 rounded-lg transition flex items-center shadow-sm">
-                                <i class="fa-solid fa-wand-magic-sparkles mr-2"></i> Analizar Pérdidas
-                            </button>
-                        </div>
+            <!-- Fila 3: Motor IA Matemático -->
+            <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 pb-3 border-b border-slate-100 gap-3">
+                    <div>
+                        <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-robot text-corporate-blue mr-2"></i> MOTOR DE AUDITORÍA CON IA (GEMINI 3.5 FLASH-LITE)</h2>
+                        <p class="text-[11px] text-slate-500 mt-0.5">Análisis gerencial generado sobre matemáticas duras pre-calculadas por el sistema.</p>
                     </div>
-                    <div class="flex-grow overflow-y-auto max-h-[220px]">
-                        <table class="w-full text-left border-collapse">
-                            <thead>
-                                <tr class="text-[10px] uppercase font-bold text-slate-400 border-b border-slate-100">
-                                    <th class="py-2 px-2 w-1/4">Desvío Detectado</th>
-                                    <th class="py-2 px-2">Análisis de Datos (Impacto)</th>
-                                    <th class="py-2 px-2 w-24">Responsable</th>
-                                </tr>
-                            </thead>
-                            <tbody id="ai-action-plan-tbody" class="divide-y divide-slate-50 text-xs">
-                                <tr>
-                                    <td colspan="3" class="py-10 text-center text-slate-400 font-medium bg-slate-50/50 rounded-lg border border-slate-100">
-                                        Selecciona filtros y haz clic en <b>"Analizar Pérdidas"</b> para generar el diagnóstico técnico.
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <div class="flex items-center space-x-3">
+                        <span id="badge-ia-status" class="text-[10px] font-bold px-2 py-1 rounded bg-slate-100 text-slate-400 border border-slate-200">IA Inactiva</span>
+                        <button onclick="dispararAnalisisIA()" class="bg-corporate-blue hover:bg-blue-800 text-white text-xs font-bold px-4 py-2 rounded-lg transition flex items-center shadow-sm">
+                            <i class="fa-solid fa-wand-magic-sparkles mr-2"></i> Ejecutar Auditoría
+                        </button>
                     </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse min-w-[800px]">
+                        <thead>
+                            <tr class="text-[10px] uppercase font-bold text-slate-400 border-b border-slate-100">
+                                <th class="py-2 px-2 w-1/4">Desvío Principal</th>
+                                <th class="py-2 px-2">Análisis Estadístico Ejecutivo (Basado en Datos Reales)</th>
+                                <th class="py-2 px-2 w-48">Responsables Implicados</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ai-action-plan-tbody" class="divide-y divide-slate-50 text-xs">
+                            <tr><td colspan="3" class="py-10 text-center text-slate-400 font-medium bg-slate-50/50 rounded-lg border border-slate-100">Selecciona filtros y ejecuta la auditoría para generar el diagnóstico técnico.</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
@@ -207,16 +188,12 @@
     <div id="modal-detalle" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white border border-slate-200 w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <h3 id="modal-titulo" class="font-bold text-slate-800 text-base">Detalle de Desvíos</h3>
+                <h3 id="modal-titulo" class="font-bold text-slate-800 text-base">Detalle</h3>
                 <button onclick="cerrarModalDetalle()" class="text-slate-400 hover:text-slate-700 text-lg font-bold px-2 py-1">&times;</button>
             </div>
             <div class="p-6 overflow-y-auto flex-grow bg-white">
                 <table class="w-full text-left text-xs border-collapse">
-                    <thead>
-                        <tr class="text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200">
-                            <th class="py-3 px-6">Fecha y Hora</th><th class="py-3 px-6">Equipo</th><th class="py-3 px-6">Solución</th><th class="py-3 px-6 text-center">Concentración</th><th class="py-3 px-6">Responsable</th>
-                        </tr>
-                    </thead>
+                    <thead><tr class="text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200"><th class="py-3 px-6">Fecha y Hora</th><th class="py-3 px-6">Equipo</th><th class="py-3 px-6">Solución</th><th class="py-3 px-6 text-center">Concentración</th><th class="py-3 px-6">Responsable</th></tr></thead>
                     <tbody id="modal-tbody" class="divide-y divide-slate-100 text-slate-700"></tbody>
                 </table>
             </div>
@@ -229,13 +206,11 @@
     <div id="modal-config-ia" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white border border-slate-200 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4">
             <div class="flex justify-between items-center pb-3 border-b border-slate-100">
-                <h3 class="font-bold text-slate-800 text-sm flex items-center"><i class="fa-solid fa-key text-blue-500 mr-2"></i> Clave API Gemini</h3>
+                <h3 class="font-bold text-slate-800 text-sm flex items-center"><i class="fa-solid fa-key text-blue-500 mr-2"></i> Clave API Gemini (Google AI Studio)</h3>
                 <button onclick="cerrarConfigIA()" class="text-slate-400 hover:text-slate-700 text-lg font-bold px-2">&times;</button>
             </div>
-            <p class="text-xs text-slate-500 leading-relaxed">Ingresa tu clave de Google AI Studio. Se guarda de forma segura en tu navegador local.</p>
-            <div>
-                <input type="password" id="input-api-key" placeholder="AIzaSy..." class="w-full bg-slate-50 text-slate-800 text-xs font-mono p-3 rounded-xl border border-slate-200 focus:outline-none focus:border-corporate-blue focus:ring-1 focus:ring-corporate-blue transition shadow-inner">
-            </div>
+            <p class="text-xs text-slate-500 leading-relaxed">Local storage seguro.</p>
+            <div><input type="password" id="input-api-key" placeholder="AIzaSy..." class="w-full bg-slate-50 text-slate-800 text-xs font-mono p-3 rounded-xl border border-slate-200 focus:outline-none focus:border-corporate-blue"></div>
             <div class="flex justify-between items-center pt-3 border-t border-slate-100">
                 <button onclick="limpiarApiKey()" class="text-red-500 hover:text-red-600 text-xs font-bold transition">Eliminar Clave</button>
                 <div class="space-x-2">
