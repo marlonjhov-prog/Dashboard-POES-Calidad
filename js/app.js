@@ -25,7 +25,11 @@ let listaRegistros = [];
 let desviosUltimoFiltro = [];
 let scatterInst = null, barSolucionesInst = null, fugaChartInst = null;
 let sparkInst = { ef: null, ri: null, ex: null, to: null };
-let tsInstances = {}; 
+
+// Configuración Chart.js para Tema Claro
+Chart.defaults.font.family = "'Inter', sans-serif";
+Chart.defaults.color = '#64748b'; // slate-500
+Chart.defaults.scale.grid.color = '#e2e8f0'; // slate-200
 
 // ==========================================
 // 2. UTILIDADES
@@ -65,9 +69,7 @@ function estandarizarSolucion(nombre) {
 document.addEventListener('DOMContentLoaded', async () => {
     actualizarBadgeIA();
     try {
-        initFiltrosInteligentes(); // Inicializa TomSelect vacío primero
         await cargarSupabase();
-        
         setTimeout(() => {
             document.getElementById('loader')?.classList.add('opacity-0', 'pointer-events-none');
             document.getElementById('dashboard-content')?.classList.remove('opacity-0');
@@ -85,25 +87,37 @@ async function cargarSupabase() {
     listaRegistros = acumulador.map(r => ({ ...r, solucion: estandarizarSolucion(r.solucion), equipo: String(r.equipo || 'N/A').trim(), proceso: String(r.proceso || 'CIP').trim().toUpperCase() }));
     
     document.getElementById('info-registros-totales').innerText = `${listaRegistros.length.toLocaleString()} Registros BD`;
-    actualizarOpcionesFiltros();
+    actualizarOpcionesFiltrosEstaticos();
     renderizarCore();
 }
 
-// ==========================================
-// 4. FILTROS INTELIGENTES (TOM SELECT)
-// ==========================================
-function initFiltrosInteligentes() {
-    ['filtro-equipo', 'filtro-solucion', 'filtro-anio', 'filtro-mes'].forEach(id => {
-        tsInstances[id] = new TomSelect(`#${id}`, {
-            create: false,
-            sortField: { field: "text", direction: "asc" },
-            placeholder: `Buscar...`
-        });
-        tsInstances[id].on('change', renderizarCore);
-    });
+async function importarArchivoExcel(event) {
+    const f = event.target.files[0]; if (!f) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+            if(json.length===0) return;
+            alert(`Sincronizando ${json.length} filas...`);
+            let records = json.map(row => ({
+                fecha: estandarizarFecha(row.FECHA || row.fecha), mes: n(row.MES || row.mes || 'N/A'), hora: row.HORA || row.hora || '00:00:00',
+                solucion: estandarizarSolucion(row.SOLUCION || row.solucion), equipo: String(row.EQUIPO || row.equipo || 'N/A').trim(),
+                proceso: n(row.PROCESO || row.proceso || 'CIP'), concen: parseConcen(row.CONCEN || row.concen),
+                operario: n(row.OPERARIO || row.operario || 'S/N'), laboratorista: n(row.LABORATORISTA || row.laboratorista || 'S/N')
+            }));
+            for (let i = 0; i < records.length; i += 500) { await clienteSupabase.from('registros_limpieza').insert(records.slice(i, i + 500)); }
+            alert("Sincronización exitosa."); await cargarSupabase();
+        } catch (err) { alert("Error Excel"); }
+    };
+    reader.readAsArrayBuffer(f);
 }
 
-function actualizarOpcionesFiltros() {
+// ==========================================
+// 4. GESTIÓN DE FILTROS HTML NATIVOS
+// ==========================================
+function actualizarOpcionesFiltrosEstaticos() {
     let eqSet = new Set(), solSet = new Set(), anSet = new Set();
     listaRegistros.forEach(r => { 
         if (r.equipo) eqSet.add(r.equipo); 
@@ -111,47 +125,47 @@ function actualizarOpcionesFiltros() {
         if (r.fecha) anSet.add(r.fecha.substring(0, 4)); 
     });
 
-    // Guardar selecciones actuales
-    let currEq = tsInstances['filtro-equipo'].getValue() || 'TODOS';
-    let currSol = tsInstances['filtro-solucion'].getValue() || 'TODAS';
-    let currAn = tsInstances['filtro-anio'].getValue() || 'TODOS';
+    const fEq = document.getElementById('filtro-equipo');
+    const fSol = document.getElementById('filtro-solucion');
+    const fAn = document.getElementById('filtro-anio');
 
-    // Limpiar y repoblar Equipo
-    tsInstances['filtro-equipo'].clearOptions();
-    tsInstances['filtro-equipo'].addOption({value: 'TODOS', text: 'TODOS LOS EQUIPOS'});
-    Array.from(eqSet).sort().forEach(e => tsInstances['filtro-equipo'].addOption({value: e, text: e}));
-    tsInstances['filtro-equipo'].setValue(currEq, true);
+    fEq.innerHTML = `<option value="TODOS">Todos los Equipos</option>`;
+    Array.from(eqSet).sort().forEach(e => fEq.appendChild(new Option(e, e)));
 
-    // Limpiar y repoblar Solución
-    tsInstances['filtro-solucion'].clearOptions();
-    tsInstances['filtro-solucion'].addOption({value: 'TODAS', text: 'TODAS LAS SOLUCIONES'});
-    Array.from(solSet).sort().forEach(s => tsInstances['filtro-solucion'].addOption({value: s, text: s}));
-    tsInstances['filtro-solucion'].setValue(currSol, true);
+    fSol.innerHTML = `<option value="TODAS">Todas las Soluciones</option>`;
+    Array.from(solSet).sort().forEach(s => fSol.appendChild(new Option(s, s)));
 
-    // Limpiar y repoblar Año
-    tsInstances['filtro-anio'].clearOptions();
-    tsInstances['filtro-anio'].addOption({value: 'TODOS', text: 'TODOS LOS AÑOS'});
-    Array.from(anSet).sort().reverse().forEach(a => tsInstances['filtro-anio'].addOption({value: a, text: a}));
-    tsInstances['filtro-anio'].setValue(currAn, true);
+    fAn.innerHTML = `<option value="TODOS">Todos los Años</option>`;
+    Array.from(anSet).sort().reverse().forEach(a => fAn.appendChild(new Option(a, a)));
 }
 
 function obtenerDatosFiltrados() {
-    const s = tsInstances['filtro-solucion'].getValue();
-    const e = tsInstances['filtro-equipo'].getValue();
-    const a = tsInstances['filtro-anio'].getValue();
-    const m = tsInstances['filtro-mes'].getValue();
+    const s = document.getElementById('filtro-solucion').value;
+    const e = document.getElementById('filtro-equipo').value;
+    const a = document.getElementById('filtro-anio').value;
+    const m = document.getElementById('filtro-mes').value;
+    const busqueda = n(document.getElementById('input-busqueda').value);
     
     return listaRegistros.filter(r => {
         let mMes = true;
-        if(m && m !== 'TODOS') {
+        if(m !== 'TODOS') {
             let mesBD = r.fecha ? r.fecha.substring(5, 7) : '';
             let mapMeses = {'01':'ENERO','02':'FEBRERO','03':'MARZO','04':'ABRIL','05':'MAYO','06':'JUNIO','07':'JULIO','08':'AGOSTO','09':'SEPTIEMBRE','10':'OCTUBRE','11':'NOVIEMBRE','12':'DICIEMBRE'};
             mMes = (mesBD === m || n(r.mes) === mapMeses[m] || n(r.mes).includes(mapMeses[m]));
         }
-        return (!s || s === 'TODAS' || r.solucion === s) && 
-               (!e || e === 'TODOS' || r.equipo === e) && 
-               (!a || a === 'TODOS' || (r.fecha && r.fecha.startsWith(a))) && 
-               mMes;
+        
+        let matchFiltros = (s === 'TODAS' || r.solucion === s) && 
+                           (e === 'TODOS' || r.equipo === e) && 
+                           (a === 'TODOS' || (r.fecha && r.fecha.startsWith(a))) && 
+                           mMes;
+
+        if(!matchFiltros) return false;
+
+        if(busqueda) {
+            let cadena = `${n(r.equipo)} ${n(r.solucion)} ${n(r.operario)} ${n(r.laboratorista)} ${n(r.proceso)}`;
+            return cadena.includes(busqueda);
+        }
+        return true;
     });
 }
 
@@ -183,15 +197,15 @@ function renderizarCore() {
     drawSparklines(datos);
     drawScatter(datos);
     drawEficaciaSoluciones(datos);
-    drawFugaQuimica(stats.desviosList); // Nuevo Gráfico de Pérdidas
+    drawFugaQuimica(stats.desviosList); 
     
     desviosUltimoFiltro = stats.desviosList;
     const tbody = document.getElementById('ai-action-plan-tbody');
     if(tbody) {
         if(desviosUltimoFiltro.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-emerald-400 font-medium"><i class="fa-solid fa-check-circle mr-2"></i>Cero desvíos en esta selección.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-green-600 font-medium"><i class="fa-solid fa-check-circle mr-2"></i>Cero desvíos reportados en esta selección.</td></tr>`;
         } else {
-            tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-slate-400 font-medium">Hay <b>${desviosUltimoFiltro.length} desvíos</b> detectados. Ejecuta el Análisis de IA para evaluar la data.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-slate-500 font-medium bg-slate-50 rounded-lg">Hay <b>${desviosUltimoFiltro.length} desvíos</b> detectados. Ejecuta el Análisis de IA para evaluar la pérdida económica relativa.</td></tr>`;
         }
     }
 }
@@ -199,9 +213,6 @@ function renderizarCore() {
 // ==========================================
 // 6. GRÁFICAS (Chart.js)
 // ==========================================
-Chart.defaults.font.family = "'Inter', sans-serif";
-Chart.defaults.color = '#94a3b8';
-
 function getLineSpark(ctxId, data, color) {
     if(sparkInst[ctxId]) sparkInst[ctxId].destroy();
     const ctx = document.getElementById(ctxId)?.getContext('2d');
@@ -211,6 +222,7 @@ function getLineSpark(ctxId, data, color) {
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } }
     });
 }
+
 function drawSparklines(datos) {
     let t = datos.slice(0, 50).reverse();
     getLineSpark('sparkEficacia', t.length ? t.map(r=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); return p&&(parseConcen(r.concen)>=p.min&&parseConcen(r.concen)<=p.max)?1:0}) : [1], '#10b981');
@@ -220,7 +232,7 @@ function drawSparklines(datos) {
 }
 
 function drawScatter(datos) {
-    let sol = tsInstances['filtro-solucion'].getValue() || 'TODAS';
+    let sol = document.getElementById('filtro-solucion').value;
     if(sol === 'TODAS') {
         let count={}; datos.forEach(r => count[r.solucion] = (count[r.solucion]||0)+1);
         sol = Object.keys(count).length ? Object.keys(count).reduce((a,b)=>count[a]>count[b]?a:b) : 'SOSA';
@@ -240,12 +252,12 @@ function drawScatter(datos) {
         data: {
             labels: subset.map(r => r.fecha.substring(5)),
             datasets: [
-                { label: 'Muestras', data: dataPoints, showLine: false, pointBackgroundColor: colors, pointBorderColor: '#1e293b', pointRadius: 5 },
+                { label: 'Muestras', data: dataPoints, showLine: false, pointBackgroundColor: colors, pointBorderColor: '#ffffff', pointBorderWidth: 1.5, pointRadius: 5 },
                 { label: 'Max', data: Array(subset.length).fill(regla.max), borderColor: '#f59e0b', borderDash: [5,5], pointRadius: 0, fill: false },
                 { label: 'Min', data: Array(subset.length).fill(regla.min), borderColor: '#ef4444', borderDash: [5,5], pointRadius: 0, fill: false }
             ]
         },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#334155' } }, x: { grid: { display: false } } } }
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#f1f5f9' } }, x: { grid: { display: false } } } }
     });
 }
 
@@ -266,59 +278,53 @@ function drawEficaciaSoluciones(datos) {
     barSolucionesInst = new Chart(document.getElementById('barSolucionesChart').getContext('2d'), {
         type: 'bar',
         data: { labels: res.map(x=>x.n), datasets: [{ data: res.map(x=>x.p), backgroundColor: '#10b981', borderRadius: 4 }] },
-        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { max: 100, grid: { color: '#334155' } }, y: { grid: { display: false }, ticks: { color: '#cbd5e1', font: {size: 10} } } } }
+        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { max: 100, grid: { color: '#f1f5f9' } }, y: { grid: { display: false }, ticks: { color: '#475569', font: {size: 10, weight: 'bold'} } } } }
     });
 }
 
-// NUEVO: Gráfico de Fuga Química (Desperdicio)
 function drawFugaQuimica(desvios) {
     if(fugaChartInst) fugaChartInst.destroy();
     const msgObj = document.getElementById('fuga-empty-msg');
     
-    // Filtramos solo los desvíos por exceso
     let excesos = desvios.filter(d => d.tipo.includes('Exceso'));
-    if(excesos.length === 0) { 
-        if(msgObj) msgObj.classList.remove('hidden'); 
-        return; 
-    }
+    if(excesos.length === 0) { if(msgObj) msgObj.classList.remove('hidden'); return; }
     if(msgObj) msgObj.classList.add('hidden');
 
-    // Sumamos la "fuga" (puntos de concentración excedidos)
     let fugas = {};
     excesos.forEach(e => {
         if(!fugas[e.solucion]) fugas[e.solucion] = 0;
         fugas[e.solucion] += e.excesoAbs; 
     });
 
-    let labels = Object.keys(fugas);
-    let data = Object.values(fugas);
+    let labels = Object.keys(fugas); let data = Object.values(fugas);
     let bgColors = ['#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#10b981'];
 
     fugaChartInst = new Chart(document.getElementById('fugaQuimicaChart').getContext('2d'), {
         type: 'doughnut',
-        data: { labels: labels, datasets: [{ data: data, backgroundColor: bgColors, borderWidth: 0, hoverOffset: 4 }] },
+        data: { labels: labels, datasets: [{ data: data, backgroundColor: bgColors, borderWidth: 2, borderColor: '#fff' }] },
         options: { 
-            responsive: true, maintainAspectRatio: false, cutout: '70%',
+            responsive: true, maintainAspectRatio: false, cutout: '65%',
             plugins: { 
-                legend: { position: 'right', labels: { color: '#cbd5e1', font: {size: 10}, usePointStyle: true, boxWidth: 6 } },
-                tooltip: { callbacks: { label: function(c) { return ` ${c.label}: Pérdida Relativa`; } } }
+                legend: { position: 'right', labels: { color: '#64748b', font: {size: 10, weight: 'bold'}, usePointStyle: true, boxWidth: 8 } },
+                tooltip: { callbacks: { label: function(c) { return ` ${c.label}: Exceso Acumulado`; } } }
             } 
         }
     });
 }
 
 // ==========================================
-// 7. IA RESTRINGIDA A DATOS (SIN CONSEJOS OPERATIVOS)
+// 7. IA RESTRINGIDA A DATOS Y PÉRDIDAS (SIN CONSEJOS OPERATIVOS)
 // ==========================================
 function obtenerApiKeySegura() { return localStorage.getItem('poes_gemini_key') || ''; }
+
 function actualizarBadgeIA() {
     const b = document.getElementById('badge-ia-status'); if(!b) return;
     if(obtenerApiKeySegura()) {
-        b.innerHTML = `<span class="w-2 h-2 bg-accent-green rounded-full animate-ping inline-block mr-1"></span> IA Activa`;
-        b.className = "bg-accent-green/20 text-accent-green text-[10px] font-bold px-3 py-1 rounded-full border border-accent-green/30 cursor-pointer";
+        b.innerHTML = `<i class="fa-solid fa-check text-green-500 mr-1"></i> IA Lista`;
+        b.className = "text-[10px] font-bold px-2 py-1 rounded bg-green-50 text-green-700 border border-green-200";
     } else {
-        b.innerHTML = `<i class="fa-solid fa-lock mr-1"></i> IA Inactiva`;
-        b.className = "bg-slate-800 text-slate-400 text-[10px] font-bold px-3 py-1 rounded-full border border-slate-600 cursor-pointer";
+        b.innerHTML = `<i class="fa-solid fa-lock mr-1"></i> Falta API Key`;
+        b.className = "text-[10px] font-bold px-2 py-1 rounded bg-slate-100 text-slate-400";
     }
 }
 
@@ -326,31 +332,35 @@ async function dispararAnalisisIA() {
     const tbody = document.getElementById('ai-action-plan-tbody');
     if(desviosUltimoFiltro.length === 0) return;
     if(!obtenerApiKeySegura()) {
-        tbody.innerHTML = `<tr><td colspan="3" class="py-6 text-center text-slate-500 font-mono italic">Haz clic en <b>"IA Config"</b> arriba para ingresar tu API Key.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-slate-500 font-bold bg-slate-50 rounded-lg">Haz clic en <b>"IA Config"</b> arriba para ingresar tu API Key.</td></tr>`;
         return;
     }
 
-    tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-emerald-400/70 font-mono animate-pulse"><i class="fa-solid fa-microchip mr-2"></i>Calculando estadísticas y cruzando datos...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="3" class="py-10 text-center text-blue-600 font-bold animate-pulse bg-blue-50/50 rounded-lg"><i class="fa-solid fa-microchip mr-2"></i>Evaluando impacto de fugas y estadística de datos...</td></tr>`;
 
-    let muestraIA = desviosUltimoFiltro.slice(0, 15).map(r => `EQ: ${r.equipo} | SOL: ${r.solucion} \vert{} FALLA:${r.tipo} | HR: ${r.hora} \vert{} OP:${r.operario}`);
+    let muestraIA = desviosUltimoFiltro.slice(0, 15).map(r => `EQ: ${r.equipo} | SOL: ${r.solucion} | FALLA: ${r.tipo} | HR: ${r.hora} | OP: ${r.operario}`);
     
-    // REGLA DE NEGOCIO ESTRICTA PARA LA IA
-    const prompt = `Eres un Auditor de Datos POES. Analiza la siguiente muestra de desvíos:
+    // REGLA DE NEGOCIO: PROHIBICIÓN ABSOLUTA DE DAR CONSEJOS OPERATIVOS
+    const prompt = `Eres un Analista de Datos y Pérdidas POES. Analiza esta muestra estadística de desvíos:
 ${muestraIA.join('\n')}
 
-REGLA ESTRICTA: Tu tarea es EXCLUSIVAMENTE analizar los datos, encontrar patrones de horarios, equipos o soluciones que más fallan.
-ESTÁ ESTRICTAMENTE PROHIBIDO DAR CONSEJOS OPERATIVOS, MECÁNICOS O DE MANTENIMIENTO (ej. NO sugieras "ajustar bombas", "cambiar piezas", "calibrar", etc.).
+REGLAS ESTRICTAS DE NEGOCIO:
+1. Tu tarea es EXCLUSIVAMENTE analizar los datos fríos (patrones de horarios, equipos o fugas químicas más frecuentes).
+2. ESTÁ TOTAL Y ABSOLUTAMENTE PROHIBIDO dar recomendaciones mecánicas, operativas o de mantenimiento (NO digas "ajusta bombas", "calibra sensores", "revisa equipos"). Limítate a decir dónde se concentra la pérdida.
+3. Devuelve la información como hechos. Ej: "El 80% de las fugas de Sosa ocurren con el Operario X".
 
-Devuelve un JSON estricto con un arreglo de objetos usando esta estructura:
-[{"hallazgo": "El desvío principal encontrado", "analisis_datos": "Ej: El 65% de las pérdidas provienen de la Sosa en la madrugada", "responsable": "Nombre del rol u operario implicado"}]
-Devuelve máximo 3 objetos. NO incluyas formato markdown (\`\`\`json).`;
+Devuelve un JSON estricto con un arreglo de objetos (máximo 3). Estructura exacta:
+[{"desvio": "Hallazgo principal", "analisis_datos": "Tu análisis sobre el impacto o distribución del dato", "responsable": "Nombre del rol u operario implicado"}]
+Sin markdown adicional.`;
+
+    const modeloIA = 'gemini-1.5-flash';
 
     try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent?key=${obtenerApiKeySegura()}`, {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modeloIA}:generateContent?key=${obtenerApiKeySegura()}`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
-        if (!res.ok) throw new Error(`Error de conexión API.`);
+        if (!res.ok) throw new Error(`Error de conexión con Google API.`);
         
         const jsonRes = await res.json();
         let rawText = jsonRes.candidates[0].content.parts[0].text.replace(/```json/gi, '').replace(/```/gi, '').trim();
@@ -358,21 +368,42 @@ Devuelve máximo 3 objetos. NO incluyas formato markdown (\`\`\`json).`;
 
         let html = '';
         plan.forEach(item => {
-            html += `<tr class="hover:bg-slate-800 transition">
-                        <td class="py-3 px-2 align-top text-amber-400 font-semibold text-[11px]"><i class="fa-solid fa-magnifying-glass-chart mr-1.5 text-amber-500"></i> ${item.hallazgo}</td>
-                        <td class="py-3 px-2 align-top text-slate-300 text-[11px] leading-relaxed">${item.analisis_datos}</td>
-                        <td class="py-3 px-2 align-top text-slate-500 font-mono text-[10px]"><i class="fa-regular fa-user mr-1"></i> ${item.responsable}</td>
+            html += `<tr class="hover:bg-slate-50 transition border-b border-slate-100 last:border-0">
+                        <td class="py-4 px-3 align-top text-amber-600 font-bold text-[11px]"><i class="fa-solid fa-magnifying-glass-chart mr-1.5"></i> ${item.desvio}</td>
+                        <td class="py-4 px-3 align-top text-slate-600 text-[11px] leading-relaxed">${item.analisis_datos}</td>
+                        <td class="py-4 px-3 align-top text-slate-500 font-mono text-[10px]"><i class="fa-regular fa-user mr-1"></i> ${item.responsable}</td>
                      </tr>`;
         });
         tbody.innerHTML = html;
 
     } catch(err) {
-        tbody.innerHTML = `<tr><td colspan="3" class="py-4 px-6 text-center text-red-400 font-mono text-[11px]"><i class="fa-solid fa-triangle-exclamation mr-1"></i> <b>Fallo IA:</b> Asegúrate de tener cuota disponible y la clave correcta.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="3" class="py-6 px-6 text-center text-red-500 font-bold text-[11px] bg-red-50 rounded-lg"><i class="fa-solid fa-triangle-exclamation mr-1"></i> <b>Fallo IA:</b> Valida tu API Key.</td></tr>`;
     }
 }
 
-// Modales Funciones Básicas
-function abrirModalDetalle() {} // Código idéntico a versiones anteriores, abre el div modal-detalle
+// ==========================================
+// 8. MODALES
+// ==========================================
+function abrirModalDetalle(tipo) {
+    const modal = document.getElementById('modal-detalle'); const tbody = document.getElementById('modal-tbody'); 
+    if(!modal || !tbody) return;
+    tbody.innerHTML = ''; const datos = obtenerDatosFiltrados(); let rsl = [];
+    if(tipo === 'riesgo') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)<p.min;});
+    if(tipo === 'exceso') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)>p.max;});
+    
+    document.getElementById('modal-titulo').innerText = tipo === 'riesgo' ? "Desvíos por Riesgo (< Mínimo)" : "Desvíos por Sobredosificación (> Máximo)";
+    if(rsl.length===0) { tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-500 font-bold bg-slate-50">Sin registros de desviación en esta selección.</td></tr>`; } 
+    else {
+        rsl.slice(0, 100).forEach(r => {
+            tbody.innerHTML += `<tr class="hover:bg-slate-50 transition border-b border-slate-100 last:border-0">
+                <td class="py-3 px-6 whitespace-nowrap">${r.fecha} ${r.hora?r.hora.substring(0,5):''}</td><td class="py-3 px-6 font-bold text-slate-800">${r.equipo}</td>
+                <td class="py-3 px-6 text-slate-600">${r.solucion}</td><td class="py-3 px-6 text-center font-black ${tipo==='riesgo'?'text-red-500':'text-amber-500'}">${r.concen}</td>
+                <td class="py-3 px-6 text-[10px] text-slate-500">${r.operario || r.laboratorista}</td>
+            </tr>`;
+        });
+    }
+    modal.classList.remove('hidden');
+}
 function cerrarModalDetalle() { document.getElementById('modal-detalle').classList.add('hidden'); }
 function abrirConfigIA() { document.getElementById('input-api-key').value = obtenerApiKeySegura(); document.getElementById('modal-config-ia').classList.remove('hidden'); }
 function cerrarConfigIA() { document.getElementById('modal-config-ia').classList.add('hidden'); }
