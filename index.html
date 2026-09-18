@@ -93,20 +93,18 @@
                 </div>
             </div>
 
-            <!-- Fila 1: Mapa de Calor Operativo & Matriz de Desempeño -->
+            <!-- Fila 1 -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <!-- MAPA DE CALOR OPERATIVO (Reemplazo de Dispersión) -->
+                <!-- MAPA DE CALOR OPERATIVO -->
                 <div class="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
                     <div class="flex justify-between items-center mb-4">
                         <div>
-                            <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-fire text-orange-500 mr-2"></i> MAPA DE CALOR OPERATIVO (DESVÍOS POR FRANJA HORARIA)</h2>
-                            <p class="text-[11px] text-slate-500 mt-0.5">Concentración de anomalías y sobredosificaciones por turno y día</p>
+                            <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-fire text-orange-500 mr-2"></i> MAPA DE CALOR OPERATIVO (DISTRIBUCIÓN DE MUESTRAS)</h2>
+                            <p class="text-[11px] text-slate-500 mt-0.5">Clasificación por turno, día y estado técnico (Haz clic en una celda para auditar)</p>
                         </div>
-                        <span id="label-heatmap-total" class="bg-orange-50 text-orange-600 text-xs font-bold px-3 py-1.5 rounded-lg border border-orange-200 shadow-sm">0 Desvíos Mapeados</span>
+                        <span id="label-heatmap-total" class="bg-orange-50 text-orange-600 text-xs font-bold px-3 py-1.5 rounded-lg border border-orange-200 shadow-sm">0 Muestras Mapeadas</span>
                     </div>
-                    <div class="flex-grow overflow-x-auto flex items-center justify-center py-2" id="heatmap-container">
-                        <!-- Renderizado dinámico -->
-                    </div>
+                    <div class="flex-grow overflow-x-auto flex items-center justify-center py-2" id="heatmap-container"></div>
                 </div>
 
                 <!-- Matriz Mágica -->
@@ -130,7 +128,7 @@
                     <div class="h-[230px] w-full relative mt-4"><canvas id="historicoChart"></canvas></div>
                 </div>
 
-                <!-- Barras (Con Drill-Down) -->
+                <!-- Barras -->
                 <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
                     <div>
                         <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-bars-staggered text-blue-500 mr-2"></i> CONFORMIDAD TÉCNICA</h2>
