@@ -68,7 +68,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         await cargarSupabase();
         setTimeout(() => { document.getElementById('loader')?.classList.add('opacity-0', 'pointer-events-none'); document.getElementById('dashboard-content')?.classList.remove('opacity-0'); }, 500);
-    } catch (e) { console.error("Error BD:", e); }
+    } catch (e) { 
+        console.error("Error BD:", e); 
+        // Si hay error en BD, quitamos el loader igual para no dejar la pantalla blanca
+        setTimeout(() => { document.getElementById('loader')?.classList.add('opacity-0', 'pointer-events-none'); document.getElementById('dashboard-content')?.classList.remove('opacity-0'); }, 500);
+    }
 });
 
 async function cargarSupabase() {
@@ -87,10 +91,13 @@ async function cargarSupabase() {
 // 4. NUEVO SISTEMA DE FILTROS (FLATPICKR + TOMSELECT)
 // ==========================================
 function initFiltrosInteligentes() {
-    // Solo inicializamos Equipo y Solución
+    // Validamos que el elemento exista antes de inicializar para evitar bloqueos
     ['filtro-equipo', 'filtro-solucion'].forEach(id => { 
-        tsInstances[id] = new TomSelect(`#${id}`, { create: false, sortField: { field: "text", direction: "asc" } }); 
-        tsInstances[id].on('change', renderizarCore); 
+        const el = document.getElementById(id);
+        if(el) {
+            tsInstances[id] = new TomSelect(el, { create: false, sortField: { field: "text", direction: "asc" } }); 
+            tsInstances[id].on('change', renderizarCore); 
+        }
     });
 }
 
@@ -100,17 +107,14 @@ function initRangoFechas() {
         dateFormat: "Y-m-d",
         locale: "es", // Español
         onChange: function(selectedDates, dateStr, instance) {
-            // Se dispara si seleccionó los 2 días (o si limpió el input)
             if (selectedDates.length === 2) {
-                // Formateamos las fechas a YYYY-MM-DD local para evitar zonas horarias
                 let ini = instance.formatDate(selectedDates[0], "Y-m-d");
                 let fin = instance.formatDate(selectedDates[1], "Y-m-d");
                 fechaInicioGlobal = ini;
                 fechaFinGlobal = fin;
-                limpiarEstilosBotonesRapidos(); // El rango es manual, se quita el foco de los botones
+                limpiarEstilosBotonesRapidos(); 
                 renderizarCore();
             } else if (selectedDates.length === 0) {
-                // Limpió el input
                 fechaInicioGlobal = null; fechaFinGlobal = null;
                 pintarBotonRapido('btn-todos');
                 renderizarCore();
@@ -120,7 +124,6 @@ function initRangoFechas() {
 }
 
 function formatoFecha(d) {
-    // Función auxiliar para convertir Date Object a YYYY-MM-DD
     let ms = d.getMonth() + 1; let dy = d.getDate();
     return `${d.getFullYear()}-${ms < 10 ? '0'+ms : ms}-${dy < 10 ? '0'+dy : dy}`;
 }
@@ -148,29 +151,21 @@ function setRangoFechas(tipo) {
 
     if (tipo === 'todos') {
         fechaInicioGlobal = null; fechaFinGlobal = null;
-        fpInstancia.clear(); // Limpia Flatpickr (llama a su onChange y renderiza)
+        if(fpInstancia) fpInstancia.clear(); 
         return;
     }
     
     let fechaInicioObj = new Date();
-    
-    if (tipo === 'hoy') {
-        fechaInicioObj = hoyObj;
-    } else if (tipo === 'semana') {
-        fechaInicioObj.setDate(hoyObj.getDate() - 6); // hoy - 6 = 7 dias contando hoy
-    } else if (tipo === 'quincena') {
-        fechaInicioObj.setDate(hoyObj.getDate() - 14); 
-    } else if (tipo === 'mes') {
-        fechaInicioObj.setDate(1); // Día 1 del mes actual
-    }
+    if (tipo === 'hoy') { fechaInicioObj = hoyObj; } 
+    else if (tipo === 'semana') { fechaInicioObj.setDate(hoyObj.getDate() - 6); } 
+    else if (tipo === 'quincena') { fechaInicioObj.setDate(hoyObj.getDate() - 14); } 
+    else if (tipo === 'mes') { fechaInicioObj.setDate(1); }
 
     let strInicio = formatoFecha(fechaInicioObj);
     let strFin = formatoFecha(hoyObj);
     
-    // Setear Flatpickr visualmente (array de 2 fechas)
-    fpInstancia.setDate([strInicio, strFin], false); 
+    if(fpInstancia) fpInstancia.setDate([strInicio, strFin], false); 
     
-    // Actualizar globales y renderizar
     fechaInicioGlobal = strInicio;
     fechaFinGlobal = strFin;
     renderizarCore();
@@ -180,26 +175,29 @@ function actualizarOpcionesFiltros() {
     let eqSet = new Set(), solSet = new Set();
     listaRegistros.forEach(r => { if (r.equipo) eqSet.add(r.equipo); if (r.solucion) solSet.add(r.solucion); });
     
-    let currEq = tsInstances['filtro-equipo'].getValue() || 'TODOS'; let currSol = tsInstances['filtro-solucion'].getValue() || 'TODAS';
+    let currEq = tsInstances['filtro-equipo'] ? tsInstances['filtro-equipo'].getValue() : 'TODOS'; 
+    let currSol = tsInstances['filtro-solucion'] ? tsInstances['filtro-solucion'].getValue() : 'TODAS';
     
-    tsInstances['filtro-equipo'].clearOptions(); tsInstances['filtro-equipo'].addOption({value: 'TODOS', text: 'Todos los Equipos'});
-    Array.from(eqSet).sort().forEach(e => tsInstances['filtro-equipo'].addOption({value: e, text: e})); tsInstances['filtro-equipo'].setValue(currEq, true);
+    if(tsInstances['filtro-equipo']) {
+        tsInstances['filtro-equipo'].clearOptions(); tsInstances['filtro-equipo'].addOption({value: 'TODOS', text: 'Todos los Equipos'});
+        Array.from(eqSet).sort().forEach(e => tsInstances['filtro-equipo'].addOption({value: e, text: e})); tsInstances['filtro-equipo'].setValue(currEq, true);
+    }
     
-    tsInstances['filtro-solucion'].clearOptions(); tsInstances['filtro-solucion'].addOption({value: 'TODAS', text: 'Todas las Soluciones'});
-    Array.from(solSet).sort().forEach(s => tsInstances['filtro-solucion'].addOption({value: s, text: s})); tsInstances['filtro-solucion'].setValue(currSol, true);
+    if(tsInstances['filtro-solucion']) {
+        tsInstances['filtro-solucion'].clearOptions(); tsInstances['filtro-solucion'].addOption({value: 'TODAS', text: 'Todas las Soluciones'});
+        Array.from(solSet).sort().forEach(s => tsInstances['filtro-solucion'].addOption({value: s, text: s})); tsInstances['filtro-solucion'].setValue(currSol, true);
+    }
 }
 
 // Nueva función maestra de filtrado (Soporta rangos de fecha)
 function obtenerDatosFiltrados() {
-    const s = tsInstances['filtro-solucion'].getValue(); 
-    const e = tsInstances['filtro-equipo'].getValue(); 
+    const s = tsInstances['filtro-solucion'] ? tsInstances['filtro-solucion'].getValue() : 'TODAS'; 
+    const e = tsInstances['filtro-equipo'] ? tsInstances['filtro-equipo'].getValue() : 'TODOS'; 
     
     return listaRegistros.filter(r => {
-        // Filtrado por Combos
         let pasaEquipo = (!e || e === 'TODOS' || r.equipo === e);
         let pasaSolucion = (!s || s === 'TODAS' || r.solucion === s);
         
-        // Filtrado por Rango de Fechas (Comparación de Strings alfabética directa YYYY-MM-DD)
         let pasaFecha = true;
         if (fechaInicioGlobal && fechaFinGlobal && r.fecha) {
             pasaFecha = (r.fecha >= fechaInicioGlobal && r.fecha <= fechaFinGlobal);
@@ -210,7 +208,7 @@ function obtenerDatosFiltrados() {
 }
 
 // ==========================================
-// 5. RENDERIZADO GENERAL Y GRÁFICOS (SIN CAMBIOS ESTRUCTURALES FUERTES)
+// 5. RENDERIZADO GENERAL Y GRÁFICOS
 // ==========================================
 function renderizarCore() {
     const datos = obtenerDatosFiltrados(); let stats = { conformes: 0, riesgo: 0, exceso: 0, conformesList: [], desviosList: [] };
@@ -278,7 +276,7 @@ function drawHeatmapOperativo(datos) {
             const val = parseConcen(r.concen);
             let estado = 'conforme'; if(val < p.min) estado = 'riesgo'; else if(val > p.max) estado = 'exceso';
             let horaStr = r.hora || '00:00:00'; let h = parseInt(horaStr.split(':')[0]) || 0;
-            let fechaObj = new Date(r.fecha + "T00:00:00"); // Asegurar parsing correcto
+            let fechaObj = new Date(r.fecha + "T00:00:00"); 
             let dKey = isNaN(fechaObj.getDay()) ? 1 : fechaObj.getDay();
             let fMatch = franjas.find(f => f.test(h));
             if(fMatch && matriz[fMatch.key] && matriz[fMatch.key][dKey] !== undefined) { matriz[fMatch.key][dKey].push({ ...r, estado }); }
@@ -330,7 +328,7 @@ function drawTendenciaHistorica(datos) {
     let hist = {};
     datos.forEach(r => { let p = PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); if(p) { if(!hist[r.fecha]) hist[r.fecha] = { total:0, conformes:0, excesos:0, riesgos:0 }; hist[r.fecha].total++; let v = parseConcen(r.concen); if(v < p.min) hist[r.fecha].riesgos++; else if(v > p.max) hist[r.fecha].excesos++; else hist[r.fecha].conformes++; } });
     let fechas = Object.keys(hist).sort(); if(fechas.length === 0) return;
-    if(fechas.length > 30 && fechaInicioGlobal == null) fechas = fechas.slice(-30); // Limitar solo si no hay filtro de rango
+    if(fechas.length > 30 && fechaInicioGlobal == null) fechas = fechas.slice(-30); 
     let arrConformes = fechas.map(f => hist[f].conformes); let arrExcesos = fechas.map(f => hist[f].excesos); let arrRiesgos = fechas.map(f => hist[f].riesgos); let arrEficacias = fechas.map(f => (hist[f].conformes / hist[f].total) * 100);
 
     historicoInst = new Chart(document.getElementById('historicoChart').getContext('2d'), {
@@ -340,7 +338,6 @@ function drawTendenciaHistorica(datos) {
     });
 }
 
-// Otros Gráficos
 function drawMagicQuadrant(datos) {
     if(quadrantInst) quadrantInst.destroy(); if(datos.length === 0) return;
     let evalSoluciones = {}; datos.forEach(r => { let p = PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); if(p) { if(!evalSoluciones[r.solucion]) evalSoluciones[r.solucion] = { total: 0, ok: 0 }; evalSoluciones[r.solucion].total++; let v = parseConcen(r.concen); if(v >= p.min && v <= p.max) evalSoluciones[r.solucion].ok++; } });
@@ -364,7 +361,6 @@ function drawRadarFugas(desvios) {
     fugaChartInst = new Chart(document.getElementById('fugaQuimicaChart').getContext('2d'), { type: 'radar', data: { labels: labels, datasets: [{ label: 'Índice de Fuga (Σ%)', data: data, backgroundColor: 'rgba(245, 158, 11, 0.25)', borderColor: '#f59e0b', pointBackgroundColor: '#ffffff', pointBorderColor: '#f59e0b', pointBorderWidth: 2, pointRadius: 4, borderWidth: 2 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { r: { angleLines: { color: '#e2e8f0' }, grid: { color: '#e2e8f0', circular: true }, pointLabels: { font: { size: 9, weight: 'bold' }, color: '#475569' }, ticks: { display: false, beginAtZero: true } } } } });
 }
 
-// Modales Funcionales
 function abrirModalDrilldown(solucion) {
     document.getElementById('modal-drilldown').classList.remove('hidden'); document.getElementById('drilldown-titulo').innerHTML = `<i class="fa-solid fa-microscope text-indigo-500 mr-2"></i> Dispersión Técnica: ${solucion}`;
     const datosBase = obtenerDatosFiltrados(); const subset = datosBase.filter(r => r.solucion === solucion).slice(0, 100).reverse(); const regla = PARAMETROS_TECNICOS.find(p => p.solucion === solucion);
@@ -385,7 +381,6 @@ function abrirModalDetalle(tipo) {
 }
 function cerrarModalDetalle() { document.getElementById('modal-detalle').classList.add('hidden'); }
 
-// IA Gemini
 async function dispararAnalisisIA() {
     const tbody = document.getElementById('ai-action-plan-tbody'); if(desviosUltimoFiltro.length === 0) return;
     if(!obtenerApiKeySegura()) { tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-slate-500 font-bold bg-slate-50 rounded-lg">Falta API Key.</td></tr>`; return; }
@@ -400,6 +395,12 @@ async function dispararAnalisisIA() {
         const jsonRes = await res.json(); let plan = JSON.parse((jsonRes.candidates?.[0]?.content?.parts?.[0]?.text || '').replace(/```json|```/gi, '').trim());
         tbody.innerHTML = ''; plan.forEach(item => { tbody.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-100"><td class="py-4 px-3 align-top text-amber-600 font-bold text-[11px]">${item.desvio}</td><td class="py-4 px-3 align-top text-slate-600 text-[11px]">${item.analisis_datos}</td><td class="py-4 px-3 align-top text-slate-500 font-mono text-[10px]">${item.responsable}</td></tr>`; });
     } catch(err) { tbody.innerHTML = `<tr><td colspan="3" class="py-6 px-6 text-center text-red-500 font-bold text-[11px] bg-red-50 rounded-lg">Fallo IA: ${err.message}.</td></tr>`; }
+}
+function obtenerApiKeySegura() { return localStorage.getItem('poes_gemini_key') || ''; }
+function actualizarBadgeIA() {
+    const b = document.getElementById('badge-ia-status'); if(!b) return;
+    if(obtenerApiKeySegura()) { b.innerHTML = `<i class="fa-solid fa-check text-green-500 mr-1"></i> IA Lista`; b.className = "text-[10px] font-bold px-2 py-1 rounded bg-green-50 text-green-700 border border-green-200 shadow-sm"; } 
+    else { b.innerHTML = `<i class="fa-solid fa-lock mr-1"></i> Falta API Key`; b.className = "text-[10px] font-bold px-2 py-1 rounded bg-slate-100 text-slate-400 border border-slate-200 shadow-sm"; }
 }
 function abrirConfigIA() { document.getElementById('input-api-key').value = obtenerApiKeySegura(); document.getElementById('modal-config-ia').classList.remove('hidden'); }
 function cerrarConfigIA() { document.getElementById('modal-config-ia').classList.add('hidden'); }
