@@ -148,9 +148,11 @@ function renderizarCore() {
     document.getElementById('kpi-exceso').innerText = stats.exceso.toLocaleString(); document.getElementById('kpi-total').innerText = total.toLocaleString();
 
     drawSparklines(datos); 
-    drawHeatmapOperativo(datos); // NUEVO MAPA DE CALOR OPERATIVO
-    drawEficaciaSoluciones(datos); drawRadarFugas(stats.desviosList); 
-    drawTendenciaHistorica(datos); drawMagicQuadrant(datos); 
+    drawHeatmapOperativo(datos); 
+    drawEficaciaSoluciones(datos); 
+    drawRadarFugas(stats.desviosList); 
+    drawTendenciaHistorica(datos); 
+    drawMagicQuadrant(datos); 
     
     desviosUltimoFiltro = stats.desviosList; const tbody = document.getElementById('ai-action-plan-tbody');
     if(tbody) {
@@ -174,7 +176,6 @@ function drawSparklines(datos) {
     getLineSpark('sparkTotal', t.length ? t.map(()=>Math.random()) : [1], '#273c75');
 }
 
-// NUEVA FUNCIÓN: MAPA DE CALOR OPERATIVO (FRANJA HORARIA VS DÍA)
 function drawHeatmapOperativo(datos) {
     const container = document.getElementById('heatmap-container');
     const labelTotal = document.getElementById('label-heatmap-total');
