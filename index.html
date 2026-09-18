@@ -14,9 +14,15 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- SheetJS -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <!-- Tom Select -->
+    
+    <!-- Tom Select (Combos) -->
     <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.default.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
+    
+    <!-- NUEVO: Flatpickr (Calendario de Rango) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
     
     <script>
         tailwind.config = { theme: { extend: { colors: { 'corporate-blue': '#273c75', 'accent-green': '#10b981', 'risk-red': '#ef4444', 'warn-yellow': '#f59e0b' } } } }
@@ -28,6 +34,10 @@
         .ts-dropdown { background-color: #ffffff !important; border: 1px solid #e2e8f0 !important; border-radius: 0.5rem !important; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1) !important; margin-top: 4px !important; }
         .ts-dropdown .option:hover, .ts-dropdown .option.active { background-color: #273c75 !important; color: #ffffff !important; font-weight: 600; }
         .ts-wrapper.focus .ts-control { border-color: #273c75 !important; box-shadow: 0 0 0 1px #273c75 !important; background-color: #ffffff !important; }
+        
+        /* Estilos para el input de calendario Flatpickr */
+        .flatpickr-input[readonly] { background-color: #f8fafc; border: 1px solid #cbd5e1; color: #334155; font-weight: 600; font-family: 'Inter', sans-serif; cursor: pointer; box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05); transition: all 0.2s; }
+        .flatpickr-input[readonly]:focus { border-color: #273c75; box-shadow: 0 0 0 1px #273c75; background-color: #ffffff; outline: none; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col antialiased selection:bg-blue-500 selection:text-white">
@@ -59,16 +69,39 @@
 
         <main class="p-6 space-y-6 flex-grow max-w-[1600px] w-full mx-auto">
             
-            <!-- Filtros -->
-            <section class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 items-end">
-                    <div><label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-2">Equipo / Máquina:</label><select id="filtro-equipo"><option value="TODOS">Todos los Equipos</option></select></div>
-                    <div><label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-2">Solución Química:</label><select id="filtro-solucion"><option value="TODAS">Todas las Soluciones</option></select></div>
-                    <div><label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-2">Año:</label><select id="filtro-anio"><option value="TODOS">Todos los Años</option></select></div>
-                    <div><label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-2">Mes:</label>
-                        <select id="filtro-mes">
-                            <option value="TODOS">Todos los Meses</option><option value="01">Enero</option><option value="02">Febrero</option><option value="03">Marzo</option><option value="04">Abril</option><option value="05">Mayo</option><option value="06">Junio</option><option value="07">Julio</option><option value="08">Agosto</option><option value="09">Septiembre</option><option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
-                        </select>
+            <!-- NUEVA SECCIÓN DE FILTROS (Híbrido) -->
+            <section class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col gap-4">
+                
+                <!-- Botonera Táctica Rápida -->
+                <div class="flex flex-wrap items-center gap-2 pb-4 border-b border-slate-100">
+                    <span class="text-[11px] font-bold text-slate-500 uppercase mr-2"><i class="fa-regular fa-clock mr-1 text-slate-400"></i> Rango Temporal:</span>
+                    <button id="btn-hoy" onclick="setRangoFechas('hoy')" class="rango-btn bg-slate-100 hover:bg-corporate-blue hover:text-white text-slate-600 text-[11px] font-bold py-1.5 px-4 rounded-full transition-colors border border-transparent shadow-sm">Hoy</button>
+                    <button id="btn-semana" onclick="setRangoFechas('semana')" class="rango-btn bg-slate-100 hover:bg-corporate-blue hover:text-white text-slate-600 text-[11px] font-bold py-1.5 px-4 rounded-full transition-colors border border-transparent shadow-sm">Últimos 7 Días</button>
+                    <button id="btn-quincena" onclick="setRangoFechas('quincena')" class="rango-btn bg-slate-100 hover:bg-corporate-blue hover:text-white text-slate-600 text-[11px] font-bold py-1.5 px-4 rounded-full transition-colors border border-transparent shadow-sm">Últimos 15 Días</button>
+                    <button id="btn-mes" onclick="setRangoFechas('mes')" class="rango-btn bg-slate-100 hover:bg-corporate-blue hover:text-white text-slate-600 text-[11px] font-bold py-1.5 px-4 rounded-full transition-colors border border-transparent shadow-sm">Este Mes</button>
+                    <!-- Botón "Todos" inicia activado -->
+                    <button id="btn-todos" onclick="setRangoFechas('todos')" class="rango-btn bg-corporate-blue text-white text-[11px] font-bold py-1.5 px-4 rounded-full transition-colors border border-transparent shadow-sm">Todo el Histórico</button>
+                </div>
+
+                <!-- Desplegables y Calendario Flatpickr -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-2">Equipo / Máquina:</label>
+                        <select id="filtro-equipo"><option value="TODOS">Todos los Equipos</option></select>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-2">Solución Química:</label>
+                        <select id="filtro-solucion"><option value="TODAS">Todas las Soluciones</option></select>
+                    </div>
+                    <div class="relative">
+                        <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-2">Periodo Personalizado (Desde - Hasta):</label>
+                        <div class="absolute inset-y-0 left-0 top-[26px] flex items-center pl-3 pointer-events-none z-10">
+                            <i class="fa-regular fa-calendar-days text-corporate-blue"></i>
+                        </div>
+                        <input type="text" id="filtro-fechas" placeholder="Selecciona el rango de fechas..." class="w-full text-sm rounded-lg block pl-10 p-2.5 h-[38px]">
+                        <button onclick="setRangoFechas('todos')" class="absolute inset-y-0 right-0 top-[26px] flex items-center pr-3 text-slate-400 hover:text-red-500" title="Limpiar Fechas">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
                     </div>
                 </div>
             </section>
@@ -121,7 +154,7 @@
                 </div>
             </div>
 
-            <!-- Fila 2 (NUEVO GRÁFICO COMBINADO) -->
+            <!-- Fila 2 -->
             <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
                 <!-- Histórico Combinado -->
                 <div class="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
@@ -184,9 +217,9 @@
         </main>
     </div>
 
-    <!-- Modales -->
+    <!-- Modales (AQUÍ VAN LOS MISMOS 4 MODALES EXACTOS DEL CÓDIGO ANTERIOR) -->
     
-    <!-- Modal 1: Tabla de KPIs (Auditoría cruda) -->
+    <!-- Modal 1: Tabla de KPIs -->
     <div id="modal-detalle" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white border border-slate-200 w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
@@ -220,7 +253,7 @@
         </div>
     </div>
 
-    <!-- Modal 3: Radiografía de Turno (INFORMACIÓN ÚNICA PARA EL MAPA DE CALOR) -->
+    <!-- Modal 3: Radiografía de Turno -->
     <div id="modal-turno" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
         <div class="bg-white border border-slate-200 w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col">
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
@@ -244,9 +277,8 @@
         </div>
     </div>
 
-    <!-- Modal IA -->
+    <!-- Modal 4: IA -->
     <div id="modal-config-ia" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-        <!-- Contenido IA existente... -->
         <div class="bg-white border border-slate-200 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4">
             <div class="flex justify-between items-center pb-3 border-b border-slate-100">
                 <h3 class="font-bold text-slate-800 text-sm flex items-center"><i class="fa-solid fa-key text-blue-500 mr-2"></i> Clave API Gemini</h3>
