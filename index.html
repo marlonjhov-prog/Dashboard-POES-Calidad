@@ -68,7 +68,6 @@
 
         <main class="p-6 space-y-6 flex-grow max-w-[1600px] w-full mx-auto">
             
-            <!-- SECCIÓN DE FILTROS -->
             <section class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col gap-4">
                 <div class="flex flex-wrap items-center gap-2 pb-4 border-b border-slate-100">
                     <span class="text-[11px] font-bold text-slate-500 uppercase mr-2"><i class="fa-regular fa-clock mr-1 text-slate-400"></i> Rango Temporal:</span>
@@ -96,7 +95,6 @@
                 </div>
             </section>
 
-            <!-- Tarjetas KPI (Con Porcentajes Integrados) -->
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
                     <div class="flex justify-between items-start">
@@ -163,7 +161,6 @@
                 </div>
             </div>
 
-            <!-- Fila 1 -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <!-- MAPA DE CALOR OPERATIVO -->
                 <div class="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
@@ -193,7 +190,6 @@
                 </div>
             </div>
 
-            <!-- Fila 2 -->
             <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
                 <!-- Histórico Combinado -->
                 <div class="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
@@ -315,24 +311,29 @@
         </div>
     </div>
 
-    <!-- Modal 3: Radiografía -->
-    <div id="modal-turno" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
-        <div class="bg-white border border-slate-200 w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+    <!-- Modal 3: Radiografía (AHORA CON Z-INDEX 80 Y 3 COLUMNAS) -->
+    <div id="modal-turno" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[80] hidden flex items-center justify-center p-4">
+        <div class="bg-white border border-slate-200 w-full max-w-6xl rounded-2xl shadow-2xl overflow-hidden flex flex-col">
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                 <div>
                     <h3 id="turno-titulo" class="font-black text-orange-600 text-lg flex items-center"><i class="fa-solid fa-clipboard-user mr-2"></i> Radiografía Operativa</h3>
-                    <p class="text-[11px] text-slate-500 mt-1">Desglose de químicos manipulados y personal involucrado en esta franja.</p>
+                    <p class="text-[11px] text-slate-500 mt-1">Desglose integral de químicos manipulados, operadores implicados y equipos intervenidos.</p>
                 </div>
                 <button onclick="cerrarModalTurno()" class="text-slate-400 hover:text-slate-700 text-2xl font-bold px-2 py-1">&times;</button>
             </div>
-            <div class="p-6 bg-slate-50 grid grid-cols-1 md:grid-cols-2 gap-8 border-b border-slate-100">
+            <!-- Modificado a 3 columnas -->
+            <div class="p-6 bg-slate-50 grid grid-cols-1 lg:grid-cols-3 gap-6 border-b border-slate-100 overflow-y-auto max-h-[70vh]">
                 <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
                     <h4 class="text-xs font-bold text-slate-500 text-center mb-4 uppercase tracking-wider">Químicos Intervenidos</h4>
-                    <div class="h-[200px] relative"><canvas id="turnoQuimicosChart"></canvas></div>
+                    <div class="h-[220px] relative"><canvas id="turnoQuimicosChart"></canvas></div>
                 </div>
                 <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
                     <h4 class="text-xs font-bold text-slate-500 text-center mb-4 uppercase tracking-wider">Volumen por Operador</h4>
-                    <div class="h-[200px] relative"><canvas id="turnoOperadoresChart"></canvas></div>
+                    <div class="h-[220px] relative"><canvas id="turnoOperadoresChart"></canvas></div>
+                </div>
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                    <h4 class="text-xs font-bold text-slate-500 text-center mb-4 uppercase tracking-wider">Equipos Auditados</h4>
+                    <div class="h-[220px] relative"><canvas id="turnoEquiposChart"></canvas></div>
                 </div>
             </div>
             <div class="px-6 py-4 bg-white flex justify-end"><button onclick="cerrarModalTurno()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs py-2 px-6 rounded-lg transition shadow-sm">Cerrar Radiografía</button></div>
