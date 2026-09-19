@@ -29,6 +29,7 @@ let quadrantInst = null;
 let drilldownInst = null;
 let turnoQuimInst = null;
 let turnoOpInst = null;
+let turnoEqInst = null; // NUEVA INSTANCIA PARA EQUIPOS
 let expandedChartInst = null; 
 
 let sparkInst = { ef: null, co: null, ri: null, ex: null, to: null };
@@ -36,32 +37,43 @@ let heatmapCache = {};
 
 Chart.defaults.font.family = "'Inter', sans-serif";
 Chart.defaults.color = '#64748b'; 
-Chart.defaults.scale.grid.color = '#f1f5f9';
+Chart.defaults.scale.grid.color = '#f8fafc';
 
+// PLUGIN MEJORADO: MATRIZ DE DESEMPEÑO
 const quadrantPlugin = {
     id: 'quadrantPlugin',
     beforeDraw(chart) {
         if (!chart.chartArea) return; 
-        const { ctx, chartArea: { left, top, right, bottom }, scales: { x } } = chart;
+        const { ctx, chartArea: { left, top, right, bottom }, scales: { x, y } } = chart;
+        
+        // Fija la línea vertical en el 85% de Eficacia (umbral crítico vs óptimo)
         const midX = x.getPixelForValue(85); 
-        const midY = top + ((bottom - top) / 2);
+        // Calcula dinámicamente la mitad del eje Y generado
+        const yMax = y.max; 
+        const midY = y.getPixelForValue(yMax / 2);
         
         ctx.save(); 
         ctx.lineWidth = 1; 
         ctx.strokeStyle = '#cbd5e1'; 
-        ctx.setLineDash([4, 4]);
+        ctx.setLineDash([5, 5]); // Líneas punteadas más claras
         
+        // Dibuja la cruz central
         if(midX > left && midX < right) { 
             ctx.beginPath(); ctx.moveTo(midX, top); ctx.lineTo(midX, bottom); ctx.stroke(); 
         }
-        ctx.beginPath(); ctx.moveTo(left, midY); ctx.lineTo(right, midY); ctx.stroke();
+        if(midY > top && midY < bottom) {
+            ctx.beginPath(); ctx.moveTo(left, midY); ctx.lineTo(right, midY); ctx.stroke();
+        }
         
         ctx.fillStyle = '#94a3b8'; 
         ctx.font = 'bold 9px Inter'; 
+        
+        // Textos Cuadrante Izquierdo
         ctx.textAlign = 'left';
         ctx.fillText('CRÍTICO (ALTO RIESGO)', left + 10, top + 15); 
         ctx.fillText('A MEJORAR (BAJO VOL)', left + 10, midY + 15); 
         
+        // Textos Cuadrante Derecho
         if(midX > left) { 
             ctx.textAlign = 'right'; 
             ctx.fillText('LÍDERES (ESTABLES)', right - 10, top + 15); 
@@ -148,9 +160,6 @@ async function cargarSupabase() {
     renderizarCore();
 }
 
-// ==========================================
-// 4. NUEVO SISTEMA DE FILTROS (BLINDADO)
-// ==========================================
 function initFiltrosInteligentes() {
     ['filtro-equipo', 'filtro-solucion'].forEach(id => { 
         const el = document.getElementById(id);
@@ -183,8 +192,7 @@ function initRangoFechas() {
 }
 
 function formatoFecha(d) { 
-    let ms = d.getMonth() + 1; 
-    let dy = d.getDate(); 
+    let ms = d.getMonth() + 1; let dy = d.getDate(); 
     return `${d.getFullYear()}-${ms < 10 ? '0'+ms : ms}-${dy < 10 ? '0'+dy : dy}`; 
 }
 
@@ -205,85 +213,43 @@ function pintarBotonRapido(idBoton) {
 }
 
 function setRangoFechas(tipo) {
-    let hoyObj = new Date(); 
-    pintarBotonRapido(`btn-${tipo}`);
-    
-    if (tipo === 'todos') { 
-        fechaInicioGlobal = null; 
-        fechaFinGlobal = null; 
-        if(fpInstancia) fpInstancia.clear(); 
-        renderizarCore();
-        return; 
-    }
+    let hoyObj = new Date(); pintarBotonRapido(`btn-${tipo}`);
+    if (tipo === 'todos') { fechaInicioGlobal = null; fechaFinGlobal = null; if(fpInstancia) fpInstancia.clear(); renderizarCore(); return; }
     
     let fechaInicioObj = new Date();
-    if (tipo === 'hoy') { 
-        fechaInicioObj = hoyObj; 
-    } else if (tipo === 'semana') { 
-        fechaInicioObj.setDate(hoyObj.getDate() - 6); 
-    } else if (tipo === 'quincena') { 
-        fechaInicioObj.setDate(hoyObj.getDate() - 14); 
-    } else if (tipo === 'mes') { 
-        fechaInicioObj.setDate(1); 
-    }
+    if (tipo === 'hoy') { fechaInicioObj = hoyObj; } 
+    else if (tipo === 'semana') { fechaInicioObj.setDate(hoyObj.getDate() - 6); } 
+    else if (tipo === 'quincena') { fechaInicioObj.setDate(hoyObj.getDate() - 14); } 
+    else if (tipo === 'mes') { fechaInicioObj.setDate(1); }
     
-    let strInicio = formatoFecha(fechaInicioObj); 
-    let strFin = formatoFecha(hoyObj);
-    
+    let strInicio = formatoFecha(fechaInicioObj); let strFin = formatoFecha(hoyObj);
     if(fpInstancia) fpInstancia.setDate([strInicio, strFin], false); 
-    
-    fechaInicioGlobal = strInicio; 
-    fechaFinGlobal = strFin; 
+    fechaInicioGlobal = strInicio; fechaFinGlobal = strFin; 
     renderizarCore();
 }
 
 function actualizarOpcionesFiltros() {
-    let eqSet = new Set(); 
-    let solSet = new Set();
-    
-    listaRegistros.forEach(r => { 
-        if (r.equipo) eqSet.add(r.equipo); 
-        if (r.solucion) solSet.add(r.solucion); 
-    });
-    
+    let eqSet = new Set(); let solSet = new Set();
+    listaRegistros.forEach(r => { if (r.equipo) eqSet.add(r.equipo); if (r.solucion) solSet.add(r.solucion); });
     let currEq = tsInstances['filtro-equipo'] ? tsInstances['filtro-equipo'].getValue() : 'TODOS'; 
     let currSol = tsInstances['filtro-solucion'] ? tsInstances['filtro-solucion'].getValue() : 'TODAS';
     
-    if(tsInstances['filtro-equipo']) { 
-        tsInstances['filtro-equipo'].clearOptions(); 
-        tsInstances['filtro-equipo'].addOption({value: 'TODOS', text: 'Todos los Equipos'}); 
-        Array.from(eqSet).sort().forEach(e => tsInstances['filtro-equipo'].addOption({value: e, text: e})); 
-        tsInstances['filtro-equipo'].setValue(currEq, true); 
-    }
-    
-    if(tsInstances['filtro-solucion']) { 
-        tsInstances['filtro-solucion'].clearOptions(); 
-        tsInstances['filtro-solucion'].addOption({value: 'TODAS', text: 'Todas las Soluciones'}); 
-        Array.from(solSet).sort().forEach(s => tsInstances['filtro-solucion'].addOption({value: s, text: s})); 
-        tsInstances['filtro-solucion'].setValue(currSol, true); 
-    }
+    if(tsInstances['filtro-equipo']) { tsInstances['filtro-equipo'].clearOptions(); tsInstances['filtro-equipo'].addOption({value: 'TODOS', text: 'Todos los Equipos'}); Array.from(eqSet).sort().forEach(e => tsInstances['filtro-equipo'].addOption({value: e, text: e})); tsInstances['filtro-equipo'].setValue(currEq, true); }
+    if(tsInstances['filtro-solucion']) { tsInstances['filtro-solucion'].clearOptions(); tsInstances['filtro-solucion'].addOption({value: 'TODAS', text: 'Todas las Soluciones'}); Array.from(solSet).sort().forEach(s => tsInstances['filtro-solucion'].addOption({value: s, text: s})); tsInstances['filtro-solucion'].setValue(currSol, true); }
 }
 
 function obtenerDatosFiltrados() {
     const s = tsInstances['filtro-solucion'] ? tsInstances['filtro-solucion'].getValue() : 'TODAS'; 
     const e = tsInstances['filtro-equipo'] ? tsInstances['filtro-equipo'].getValue() : 'TODOS'; 
-    
     return listaRegistros.filter(r => {
         let pasaEquipo = (!e || e === 'TODOS' || r.equipo === e); 
         let pasaSolucion = (!s || s === 'TODAS' || r.solucion === s);
         let pasaFecha = true; 
-        
-        if (fechaInicioGlobal && fechaFinGlobal && r.fecha) {
-            pasaFecha = (r.fecha >= fechaInicioGlobal && r.fecha <= fechaFinGlobal);
-        }
-        
+        if (fechaInicioGlobal && fechaFinGlobal && r.fecha) { pasaFecha = (r.fecha >= fechaInicioGlobal && r.fecha <= fechaFinGlobal); }
         return pasaEquipo && pasaSolucion && pasaFecha;
     });
 }
 
-// ==========================================
-// 5. RENDERIZADO GENERAL Y GRÁFICOS
-// ==========================================
 function renderizarCore() {
     const datos = obtenerDatosFiltrados(); 
     let stats = { conformes: 0, riesgo: 0, exceso: 0, conformesList: [], desviosList: [] };
@@ -292,16 +258,9 @@ function renderizarCore() {
         const p = PARAMETROS_TECNICOS.find(x => x.solucion === r.solucion);
         if (p) {
             const val = parseConcen(r.concen);
-            if (val < p.min) { 
-                stats.riesgo++; 
-                stats.desviosList.push({...r, tipo: 'Riesgo (<Min)', excesoAbs: 0}); 
-            } else if (val > p.max) { 
-                stats.exceso++; 
-                stats.desviosList.push({...r, tipo: 'Exceso (>Max)', excesoAbs: val - p.max}); 
-            } else { 
-                stats.conformes++; 
-                stats.conformesList.push({...r, tipo: 'Conforme'}); 
-            }
+            if (val < p.min) { stats.riesgo++; stats.desviosList.push({...r, tipo: 'Riesgo (<Min)', excesoAbs: 0}); } 
+            else if (val > p.max) { stats.exceso++; stats.desviosList.push({...r, tipo: 'Exceso (>Max)', excesoAbs: val - p.max}); } 
+            else { stats.conformes++; stats.conformesList.push({...r, tipo: 'Conforme'}); }
         }
     });
 
@@ -311,18 +270,13 @@ function renderizarCore() {
     let pctRiesgo = total > 0 ? ((stats.riesgo / total) * 100).toFixed(1) : '0.0';
     let pctExceso = total > 0 ? ((stats.exceso / total) * 100).toFixed(1) : '0.0';
 
-    // Actualización de KPIs con Porcentajes
     document.getElementById('kpi-eficacia').innerText = eficacia + '%'; 
-    
     document.getElementById('kpi-conformes').innerText = stats.conformes.toLocaleString();
     document.getElementById('kpi-conformes-pct').innerText = `(${pctConformes}%)`;
-    
     document.getElementById('kpi-riesgo').innerText = stats.riesgo.toLocaleString(); 
     document.getElementById('kpi-riesgo-pct').innerText = `(${pctRiesgo}%)`;
-    
     document.getElementById('kpi-exceso').innerText = stats.exceso.toLocaleString(); 
     document.getElementById('kpi-exceso-pct').innerText = `(${pctExceso}%)`;
-    
     document.getElementById('kpi-total').innerText = total.toLocaleString();
 
     drawSparklines(datos); 
@@ -335,23 +289,15 @@ function renderizarCore() {
     desviosUltimoFiltro = stats.desviosList; 
     const tbody = document.getElementById('ai-action-plan-tbody');
     if(tbody) {
-        if(desviosUltimoFiltro.length === 0) { 
-            tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-green-600 font-medium bg-green-50/50 rounded-lg"><i class="fa-solid fa-check-circle mr-2"></i>Cero desvíos reportados en este periodo.</td></tr>`; 
-        } else { 
-            tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-slate-500 font-medium bg-slate-50/50 rounded-lg">Hay <b>${desviosUltimoFiltro.length} desvíos</b> detectados. Ejecuta el Motor IA para la auditoría técnica.</td></tr>`; 
-        }
+        if(desviosUltimoFiltro.length === 0) { tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-green-600 font-medium bg-green-50/50 rounded-lg"><i class="fa-solid fa-check-circle mr-2"></i>Cero desvíos reportados en este periodo.</td></tr>`; } 
+        else { tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-slate-500 font-medium bg-slate-50/50 rounded-lg">Hay <b>${desviosUltimoFiltro.length} desvíos</b> detectados. Ejecuta el Motor IA para la auditoría técnica.</td></tr>`; }
     }
 }
 
 function getLineSpark(ctxId, data, color) { 
     if(sparkInst[ctxId]) sparkInst[ctxId].destroy(); 
-    const ctx = document.getElementById(ctxId)?.getContext('2d'); 
-    if(!ctx) return; 
-    sparkInst[ctxId] = new Chart(ctx, { 
-        type: 'line', 
-        data: { labels: data.map((_,i)=>i), datasets: [{ data: data, borderColor: color, borderWidth: 2, pointRadius: 0, fill: false, tension: 0.3 }] }, 
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } } 
-    }); 
+    const ctx = document.getElementById(ctxId)?.getContext('2d'); if(!ctx) return; 
+    sparkInst[ctxId] = new Chart(ctx, { type: 'line', data: { labels: data.map((_,i)=>i), datasets: [{ data: data, borderColor: color, borderWidth: 2, pointRadius: 0, fill: false, tension: 0.3 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } } }); 
 }
 
 function drawSparklines(datos) { 
@@ -395,10 +341,8 @@ function drawHeatmapOperativo(datos, containerId = 'heatmap-container', isExpand
             if(val < p.min) estado = 'riesgo'; 
             else if(val > p.max) estado = 'exceso'; 
             
-            let horaStr = r.hora || '00:00:00'; 
-            let h = parseInt(horaStr.split(':')[0]) || 0; 
-            let fechaObj = new Date(r.fecha + "T00:00:00"); 
-            let dKey = isNaN(fechaObj.getDay()) ? 1 : fechaObj.getDay(); 
+            let horaStr = r.hora || '00:00:00'; let h = parseInt(horaStr.split(':')[0]) || 0; 
+            let fechaObj = new Date(r.fecha + "T00:00:00"); let dKey = isNaN(fechaObj.getDay()) ? 1 : fechaObj.getDay(); 
             let fMatch = franjas.find(f => f.test(h)); 
             
             if(fMatch && matriz[fMatch.key] && matriz[fMatch.key][dKey] !== undefined) { 
@@ -420,10 +364,7 @@ function drawHeatmapOperativo(datos, containerId = 'heatmap-container', isExpand
     franjas.forEach(f => {
         html += `<tr><td class="${paddingSize} text-left font-bold text-slate-700 bg-slate-50 border-r border-slate-100 ${baseTextSize}">${f.label}</td>`;
         dias.forEach(d => {
-            let lista = matriz[f.key][d.key]; 
-            let count = lista.length; 
-            let bgClass = 'bg-slate-50 text-slate-300';
-            
+            let lista = matriz[f.key][d.key]; let count = lista.length; let bgClass = 'bg-slate-50 text-slate-300';
             if(count > 0) {
                 let hasRiesgo = lista.some(item => item.estado === 'riesgo'); 
                 let hasExceso = lista.some(item => item.estado === 'exceso');
@@ -477,12 +418,8 @@ function drawTendenciaHistorica(datos, canvasId = 'historicoChart', isExpanded =
             ] 
         },
         options: { 
-            responsive: true, 
-            maintainAspectRatio: false, 
-            plugins: { 
-                legend: { position: 'bottom', labels: { boxWidth: 12, font: {size: isExpanded ? 14 : 10} } }, 
-                tooltip: { mode: 'index', intersect: false, titleFont: {size: isExpanded?16:12}, bodyFont: {size: isExpanded?14:12} } 
-            }, 
+            responsive: true, maintainAspectRatio: false, 
+            plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: {size: isExpanded ? 14 : 10} } }, tooltip: { mode: 'index', intersect: false, titleFont: {size: isExpanded?16:12}, bodyFont: {size: isExpanded?14:12} } }, 
             scales: { 
                 x: { stacked: true, grid: { display: false }, ticks: { font: {size: isExpanded?12:10} } }, 
                 volumen: { type: 'linear', position: 'left', stacked: true, title: { display: true, text: 'Volumen', font: {size: isExpanded?12:10, weight: 'bold'}, color: '#64748b' }, ticks: { font: {size: isExpanded?12:10} } }, 
@@ -491,8 +428,7 @@ function drawTendenciaHistorica(datos, canvasId = 'historicoChart', isExpanded =
         }
     });
     
-    if(isExpanded) expandedChartInst = newInst; 
-    else historicoInst = newInst;
+    if(isExpanded) expandedChartInst = newInst; else historicoInst = newInst;
 }
 
 function drawMagicQuadrant(datos, canvasId = 'quadrantChart', isExpanded = false) {
@@ -511,36 +447,27 @@ function drawMagicQuadrant(datos, canvasId = 'quadrantChart', isExpanded = false
         } 
     });
     
-    let scatterData = []; 
-    let tooltipsData = []; 
+    let scatterData = []; let tooltipsData = []; 
     Object.keys(evalSoluciones).forEach(sol => { 
-        let vol = evalSoluciones[sol].total; 
-        let efi = (evalSoluciones[sol].ok / vol) * 100; 
-        scatterData.push({ x: efi, y: vol }); 
-        tooltipsData.push(sol); 
+        let vol = evalSoluciones[sol].total; let efi = (evalSoluciones[sol].ok / vol) * 100; 
+        scatterData.push({ x: efi, y: vol }); tooltipsData.push(sol); 
     });
     
     let newInst = new Chart(document.getElementById(canvasId).getContext('2d'), { 
-        type: 'scatter', 
-        plugins: [quadrantPlugin], 
+        type: 'scatter', plugins: [quadrantPlugin], 
         data: { datasets: [{ label: 'Soluciones', data: scatterData, backgroundColor: '#6366f1', borderColor: '#ffffff', borderWidth: 2, pointRadius: isExpanded ? 10 : 7, pointHoverRadius: isExpanded ? 14 : 9 }] }, 
         options: { 
-            responsive: true, 
-            maintainAspectRatio: false, 
-            layout: { padding: { right: 10 } }, 
-            plugins: { 
-                legend: { display: false }, 
-                tooltip: { backgroundColor: '#1e293b', padding: 12, titleFont: {size: isExpanded?14:11}, bodyFont: {size: isExpanded?14:11}, callbacks: { label: function(ctx) { return `${tooltipsData[ctx.dataIndex]}: Eficacia ${ctx.raw.x.toFixed(1)}% | Muestras: ${ctx.raw.y}`; } } } 
-            }, 
+            responsive: true, maintainAspectRatio: false, layout: { padding: { right: 10, top: 10 } }, 
+            plugins: { legend: { display: false }, tooltip: { backgroundColor: '#1e293b', padding: 12, titleFont: {size: isExpanded?14:11}, bodyFont: {size: isExpanded?14:11}, callbacks: { label: function(ctx) { return `${tooltipsData[ctx.dataIndex]}: Eficacia ${ctx.raw.x.toFixed(1)}% | Muestras: ${ctx.raw.y}`; } } } }, 
             scales: { 
-                x: { title: { display: true, text: 'Eficacia Sanitaria (%)', font: {size: isExpanded?12:10, weight: 'bold'}, color: '#64748b' }, min: 0, max: 100, grid: { display: false }, ticks: { font: {size: isExpanded?12:10} } }, 
-                y: { title: { display: true, text: 'Volumen Operativo', font: {size: isExpanded?12:10, weight: 'bold'}, color: '#64748b' }, min: 0, grid: { display: false }, ticks: { font: {size: isExpanded?12:10} } } 
+                // CUADRÍCULA HABILITADA PARA REPLICAR LA IMAGEN
+                x: { title: { display: true, text: 'Eficacia Sanitaria (%)', font: {size: isExpanded?12:10, weight: 'bold'}, color: '#64748b' }, min: 0, max: 100, grid: { display: true, color: '#f1f5f9' }, ticks: { font: {size: isExpanded?12:10} } }, 
+                y: { title: { display: true, text: 'Volumen Operativo', font: {size: isExpanded?12:10, weight: 'bold'}, color: '#64748b' }, min: 0, grid: { display: true, color: '#f1f5f9' }, ticks: { font: {size: isExpanded?12:10} } } 
             } 
         } 
     });
     
-    if(isExpanded) expandedChartInst = newInst; 
-    else quadrantInst = newInst;
+    if(isExpanded) expandedChartInst = newInst; else quadrantInst = newInst;
 }
 
 function drawEficaciaSoluciones(datos, canvasId = 'barSolucionesChart', isExpanded = false) {
@@ -550,12 +477,7 @@ function drawEficaciaSoluciones(datos, canvasId = 'barSolucionesChart', isExpand
     let d = {}; 
     datos.forEach(r => { 
         let p = PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); 
-        if(p) { 
-            if(!d[r.solucion]) d[r.solucion] = { t:0, c:0 }; 
-            d[r.solucion].t++; 
-            let v = parseConcen(r.concen); 
-            if(v>=p.min && v<=p.max) d[r.solucion].c++; 
-        } 
+        if(p) { if(!d[r.solucion]) d[r.solucion] = { t:0, c:0 }; d[r.solucion].t++; let v = parseConcen(r.concen); if(v>=p.min && v<=p.max) d[r.solucion].c++; } 
     });
     
     let res = Object.keys(d).map(k => ({ n: k, p: Number(((d[k].c / d[k].t) * 100).toFixed(1)), t: d[k].t })).sort((a,b)=>b.t - a.t); 
@@ -566,24 +488,15 @@ function drawEficaciaSoluciones(datos, canvasId = 'barSolucionesChart', isExpand
         type: 'bar', 
         data: { labels: res.map(x => `${x.n} (${x.p}%)`), datasets: [{ data: res.map(x => x.p), backgroundColor: barColors, borderRadius: 4, barThickness: isExpanded ? 24 : 14 }] }, 
         options: { 
-            indexAxis: 'y', 
-            responsive: true, 
-            maintainAspectRatio: false, 
-            plugins: { 
-                legend: { display: false }, 
-                tooltip: { titleFont: {size: isExpanded?14:12}, bodyFont: {size: isExpanded?14:12}, callbacks: { label: c => ` Clic para aislar y ver diagrama de dispersión.` } } 
-            }, 
-            scales: { 
-                x: { max: 100, grid: { color: '#f1f5f9' }, ticks: { font: {size: isExpanded?12:10} } }, 
-                y: { grid: { display: false }, ticks: { color: '#475569', font: {size: isExpanded?12:9, weight: 'bold'} } } 
-            }, 
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false, 
+            plugins: { legend: { display: false }, tooltip: { titleFont: {size: isExpanded?14:12}, bodyFont: {size: isExpanded?14:12}, callbacks: { label: c => ` Clic para aislar y ver diagrama de dispersión.` } } }, 
+            scales: { x: { max: 100, grid: { color: '#f1f5f9' }, ticks: { font: {size: isExpanded?12:10} } }, y: { grid: { display: false }, ticks: { color: '#475569', font: {size: isExpanded?12:9, weight: 'bold'} } } }, 
             onHover: (e, elements) => { e.native.target.style.cursor = elements.length ? 'pointer' : 'default'; }, 
             onClick: (e, elements) => { if (elements.length > 0) abrirModalDrilldown(res[elements[0].index].n); } 
         } 
     });
     
-    if(isExpanded) expandedChartInst = newInst; 
-    else barSolucionesInst = newInst;
+    if(isExpanded) expandedChartInst = newInst; else barSolucionesInst = newInst;
 }
 
 function drawRadarFugas(desvios, canvasId = 'fugaQuimicaChart', isExpanded = false) {
@@ -591,62 +504,35 @@ function drawRadarFugas(desvios, canvasId = 'fugaQuimicaChart', isExpanded = fal
     if(targetInst) targetInst.destroy();
     
     let excesos = desvios.filter(d => d.tipo.includes('Exceso'));
-    if(!isExpanded) { 
-        const msgObj = document.getElementById('fuga-empty-msg'); 
-        if(excesos.length === 0) { 
-            if(msgObj) msgObj.classList.remove('hidden'); 
-            return; 
-        } 
-        if(msgObj) msgObj.classList.add('hidden'); 
-    }
+    if(!isExpanded) { const msgObj = document.getElementById('fuga-empty-msg'); if(excesos.length === 0) { if(msgObj) msgObj.classList.remove('hidden'); return; } if(msgObj) msgObj.classList.add('hidden'); }
     if(isExpanded && excesos.length === 0) return;
 
     let fugas = {}; 
-    excesos.forEach(e => { 
-        if(!fugas[e.solucion]) fugas[e.solucion] = 0; 
-        fugas[e.solucion] += e.excesoAbs; 
-    }); 
-    let labels = Object.keys(fugas); 
-    let data = Object.values(fugas);
+    excesos.forEach(e => { if(!fugas[e.solucion]) fugas[e.solucion] = 0; fugas[e.solucion] += e.excesoAbs; }); 
+    let labels = Object.keys(fugas); let data = Object.values(fugas);
     
     let newInst = new Chart(document.getElementById(canvasId).getContext('2d'), { 
         type: 'radar', 
         data: { labels: labels, datasets: [{ label: 'Índice de Fuga (Σ%)', data: data, backgroundColor: 'rgba(245, 158, 11, 0.25)', borderColor: '#f59e0b', pointBackgroundColor: '#ffffff', pointBorderColor: '#f59e0b', pointBorderWidth: 2, pointRadius: isExpanded ? 6 : 4, borderWidth: isExpanded ? 3 : 2 }] }, 
         options: { 
-            responsive: true, 
-            maintainAspectRatio: false, 
-            plugins: { 
-                legend: { display: false }, 
-                tooltip: { titleFont: {size: isExpanded?14:12}, bodyFont: {size: isExpanded?14:12}, callbacks: { label: c => ` Volumen Desperdiciado: ${c.raw.toFixed(2)} Índice de Fuga (Σ%)` } } 
-            }, 
-            scales: { 
-                r: { angleLines: { color: '#e2e8f0' }, grid: { color: '#e2e8f0', circular: true }, pointLabels: { font: { size: isExpanded?12:9, weight: 'bold' }, color: '#475569' }, ticks: { display: false, beginAtZero: true } } 
-            } 
+            responsive: true, maintainAspectRatio: false, 
+            plugins: { legend: { display: false }, tooltip: { titleFont: {size: isExpanded?14:12}, bodyFont: {size: isExpanded?14:12}, callbacks: { label: c => ` Volumen Desperdiciado: ${c.raw.toFixed(2)} Índice de Fuga (Σ%)` } } }, 
+            scales: { r: { angleLines: { color: '#e2e8f0' }, grid: { color: '#e2e8f0', circular: true }, pointLabels: { font: { size: isExpanded?12:9, weight: 'bold' }, color: '#475569' }, ticks: { display: false, beginAtZero: true } } } 
         } 
     });
     
-    if(isExpanded) expandedChartInst = newInst; 
-    else fugaChartInst = newInst;
+    if(isExpanded) expandedChartInst = newInst; else fugaChartInst = newInst;
 }
 
-// ==========================================
-// MODO ENFOQUE (POWER BI STYLE)
-// ==========================================
 function expandirGrafico(tipo, titulo) {
     document.getElementById('expandido-titulo').innerHTML = `<i class="fa-solid fa-expand text-blue-500 mr-2"></i> Vista Detallada: ${titulo}`;
     document.getElementById('modal-expandido').classList.remove('hidden');
-    
-    const canvas = document.getElementById('expandidoChart');
-    const div = document.getElementById('expandidoDiv');
-    canvas.classList.add('hidden'); 
-    div.classList.add('hidden');
-
+    const canvas = document.getElementById('expandidoChart'); const div = document.getElementById('expandidoDiv');
+    canvas.classList.add('hidden'); div.classList.add('hidden');
     const datos = obtenerDatosFiltrados();
     
-    if(tipo === 'heatmap') {
-        div.classList.remove('hidden'); 
-        drawHeatmapOperativo(datos, 'expandidoDiv', true); 
-    } else {
+    if(tipo === 'heatmap') { div.classList.remove('hidden'); drawHeatmapOperativo(datos, 'expandidoDiv', true); } 
+    else {
         canvas.classList.remove('hidden');
         if(tipo === 'cuadrante') drawMagicQuadrant(datos, 'expandidoChart', true);
         if(tipo === 'historico') drawTendenciaHistorica(datos, 'expandidoChart', true);
@@ -657,29 +543,35 @@ function expandirGrafico(tipo, titulo) {
 
 function cerrarModalExpandido() {
     document.getElementById('modal-expandido').classList.add('hidden');
-    if(expandedChartInst) { 
-        expandedChartInst.destroy(); 
-        expandedChartInst = null; 
-    }
+    if(expandedChartInst) { expandedChartInst.destroy(); expandedChartInst = null; }
     document.getElementById('expandidoDiv').innerHTML = '';
 }
 
-// Modales Funcionales Existentes
+// ----------------------------------------------------
+// MODAL RADIOGRAFÍA OPERATIVA (ACTUALIZADO 3 GRÁFICAS)
+// ----------------------------------------------------
 function clicRadiografiaTurno(franjaKey, diaKey, diaLabel) {
     let lista = heatmapCache[franjaKey] && heatmapCache[franjaKey][diaKey] ? heatmapCache[franjaKey][diaKey] : []; 
     if(lista.length === 0) return; 
+    
     let dictQuimicos = {}; 
     let dictOperadores = {}; 
+    let dictEquipos = {}; // NUEVO DICCIONARIO
     
     lista.forEach(r => { 
         dictQuimicos[r.solucion] = (dictQuimicos[r.solucion] || 0) + 1; 
+        
         let op = r.operario || 'Sin nombre'; 
         dictOperadores[op] = (dictOperadores[op] || 0) + 1; 
+        
+        let eq = r.equipo || 'Sin equipo';
+        dictEquipos[eq] = (dictEquipos[eq] || 0) + 1;
     }); 
     
     document.getElementById('turno-titulo').innerHTML = `<i class="fa-solid fa-clipboard-user mr-2"></i> Radiografía Operativa: ${franjaKey.toUpperCase()} (${diaLabel.toUpperCase()})`; 
     document.getElementById('modal-turno').classList.remove('hidden');
     
+    // Gráfica 1: Químicos
     if(turnoQuimInst) turnoQuimInst.destroy(); 
     turnoQuimInst = new Chart(document.getElementById('turnoQuimicosChart').getContext('2d'), { 
         type: 'doughnut', 
@@ -687,6 +579,7 @@ function clicRadiografiaTurno(franjaKey, diaKey, diaLabel) {
         options: { maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 12, font: {size: 10, family: 'Inter'} } } } } 
     });
     
+    // Gráfica 2: Operadores
     if(turnoOpInst) turnoOpInst.destroy(); 
     let opsArr = Object.keys(dictOperadores).map(k => ({ nombre: k, cant: dictOperadores[k] })).sort((a,b)=> b.cant - a.cant); 
     turnoOpInst = new Chart(document.getElementById('turnoOperadoresChart').getContext('2d'), { 
@@ -694,11 +587,18 @@ function clicRadiografiaTurno(franjaKey, diaKey, diaLabel) {
         data: { labels: opsArr.map(o => o.nombre.split(' ').slice(0,2).join(' ')), datasets: [{ data: opsArr.map(o => o.cant), backgroundColor: '#6366f1', borderRadius: 4 }] }, 
         options: { indexAxis: 'y', maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { stepSize: 1 } }, y: { ticks: { font: {size: 9} } } } } 
     });
+
+    // Gráfica 3 (NUEVA): Equipos
+    if(turnoEqInst) turnoEqInst.destroy(); 
+    let eqArr = Object.keys(dictEquipos).map(k => ({ nombre: k, cant: dictEquipos[k] })).sort((a,b)=> b.cant - a.cant).slice(0, 10); // Top 10 para no saturar si hay muchos
+    turnoEqInst = new Chart(document.getElementById('turnoEquiposChart').getContext('2d'), { 
+        type: 'bar', 
+        data: { labels: eqArr.map(e => e.nombre.substring(0, 15) + (e.nombre.length > 15 ? '...' : '')), datasets: [{ data: eqArr.map(e => e.cant), backgroundColor: '#0ea5e9', borderRadius: 4 }] }, 
+        options: { indexAxis: 'y', maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { title: (ctx) => eqArr[ctx[0].dataIndex].nombre } } }, scales: { x: { ticks: { stepSize: 1 } }, y: { ticks: { font: {size: 9} } } } } 
+    });
 }
 
-function cerrarModalTurno() { 
-    document.getElementById('modal-turno').classList.add('hidden'); 
-}
+function cerrarModalTurno() { document.getElementById('modal-turno').classList.add('hidden'); }
 
 function abrirModalDrilldown(solucion) {
     document.getElementById('modal-drilldown').classList.remove('hidden'); 
@@ -707,11 +607,8 @@ function abrirModalDrilldown(solucion) {
     const subset = datosBase.filter(r => r.solucion === solucion).slice(0, 100).reverse(); 
     const regla = PARAMETROS_TECNICOS.find(p => p.solucion === solucion); 
     
-    if(drilldownInst) drilldownInst.destroy(); 
-    if(!regla || subset.length === 0) return; 
-    
-    let dataPoints = subset.map(r => parseConcen(r.concen)); 
-    let colors = dataPoints.map(v => v < regla.min ? '#ef4444' : (v > regla.max ? '#f59e0b' : '#10b981'));
+    if(drilldownInst) drilldownInst.destroy(); if(!regla || subset.length === 0) return; 
+    let dataPoints = subset.map(r => parseConcen(r.concen)); let colors = dataPoints.map(v => v < regla.min ? '#ef4444' : (v > regla.max ? '#f59e0b' : '#10b981'));
     
     drilldownInst = new Chart(document.getElementById('drilldownChart').getContext('2d'), { 
         type: 'line', 
@@ -723,135 +620,49 @@ function abrirModalDrilldown(solucion) {
                 { label: 'Min', data: Array(subset.length).fill(regla.min), borderColor: '#ef4444', borderDash: [5,5], pointRadius: 0, fill: false, borderWidth: 2 } 
             ] 
         }, 
-        options: { 
-            responsive: true, 
-            maintainAspectRatio: false, 
-            plugins: { 
-                legend: { display: false }, 
-                tooltip: { backgroundColor: '#1e293b', padding: 12, callbacks: { label: function(ctx) { let obj = subset[ctx.dataIndex]; return [ `Concentración: ${ctx.raw}%`, `Operador: ${obj.operario || obj.laboratorista}`, `Límites: ${regla.min}% - ${regla.max}%` ]; } } } 
-            }, 
-            scales: { y: { grid: { color: '#f1f5f9' } }, x: { grid: { display: false }, ticks: { maxRotation: 45, minRotation: 45, font: {size: 10} } } } 
-        } 
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#1e293b', padding: 12, callbacks: { label: function(ctx) { let obj = subset[ctx.dataIndex]; return [ `Concentración: ${ctx.raw}%`, `Operador: ${obj.operario || obj.laboratorista}`, `Límites: ${regla.min}% - ${regla.max}%` ]; } } } }, scales: { y: { grid: { color: '#f1f5f9' } }, x: { grid: { display: false }, ticks: { maxRotation: 45, minRotation: 45, font: {size: 10} } } } } 
     });
 }
-
-function cerrarModalDrilldown() { 
-    document.getElementById('modal-drilldown').classList.add('hidden'); 
-}
+function cerrarModalDrilldown() { document.getElementById('modal-drilldown').classList.add('hidden'); }
 
 function abrirModalDetalle(tipo) {
-    const modal = document.getElementById('modal-detalle'); 
-    const tbody = document.getElementById('modal-tbody'); 
-    if(!modal || !tbody) return; 
-    tbody.innerHTML = ''; 
-    const datos = obtenerDatosFiltrados(); 
-    let rsl = [];
-    
+    const modal = document.getElementById('modal-detalle'); const tbody = document.getElementById('modal-tbody'); if(!modal || !tbody) return; tbody.innerHTML = ''; const datos = obtenerDatosFiltrados(); let rsl = [];
     if(tipo === 'conformes') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)>=p.min && parseConcen(f.concen)<=p.max;});
     if(tipo === 'riesgo') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)<p.min;});
     if(tipo === 'exceso') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)>p.max;});
     
     document.getElementById('modal-titulo').innerText = tipo === 'conformes' ? "Auditoría: Muestras Conformes (Óptimas)" : (tipo === 'riesgo' ? "Auditoría: Desvíos por Riesgo (< Mínimo)" : "Auditoría: Desvíos por Sobredosificación (> Máximo)");
     
-    if(rsl.length===0) { 
-        tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-500 font-bold bg-slate-50">Sin registros en este filtro.</td></tr>`; 
-    } else { 
-        rsl.slice(0, 100).forEach(r => { 
-            let badgeColor = tipo === 'conformes' ? 'text-emerald-600 bg-emerald-50' : (tipo === 'riesgo' ? 'text-red-600 bg-red-50' : 'text-amber-600 bg-amber-50'); 
-            tbody.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-100"><td class="py-3 px-6">${r.fecha} ${r.hora?r.hora.substring(0,5):''}</td><td class="py-3 px-6 font-bold text-slate-800">${r.equipo}</td><td class="py-3 px-6 text-slate-600">${r.solucion}</td><td class="py-3 px-6 text-center font-black ${badgeColor}">${r.concen}</td><td class="py-3 px-6 text-[10px] text-slate-500">${r.operario || r.laboratorista}</td></tr>`; 
-        }); 
-    }
+    if(rsl.length===0) { tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-500 font-bold bg-slate-50">Sin registros en este filtro.</td></tr>`; } 
+    else { rsl.slice(0, 100).forEach(r => { let badgeColor = tipo === 'conformes' ? 'text-emerald-600 bg-emerald-50' : (tipo === 'riesgo' ? 'text-red-600 bg-red-50' : 'text-amber-600 bg-amber-50'); tbody.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-100"><td class="py-3 px-6">${r.fecha} ${r.hora?r.hora.substring(0,5):''}</td><td class="py-3 px-6 font-bold text-slate-800">${r.equipo}</td><td class="py-3 px-6 text-slate-600">${r.solucion}</td><td class="py-3 px-6 text-center font-black ${badgeColor}">${r.concen}</td><td class="py-3 px-6 text-[10px] text-slate-500">${r.operario || r.laboratorista}</td></tr>`; }); }
     modal.classList.remove('hidden');
 }
-
-function cerrarModalDetalle() { 
-    document.getElementById('modal-detalle').classList.add('hidden'); 
-}
+function cerrarModalDetalle() { document.getElementById('modal-detalle').classList.add('hidden'); }
 
 // IA Gemini
 async function dispararAnalisisIA() {
-    const tbody = document.getElementById('ai-action-plan-tbody'); 
-    if(desviosUltimoFiltro.length === 0) return;
-    if(!obtenerApiKeySegura()) { 
-        tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-slate-500 font-bold bg-slate-50 rounded-lg">Falta API Key.</td></tr>`; 
-        return; 
-    }
-    
+    const tbody = document.getElementById('ai-action-plan-tbody'); if(desviosUltimoFiltro.length === 0) return;
+    if(!obtenerApiKeySegura()) { tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-slate-500 font-bold bg-slate-50 rounded-lg">Falta API Key.</td></tr>`; return; }
     tbody.innerHTML = `<tr><td colspan="3" class="py-10 text-center text-blue-600 font-bold animate-pulse bg-blue-50/50 rounded-lg"><i class="fa-solid fa-microchip mr-2"></i>Evaluando matemáticas con 3.5 Flash-Lite...</td></tr>`;
-    
-    let excesos = desviosUltimoFiltro.filter(d => d.tipo.includes('Exceso')); 
-    let totalExcesos = excesos.length; 
-    let statsFugas = {}; 
-    let opsStats = {};
-    
-    excesos.forEach(e => { 
-        if(!statsFugas[e.solucion]) statsFugas[e.solucion] = { conteo: 0, volumenPerdido: 0 }; 
-        statsFugas[e.solucion].conteo++; 
-        statsFugas[e.solucion].volumenPerdido += e.excesoAbs; 
-        let op = e.operario || e.laboratorista || 'Desconocido'; 
-        opsStats[op] = (opsStats[op] || 0) + 1; 
-    });
-    
-    let desgloseTexto = `TOTAL EVENTOS: ${totalExcesos}\n`; 
-    Object.keys(statsFugas).forEach(sol => { 
-        desgloseTexto += `- Químico ${sol}: ${((statsFugas[sol].conteo / totalExcesos) * 100).toFixed(1)}% de eventos. Fuga: ${statsFugas[sol].volumenPerdido.toFixed(2)}.\n`; 
-    });
-    
+    let excesos = desviosUltimoFiltro.filter(d => d.tipo.includes('Exceso')); let totalExcesos = excesos.length; let statsFugas = {}; let opsStats = {};
+    excesos.forEach(e => { if(!statsFugas[e.solucion]) statsFugas[e.solucion] = { conteo: 0, volumenPerdido: 0 }; statsFugas[e.solucion].conteo++; statsFugas[e.solucion].volumenPerdido += e.excesoAbs; let op = e.operario || e.laboratorista || 'Desconocido'; opsStats[op] = (opsStats[op] || 0) + 1; });
+    let desgloseTexto = `TOTAL EVENTOS: ${totalExcesos}\n`; Object.keys(statsFugas).forEach(sol => { desgloseTexto += `- Químico ${sol}: ${((statsFugas[sol].conteo / totalExcesos) * 100).toFixed(1)}% de eventos. Fuga: ${statsFugas[sol].volumenPerdido.toFixed(2)}.\n`; });
     const prompt = `Eres Analista de Datos en Lácteos San Antonio. Analiza ESTOS DATOS DUROS:\n\n${desgloseTexto}\nOperadores implicados: ${Object.keys(opsStats).map(op => `${op} (${opsStats[op]} eventos)`).join(', ')}\n\nREGLAS ESTRICTAS:\n1. Usa porcentajes provistos.\n2. Explica qué químico representa mayor desperdicio.\n3. PROHIBIDO recomendaciones mecánicas.\n4. Devuelve JSON estricto: [{"desvio": "Hallazgo principal", "analisis_datos": "Análisis", "responsable": "Nombre"}]. Sin markdown.`;
     
     try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${obtenerApiKeySegura()}`, { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) 
-        });
-        
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${obtenerApiKeySegura()}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) });
         if (!res.ok) throw new Error(await res.text());
-        const jsonRes = await res.json(); 
-        let plan = JSON.parse((jsonRes.candidates?.[0]?.content?.parts?.[0]?.text || '').replace(/```json|```/gi, '').trim());
-        
-        tbody.innerHTML = ''; 
-        plan.forEach(item => { 
-            tbody.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-100"><td class="py-4 px-3 align-top text-amber-600 font-bold text-[11px]">${item.desvio}</td><td class="py-4 px-3 align-top text-slate-600 text-[11px]">${item.analisis_datos}</td><td class="py-4 px-3 align-top text-slate-500 font-mono text-[10px]">${item.responsable}</td></tr>`; 
-        });
-    } catch(err) { 
-        tbody.innerHTML = `<tr><td colspan="3" class="py-6 px-6 text-center text-red-500 font-bold text-[11px] bg-red-50 rounded-lg">Fallo IA: ${err.message}.</td></tr>`; 
-    }
+        const jsonRes = await res.json(); let plan = JSON.parse((jsonRes.candidates?.[0]?.content?.parts?.[0]?.text || '').replace(/```json|```/gi, '').trim());
+        tbody.innerHTML = ''; plan.forEach(item => { tbody.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-100"><td class="py-4 px-3 align-top text-amber-600 font-bold text-[11px]">${item.desvio}</td><td class="py-4 px-3 align-top text-slate-600 text-[11px]">${item.analisis_datos}</td><td class="py-4 px-3 align-top text-slate-500 font-mono text-[10px]">${item.responsable}</td></tr>`; });
+    } catch(err) { tbody.innerHTML = `<tr><td colspan="3" class="py-6 px-6 text-center text-red-500 font-bold text-[11px] bg-red-50 rounded-lg">Fallo IA: ${err.message}.</td></tr>`; }
 }
-
-function obtenerApiKeySegura() { 
-    return localStorage.getItem('poes_gemini_key') || ''; 
-}
-
+function obtenerApiKeySegura() { return localStorage.getItem('poes_gemini_key') || ''; }
 function actualizarBadgeIA() {
-    const b = document.getElementById('badge-ia-status'); 
-    if(!b) return;
-    if(obtenerApiKeySegura()) { 
-        b.innerHTML = `<i class="fa-solid fa-check text-green-500 mr-1"></i> IA Lista`; 
-        b.className = "text-[10px] font-bold px-2 py-1 rounded bg-green-50 text-green-700 border border-green-200 shadow-sm"; 
-    } else { 
-        b.innerHTML = `<i class="fa-solid fa-lock mr-1"></i> Falta API Key`; 
-        b.className = "text-[10px] font-bold px-2 py-1 rounded bg-slate-100 text-slate-400 border border-slate-200 shadow-sm"; 
-    }
+    const b = document.getElementById('badge-ia-status'); if(!b) return;
+    if(obtenerApiKeySegura()) { b.innerHTML = `<i class="fa-solid fa-check text-green-500 mr-1"></i> IA Lista`; b.className = "text-[10px] font-bold px-2 py-1 rounded bg-green-50 text-green-700 border border-green-200 shadow-sm"; } 
+    else { b.innerHTML = `<i class="fa-solid fa-lock mr-1"></i> Falta API Key`; b.className = "text-[10px] font-bold px-2 py-1 rounded bg-slate-100 text-slate-400 border border-slate-200 shadow-sm"; }
 }
-
-function abrirConfigIA() { 
-    document.getElementById('input-api-key').value = obtenerApiKeySegura(); 
-    document.getElementById('modal-config-ia').classList.remove('hidden'); 
-}
-
-function cerrarConfigIA() { 
-    document.getElementById('modal-config-ia').classList.add('hidden'); 
-}
-
-function guardarApiKey() { 
-    localStorage.setItem('poes_gemini_key', document.getElementById('input-api-key').value.trim()); 
-    cerrarConfigIA(); 
-    actualizarBadgeIA(); 
-}
-
-function limpiarApiKey() { 
-    localStorage.removeItem('poes_gemini_key'); 
-    cerrarConfigIA(); 
-    actualizarBadgeIA(); 
-}
+function abrirConfigIA() { document.getElementById('input-api-key').value = obtenerApiKeySegura(); document.getElementById('modal-config-ia').classList.remove('hidden'); }
+function cerrarConfigIA() { document.getElementById('modal-config-ia').classList.add('hidden'); }
+function guardarApiKey() { localStorage.setItem('poes_gemini_key', document.getElementById('input-api-key').value.trim()); cerrarConfigIA(); actualizarBadgeIA(); }
+function limpiarApiKey() { localStorage.removeItem('poes_gemini_key'); cerrarConfigIA(); actualizarBadgeIA(); }
