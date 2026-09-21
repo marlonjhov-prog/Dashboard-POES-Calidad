@@ -102,8 +102,8 @@ async function cargarSupabase() {
 function initFiltrosInteligentes() {
     ['filtro-equipo', 'filtro-solucion'].forEach(id => { 
         const el = document.getElementById(id);
-        // NOTA: Se eliminó sortField para que "TODOS/TODAS" respete siempre la primera posición (índice 0).
-        if(el) { tsInstances[id] = new TomSelect(el, { create: false }); tsInstances[id].on('change', renderizarCore); }
+        // SOLUCIÓN AL MENÚ DESAPARECIDO: Al asignar $order, forzamos a que el primer elemento insertado sea siempre el primero en mostrarse, sin importar el alfabeto.
+        if(el) { tsInstances[id] = new TomSelect(el, { create: false, sortField: [{field: '$order'}] }); tsInstances[id].on('change', renderizarCore); }
     });
 }
 
@@ -140,7 +140,6 @@ function actualizarOpcionesFiltros() {
     listaRegistros.forEach(r => { if (r.equipo) eqSet.add(r.equipo); if (r.solucion) solSet.add(r.solucion); });
     let currEq = tsInstances['filtro-equipo'] ? tsInstances['filtro-equipo'].getValue() : 'TODOS'; let currSol = tsInstances['filtro-solucion'] ? tsInstances['filtro-solucion'].getValue() : 'TODAS';
     
-    // Primero agregamos TODOS, luego ordenamos alfabéticamente el resto del arreglo antes de insertarlo.
     if(tsInstances['filtro-equipo']) { tsInstances['filtro-equipo'].clearOptions(); tsInstances['filtro-equipo'].addOption({value: 'TODOS', text: 'Todos los Equipos'}); Array.from(eqSet).sort().forEach(e => tsInstances['filtro-equipo'].addOption({value: e, text: e})); tsInstances['filtro-equipo'].setValue(currEq, true); }
     if(tsInstances['filtro-solucion']) { tsInstances['filtro-solucion'].clearOptions(); tsInstances['filtro-solucion'].addOption({value: 'TODAS', text: 'Todas las Soluciones'}); Array.from(solSet).sort().forEach(s => tsInstances['filtro-solucion'].addOption({value: s, text: s})); tsInstances['filtro-solucion'].setValue(currSol, true); }
 }
@@ -397,7 +396,9 @@ function cerrarModalDrilldown() { document.getElementById('modal-drilldown').cla
 function abrirModalDetalle(tipo) { const modal = document.getElementById('modal-detalle'); const tbody = document.getElementById('modal-tbody'); if(!modal || !tbody) return; tbody.innerHTML = ''; const datos = obtenerDatosFiltrados(); let rsl = []; if(tipo === 'conformes') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)>=p.min && parseConcen(f.concen)<=p.max;}); if(tipo === 'riesgo') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)<p.min;}); if(tipo === 'exceso') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)>p.max;}); document.getElementById('modal-titulo').innerText = tipo === 'conformes' ? "Auditoría: Muestras Conformes (Óptimas)" : (tipo === 'riesgo' ? "Auditoría: Desvíos por Riesgo (< Mínimo)" : "Auditoría: Desvíos por Sobredosificación (> Máximo)"); if(rsl.length===0) { tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-500 font-bold bg-slate-50">Sin registros en este filtro.</td></tr>`; } else { rsl.slice(0, 100).forEach(r => { let badgeColor = tipo === 'conformes' ? 'text-emerald-600 bg-emerald-50' : (tipo === 'riesgo' ? 'text-red-600 bg-red-50' : 'text-amber-600 bg-amber-50'); tbody.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-100"><td class="py-3 px-6">${r.fecha} ${r.hora?r.hora.substring(0,5):''}</td><td class="py-3 px-6 font-bold text-slate-800">${r.equipo}</td><td class="py-3 px-6 text-slate-600">${r.solucion}</td><td class="py-3 px-6 text-center font-black ${badgeColor}">${r.concen}</td><td class="py-3 px-6 text-[10px] text-slate-500">${r.operario || r.laboratorista}</td></tr>`; }); } modal.classList.remove('hidden'); }
 function cerrarModalDetalle() { document.getElementById('modal-detalle').classList.add('hidden'); }
 
-// FUNCIÓN DINÁMICA DE IMPACTO: Excluye visualmente la columna que no corresponde
+// ==========================================
+// FIX CRÍTICO: FILTRO ESTRICTO SEGÚN TIPO (FUGA O SEVERIDAD)
+// ==========================================
 function abrirModalImpacto(tipo = 'fuga') {
     const modal = document.getElementById('modal-impacto'); 
     const thead = document.getElementById('modal-impacto-thead');
@@ -408,14 +409,25 @@ function abrirModalImpacto(tipo = 'fuga') {
     if(!modal || !tbody || !thead) return; 
     tbody.innerHTML = '';
     
-    if(desviosUltimoFiltro.length === 0) {
+    // 1. FILTRADO ESTRICTO DE DATOS
+    let datosAnalisis = [];
+    if (tipo === 'fuga') {
+        // Para Fuga: Excluimos todos los "Riesgos" y dejamos SOLAMENTE los excesos que nos hacen perder dinero.
+        datosAnalisis = desviosUltimoFiltro.filter(d => d.tipo.includes('Exceso'));
+    } else {
+        // Para Severidad: Todo desvío (arriba o abajo) es un error técnico y se evalúa.
+        datosAnalisis = desviosUltimoFiltro;
+    }
+
+    if(datosAnalisis.length === 0) {
         thead.innerHTML = `<tr><th class="py-3 px-4">Análisis de Costos y Severidad</th></tr>`;
-        tbody.innerHTML = `<tr><td class="py-8 text-center text-slate-500 font-bold bg-slate-50">No hay desvíos registrados en este periodo para analizar.</td></tr>`;
+        tbody.innerHTML = `<tr><td class="py-8 text-center text-slate-500 font-bold bg-slate-50">No hay eventos que apliquen a este criterio.</td></tr>`;
         modal.classList.add('flex'); modal.classList.remove('hidden'); return;
     }
 
+    // 2. AGRUPACIÓN DE LOS DATOS YA FILTRADOS
     let agrupado = {};
-    desviosUltimoFiltro.forEach(d => {
+    datosAnalisis.forEach(d => {
         if(!agrupado[d.solucion]) { agrupado[d.solucion] = { conteo: 0, fuga: 0, severidadSum: 0 }; }
         agrupado[d.solucion].conteo++;
         agrupado[d.solucion].fuga += d.excesoAbs; 
@@ -429,7 +441,7 @@ function abrirModalImpacto(tipo = 'fuga') {
         s: agrupado[k].severidadSum / agrupado[k].conteo 
     }));
 
-    // Reconstrucción del Encabezado (THEAD) dinámico según selección
+    // 3. RECONSTRUCCIÓN DEL ENCABEZADO Y ORDENAMIENTO
     if (tipo === 'severidad') {
         ranking.sort((a, b) => b.s - a.s);
         if(tituloModal) tituloModal.innerHTML = `<i class="fa-solid fa-gauge-high text-red-500 mr-2"></i> Desglose de Severidad Técnica`;
@@ -445,7 +457,7 @@ function abrirModalImpacto(tipo = 'fuga') {
     } else {
         ranking.sort((a, b) => b.f - a.f);
         if(tituloModal) tituloModal.innerHTML = `<i class="fa-solid fa-hand-holding-dollar text-amber-600 mr-2"></i> Desglose de Fuga Financiera (Σ%)`;
-        if(subtituloModal) subtituloModal.innerText = `Ranking de pérdidas de insumos acumuladas agrupado por Solución Química.`;
+        if(subtituloModal) subtituloModal.innerText = `Ranking de pérdidas de insumos acumuladas agrupado por Solución Química. (Solo Excesos)`;
         
         thead.innerHTML = `
             <tr class="text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200">
@@ -456,7 +468,7 @@ function abrirModalImpacto(tipo = 'fuga') {
         `;
     }
 
-    // Reconstrucción de Filas (TBODY) dinámico
+    // 4. DIBUJADO DE LAS FILAS
     ranking.forEach(item => {
         let celdaDinamica = '';
         if (tipo === 'severidad') {
