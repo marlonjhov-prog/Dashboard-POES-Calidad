@@ -43,14 +43,10 @@ const quadrantPlugin = {
     beforeDraw(chart) {
         if (!chart.chartArea) return; 
         const { ctx, chartArea: { left, top, right, bottom }, scales: { x, y } } = chart;
-        const midX = x.getPixelForValue(85); 
-        const yMax = y.max; 
-        const midY = y.getPixelForValue(yMax / 2);
-        
+        const midX = x.getPixelForValue(85); const yMax = y.max; const midY = y.getPixelForValue(yMax / 2);
         ctx.save(); ctx.lineWidth = 1; ctx.strokeStyle = '#cbd5e1'; ctx.setLineDash([5, 5]); 
         if(midX > left && midX < right) { ctx.beginPath(); ctx.moveTo(midX, top); ctx.lineTo(midX, bottom); ctx.stroke(); }
         if(midY > top && midY < bottom) { ctx.beginPath(); ctx.moveTo(left, midY); ctx.lineTo(right, midY); ctx.stroke(); }
-        
         ctx.fillStyle = '#94a3b8'; ctx.font = 'bold 9px Inter'; ctx.textAlign = 'left';
         ctx.fillText('CRÍTICO (ALTO RIESGO)', left + 10, top + 15); ctx.fillText('A MEJORAR (BAJO VOL)', left + 10, midY + 15); 
         if(midX > left) { ctx.textAlign = 'right'; ctx.fillText('LÍDERES (ESTABLES)', right - 10, top + 15); ctx.fillText('NICHO (CONTROLADO)', right - 10, midY + 15); }
@@ -132,10 +128,7 @@ function setRangoFechas(tipo) {
     let hoyObj = new Date(); pintarBotonRapido(`btn-${tipo}`);
     if (tipo === 'todos') { fechaInicioGlobal = null; fechaFinGlobal = null; if(fpInstancia) fpInstancia.clear(); renderizarCore(); return; }
     let fechaInicioObj = new Date();
-    if (tipo === 'hoy') { fechaInicioObj = hoyObj; } 
-    else if (tipo === 'semana') { fechaInicioObj.setDate(hoyObj.getDate() - 6); } 
-    else if (tipo === 'quincena') { fechaInicioObj.setDate(hoyObj.getDate() - 14); } 
-    else if (tipo === 'mes') { fechaInicioObj.setDate(1); }
+    if (tipo === 'hoy') { fechaInicioObj = hoyObj; } else if (tipo === 'semana') { fechaInicioObj.setDate(hoyObj.getDate() - 6); } else if (tipo === 'quincena') { fechaInicioObj.setDate(hoyObj.getDate() - 14); } else if (tipo === 'mes') { fechaInicioObj.setDate(1); }
     let strInicio = formatoFecha(fechaInicioObj); let strFin = formatoFecha(hoyObj);
     if(fpInstancia) fpInstancia.setDate([strInicio, strFin], false); 
     fechaInicioGlobal = strInicio; fechaFinGlobal = strFin; renderizarCore();
@@ -144,20 +137,15 @@ function setRangoFechas(tipo) {
 function actualizarOpcionesFiltros() {
     let eqSet = new Set(); let solSet = new Set();
     listaRegistros.forEach(r => { if (r.equipo) eqSet.add(r.equipo); if (r.solucion) solSet.add(r.solucion); });
-    let currEq = tsInstances['filtro-equipo'] ? tsInstances['filtro-equipo'].getValue() : 'TODOS'; 
-    let currSol = tsInstances['filtro-solucion'] ? tsInstances['filtro-solucion'].getValue() : 'TODAS';
-    
+    let currEq = tsInstances['filtro-equipo'] ? tsInstances['filtro-equipo'].getValue() : 'TODOS'; let currSol = tsInstances['filtro-solucion'] ? tsInstances['filtro-solucion'].getValue() : 'TODAS';
     if(tsInstances['filtro-equipo']) { tsInstances['filtro-equipo'].clearOptions(); tsInstances['filtro-equipo'].addOption({value: 'TODOS', text: 'Todos los Equipos'}); Array.from(eqSet).sort().forEach(e => tsInstances['filtro-equipo'].addOption({value: e, text: e})); tsInstances['filtro-equipo'].setValue(currEq, true); }
     if(tsInstances['filtro-solucion']) { tsInstances['filtro-solucion'].clearOptions(); tsInstances['filtro-solucion'].addOption({value: 'TODAS', text: 'Todas las Soluciones'}); Array.from(solSet).sort().forEach(s => tsInstances['filtro-solucion'].addOption({value: s, text: s})); tsInstances['filtro-solucion'].setValue(currSol, true); }
 }
 
 function obtenerDatosFiltrados(inicio = fechaInicioGlobal, fin = fechaFinGlobal) {
-    const s = tsInstances['filtro-solucion'] ? tsInstances['filtro-solucion'].getValue() : 'TODAS'; 
-    const e = tsInstances['filtro-equipo'] ? tsInstances['filtro-equipo'].getValue() : 'TODOS'; 
+    const s = tsInstances['filtro-solucion'] ? tsInstances['filtro-solucion'].getValue() : 'TODAS'; const e = tsInstances['filtro-equipo'] ? tsInstances['filtro-equipo'].getValue() : 'TODOS'; 
     return listaRegistros.filter(r => {
-        let pasaEquipo = (!e || e === 'TODOS' || r.equipo === e); 
-        let pasaSolucion = (!s || s === 'TODAS' || r.solucion === s);
-        let pasaFecha = true; 
+        let pasaEquipo = (!e || e === 'TODOS' || r.equipo === e); let pasaSolucion = (!s || s === 'TODAS' || r.solucion === s); let pasaFecha = true; 
         if (inicio && fin && r.fecha) { pasaFecha = (r.fecha >= inicio && r.fecha <= fin); }
         return pasaEquipo && pasaSolucion && pasaFecha;
     });
@@ -166,37 +154,21 @@ function obtenerDatosFiltrados(inicio = fechaInicioGlobal, fin = fechaFinGlobal)
 function renderizarCore() {
     const datos = obtenerDatosFiltrados(); 
     let stats = { conformes: 0, riesgo: 0, exceso: 0, conformesList: [], desviosList: [] };
-    
-    let totalFuga = 0;
-    let totalDesvioAbsoluto = 0;
+    let totalFuga = 0; let totalDesvioAbsoluto = 0;
 
     datos.forEach(r => {
         const p = PARAMETROS_TECNICOS.find(x => x.solucion === r.solucion);
         if (p) {
             const val = parseConcen(r.concen);
-            if (val < p.min) { 
-                stats.riesgo++; 
-                let dif = p.min - val;
-                totalDesvioAbsoluto += dif;
-                stats.desviosList.push({...r, tipo: 'Riesgo (<Min)', excesoAbs: 0, dif: dif}); 
-            } 
-            else if (val > p.max) { 
-                stats.exceso++; 
-                let dif = val - p.max;
-                totalFuga += dif;
-                totalDesvioAbsoluto += dif;
-                stats.desviosList.push({...r, tipo: 'Exceso (>Max)', excesoAbs: dif, dif: dif}); 
-            } 
+            if (val < p.min) { stats.riesgo++; let dif = p.min - val; totalDesvioAbsoluto += dif; stats.desviosList.push({...r, tipo: 'Riesgo (<Min)', excesoAbs: 0, dif: dif}); } 
+            else if (val > p.max) { stats.exceso++; let dif = val - p.max; totalFuga += dif; totalDesvioAbsoluto += dif; stats.desviosList.push({...r, tipo: 'Exceso (>Max)', excesoAbs: dif, dif: dif}); } 
             else { stats.conformes++; stats.conformesList.push({...r, tipo: 'Conforme'}); }
         }
     });
 
-    let total = datos.length; 
-    let eficacia = total > 0 ? ((stats.conformes / total) * 100) : 0;
-    let totalDesviosCount = stats.riesgo + stats.exceso;
-    let severidadPromedio = totalDesviosCount > 0 ? (totalDesvioAbsoluto / totalDesviosCount) : 0;
+    let total = datos.length; let eficacia = total > 0 ? ((stats.conformes / total) * 100) : 0;
+    let totalDesviosCount = stats.riesgo + stats.exceso; let severidadPromedio = totalDesviosCount > 0 ? (totalDesvioAbsoluto / totalDesviosCount) : 0;
 
-    // Actualizar elementos DOM
     document.getElementById('kpi-eficacia').innerText = eficacia.toFixed(1) + '%'; 
     document.getElementById('kpi-conformes').innerText = stats.conformes.toLocaleString();
     document.getElementById('kpi-conformes-pct').innerText = `(${total > 0 ? ((stats.conformes / total) * 100).toFixed(1) : '0.0'}%)`;
@@ -205,7 +177,6 @@ function renderizarCore() {
     document.getElementById('kpi-exceso').innerText = stats.exceso.toLocaleString(); 
     document.getElementById('kpi-exceso-pct').innerText = `(${total > 0 ? ((stats.exceso / total) * 100).toFixed(1) : '0.0'}%)`;
     
-    // Contadores de Tarjeta Dual e Interfaz Superior
     document.getElementById('kpi-fuga').innerText = totalFuga.toFixed(1);
     document.getElementById('kpi-severidad').innerText = severidadPromedio.toFixed(2) + '%';
     document.getElementById('kpi-total-top').innerText = total.toLocaleString();
@@ -216,13 +187,7 @@ function renderizarCore() {
     if(iconRiesgo) { stats.riesgo > 0 ? iconRiesgo.classList.add('anim-risk-active') : iconRiesgo.classList.remove('anim-risk-active'); }
     if(iconExceso) { stats.exceso > 0 ? iconExceso.classList.add('anim-warn-active') : iconExceso.classList.remove('anim-warn-active'); }
 
-    drawSparklines(datos); 
-    drawHeatmapOperativo(datos, 'heatmap-container', false); 
-    drawEficaciaSoluciones(datos, 'barSolucionesChart', false); 
-    drawRadarFugas(stats.desviosList, 'fugaQuimicaChart', false); 
-    drawTendenciaHistorica(datos, 'historicoChart', false); 
-    drawMagicQuadrant(datos, 'quadrantChart', false); 
-    
+    drawSparklines(datos); drawHeatmapOperativo(datos, 'heatmap-container', false); drawEficaciaSoluciones(datos, 'barSolucionesChart', false); drawRadarFugas(stats.desviosList, 'fugaQuimicaChart', false); drawTendenciaHistorica(datos, 'historicoChart', false); drawMagicQuadrant(datos, 'quadrantChart', false); 
     desviosUltimoFiltro = stats.desviosList; 
     const tbody = document.getElementById('ai-action-plan-tbody');
     if(tbody) {
@@ -232,12 +197,14 @@ function renderizarCore() {
 }
 
 function calcularTendencias(efActual, confActual, riesActual, excActual, totActual) {
-    const lblEf = document.getElementById('trend-eficacia'); const lblCo = document.getElementById('trend-conformes');
-    const lblRi = document.getElementById('trend-riesgo'); const lblEx = document.getElementById('trend-exceso'); const lblTo = document.getElementById('trend-total-top');
-    
+    const renderClear = (containerId, topId = null) => {
+        let c = document.getElementById(containerId);
+        if(c) { c.innerHTML = `<span class="text-[10px] font-bold text-slate-400">Histórico Completo</span>`; }
+        if(topId) { let t = document.getElementById(topId); if(t) { t.innerHTML = `<span class="text-[10px] font-bold text-slate-400">Histórico Completo</span>`; t.className = "text-[10px] font-bold mt-1 hidden lg:inline-flex items-center"; } }
+    };
+
     if(!fechaInicioGlobal || !fechaFinGlobal) {
-        [lblEf, lblCo, lblRi, lblEx, lblTo].forEach(l => { if(l) { l.innerText = "Histórico Completo"; l.className = "text-[10px] font-bold mt-1 text-slate-400"; }});
-        if(lblTo) { lblTo.className = "text-[10px] font-bold text-slate-400 hidden lg:inline-block ml-2"; }
+        renderClear('trend-eficacia-container'); renderClear('trend-conformes-container'); renderClear('trend-riesgo-container'); renderClear('trend-exceso-container', 'trend-total-top');
         return;
     }
 
@@ -248,95 +215,57 @@ function calcularTendencias(efActual, confActual, riesActual, excActual, totActu
     
     let prevDatos = obtenerDatosFiltrados(formatoFecha(pInicio), formatoFecha(pFin));
     let pStats = { c: 0, r: 0, e: 0 };
-    prevDatos.forEach(r => {
-        const p = PARAMETROS_TECNICOS.find(x => x.solucion === r.solucion);
-        if (p) { const val = parseConcen(r.concen); if (val < p.min) pStats.r++; else if (val > p.max) pStats.e++; else pStats.c++; }
-    });
+    prevDatos.forEach(r => { const p = PARAMETROS_TECNICOS.find(x => x.solucion === r.solucion); if (p) { const val = parseConcen(r.concen); if (val < p.min) pStats.r++; else if (val > p.max) pStats.e++; else pStats.c++; } });
     
     let pTot = prevDatos.length; let pEf = pTot > 0 ? (pStats.c / pTot) * 100 : 0;
 
-    const render = (el, actual, prev, isPct, invertColors = false, isTop = false) => {
-        if(!el) return;
-        let diff = actual - prev;
-        if(pTot === 0) { el.innerText = "Sin datos prev."; el.className = `text-[10px] font-bold mt-1 text-slate-400 ${isTop ? 'hidden lg:inline-block ml-2' : ''}`; return; }
+    const render = (containerId, actual, prev, isPct, invertColors = false, isTop = false) => {
+        const c = document.getElementById(containerId); if(!c) return;
+        if(pTot === 0) { c.innerHTML = `<span class="text-[10px] font-bold text-slate-400">Sin datos prev.</span>`; if(isTop) c.className = "text-[10px] font-bold hidden lg:inline-flex items-center ml-2 !mt-0"; return; }
         
+        let diff = actual - prev;
         let prefix = diff > 0 ? '▲ +' : (diff < 0 ? '▼ ' : '■ ');
         let colorClass = 'text-slate-400';
-        if (diff !== 0) {
-            if (invertColors) { colorClass = diff > 0 ? 'text-red-500' : 'text-emerald-500'; } 
-            else { colorClass = diff > 0 ? 'text-emerald-500' : 'text-red-500'; } 
-        }
+        if (diff !== 0) { colorClass = invertColors ? (diff > 0 ? 'text-red-500' : 'text-emerald-500') : (diff > 0 ? 'text-emerald-500' : 'text-red-500'); }
         
-        let valStr = isPct ? diff.toFixed(1) + '%' : diff;
-        el.innerText = `${prefix}${valStr} vs Ant.`;
-        el.className = `text-[10px] font-bold mt-1 ${colorClass} ${isTop ? 'hidden lg:inline-block ml-2 !mt-0' : ''}`;
+        let valStr = isPct ? diff.toFixed(1) + '%' : diff.toFixed(0); // diff.toFixed(0) para cantidades
+        let prevStr = isPct ? prev.toFixed(1) + '%' : prev.toLocaleString();
+        
+        c.innerHTML = `<span class="trend-prev-value">Ant: ${prevStr} |</span><span class="text-[10px] font-bold ${colorClass}">${prefix}${valStr}</span>`;
+        if(isTop) c.className = "text-[10px] font-bold hidden lg:inline-flex items-center ml-2 !mt-0";
     };
 
-    render(lblEf, efActual, pEf, true, false);
-    render(lblCo, confActual, pStats.c, false, false);
-    render(lblRi, riesActual, pStats.r, false, true);
-    render(lblEx, excActual, pStats.e, false, true);
-    render(lblTo, totActual, pTot, false, false, true); 
+    render('trend-eficacia-container', efActual, pEf, true, false);
+    render('trend-conformes-container', confActual, pStats.c, false, false);
+    render('trend-riesgo-container', riesActual, pStats.r, false, true);
+    render('trend-exceso-container', excActual, pStats.e, false, true);
+    render('trend-total-top', totActual, pTot, false, false, true); 
 }
 
 function drawSparklines(datos) {
-    if(datos.length === 0) {
-        ['sparkEficacia', 'sparkConformes', 'sparkRiesgo', 'sparkExceso', 'sparkImpacto'].forEach(id => { if(sparkInst[id]) sparkInst[id].destroy(); });
-        return;
-    }
-
-    let agrupaPorHora = [...new Set(datos.map(d => d.fecha))].length === 1;
-    let grouped = {};
-    
+    if(datos.length === 0) { ['sparkEficacia', 'sparkConformes', 'sparkRiesgo', 'sparkExceso', 'sparkImpacto'].forEach(id => { if(sparkInst[id]) sparkInst[id].destroy(); }); return; }
+    let agrupaPorHora = [...new Set(datos.map(d => d.fecha))].length === 1; let grouped = {};
     datos.forEach(r => {
         let key = agrupaPorHora ? (r.hora ? r.hora.substring(0,2) + 'h' : '00h') : (r.fecha ? r.fecha.substring(5) : 'N/A');
         if(!grouped[key]) grouped[key] = { t: 0, c: 0, r: 0, e: 0, desviosCount: 0, desviosAbs: 0 };
-        grouped[key].t++;
-        let p = PARAMETROS_TECNICOS.find(x => x.solucion === r.solucion);
-        if(p) {
-            let v = parseConcen(r.concen);
-            if(v < p.min) { grouped[key].r++; grouped[key].desviosCount++; grouped[key].desviosAbs += (p.min - v); }
-            else if(v > p.max) { grouped[key].e++; grouped[key].desviosCount++; grouped[key].desviosAbs += (v - p.max); }
-            else { grouped[key].c++; }
-        }
+        grouped[key].t++; let p = PARAMETROS_TECNICOS.find(x => x.solucion === r.solucion);
+        if(p) { let v = parseConcen(r.concen); if(v < p.min) { grouped[key].r++; grouped[key].desviosCount++; grouped[key].desviosAbs += (p.min - v); } else if(v > p.max) { grouped[key].e++; grouped[key].desviosCount++; grouped[key].desviosAbs += (v - p.max); } else { grouped[key].c++; } }
     });
 
-    let keys = Object.keys(grouped).sort();
-    if(keys.length > 30 && !agrupaPorHora) keys = keys.slice(-30);
-
-    let dConf = keys.map(k => grouped[k].c);
-    let dRies = keys.map(k => grouped[k].r);
-    let dExc = keys.map(k => grouped[k].e);
-    let dEfi = keys.map(k => (grouped[k].c / grouped[k].t) * 100);
-    // Para la Severidad, promediamos el desvío de ese día
+    let keys = Object.keys(grouped).sort(); if(keys.length > 30 && !agrupaPorHora) keys = keys.slice(-30);
+    let dConf = keys.map(k => grouped[k].c); let dRies = keys.map(k => grouped[k].r); let dExc = keys.map(k => grouped[k].e); let dEfi = keys.map(k => (grouped[k].c / grouped[k].t) * 100);
     let dImpacto = keys.map(k => grouped[k].desviosCount > 0 ? (grouped[k].desviosAbs / grouped[k].desviosCount) : 0);
 
-    const baseOpts = { 
-        responsive: true, maintainAspectRatio: false, 
-        plugins: { legend: { display: false }, tooltip: { enabled: true, mode: 'index', intersect: false, displayColors: false, titleFont: {size: 9}, bodyFont: {size: 10, weight: 'bold'}, padding: 6, backgroundColor: 'rgba(30, 41, 59, 0.9)' } }, 
-        scales: { x: { display: false }, y: { display: false, min: 0 } } 
-    };
+    const baseOpts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: true, mode: 'index', intersect: false, displayColors: false, titleFont: {size: 9}, bodyFont: {size: 10, weight: 'bold'}, padding: 6, backgroundColor: 'rgba(30, 41, 59, 0.9)' } }, scales: { x: { display: false }, y: { display: false, min: 0 } } };
 
     function renderSpark(id, type, data, color, isFill = false) {
-        if(sparkInst[id]) sparkInst[id].destroy();
-        const ctx = document.getElementById(id)?.getContext('2d'); if(!ctx) return;
+        if(sparkInst[id]) sparkInst[id].destroy(); const ctx = document.getElementById(id)?.getContext('2d'); if(!ctx) return;
         let ds = { data: data, borderWidth: type === 'bar' ? 0 : 2, borderRadius: type === 'bar' ? 2 : 0, pointRadius: 0, pointHoverRadius: type === 'line' ? 4 : 0, tension: 0.4 };
-        
-        if (type === 'line' && isFill) {
-            let grad = ctx.createLinearGradient(0, 0, 0, 40);
-            grad.addColorStop(0, color.replace('1)', '0.3)')); grad.addColorStop(1, color.replace('1)', '0)'));
-            ds.backgroundColor = grad; ds.borderColor = color; ds.fill = true;
-        } else { ds.backgroundColor = color; ds.borderColor = color; }
-
+        if (type === 'line' && isFill) { let grad = ctx.createLinearGradient(0, 0, 0, 40); grad.addColorStop(0, color.replace('1)', '0.3)')); grad.addColorStop(1, color.replace('1)', '0)')); ds.backgroundColor = grad; ds.borderColor = color; ds.fill = true; } else { ds.backgroundColor = color; ds.borderColor = color; }
         sparkInst[id] = new Chart(ctx, { type: type, data: { labels: keys, datasets: [ds] }, options: baseOpts });
     }
 
-    renderSpark('sparkEficacia', 'line', dEfi, 'rgba(59, 130, 246, 1)', true); 
-    renderSpark('sparkConformes', 'bar', dConf, 'rgba(16, 185, 129, 1)'); 
-    renderSpark('sparkRiesgo', 'bar', dRies, 'rgba(239, 68, 68, 1)'); 
-    renderSpark('sparkExceso', 'bar', dExc, 'rgba(245, 158, 11, 1)'); 
-    // Sparkline de la tarjeta Dual (Tendencia de la severidad del error)
-    renderSpark('sparkImpacto', 'line', dImpacto, 'rgba(239, 68, 68, 1)', true); 
+    renderSpark('sparkEficacia', 'line', dEfi, 'rgba(59, 130, 246, 1)', true); renderSpark('sparkConformes', 'bar', dConf, 'rgba(16, 185, 129, 1)'); renderSpark('sparkRiesgo', 'bar', dRies, 'rgba(239, 68, 68, 1)'); renderSpark('sparkExceso', 'bar', dExc, 'rgba(245, 158, 11, 1)'); renderSpark('sparkImpacto', 'line', dImpacto, 'rgba(239, 68, 68, 1)', true); 
 }
 
 function drawHeatmapOperativo(datos, containerId = 'heatmap-container', isExpanded = false) {
