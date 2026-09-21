@@ -181,14 +181,15 @@
                     <div class="h-12 mt-2 -mx-2"><canvas id="sparkExceso"></canvas></div>
                 </div>
 
-                <!-- TARJETA 5: DUAL INTERACTIVA (Fuga + Severidad) -->
+                <!-- TARJETA 5: DUAL INTERACTIVA (Fuga + Severidad Separadas) -->
                 <div id="card-impacto" onclick="abrirModalImpacto()" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between cursor-pointer hover:border-amber-400 hover:shadow-md transition-all relative overflow-hidden group">
-                    <div class="w-full">
+                    <div class="w-full h-full flex flex-col">
                         <div class="flex justify-between items-start mb-2 border-b border-slate-100 pb-1">
                             <p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Impacto de Desvíos</p>
                             <i class="fa-solid fa-up-right-and-down-left-from-center text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity"></i>
                         </div>
-                        <div class="flex justify-between items-start">
+                        <div class="flex justify-between items-stretch flex-grow">
+                            <!-- Columna Izquierda: Fuga -->
                             <div class="w-[48%] flex flex-col">
                                 <div class="flex items-center gap-1 mb-0.5">
                                     <i class="fa-solid fa-hand-holding-dollar text-[10px] text-amber-400" title="Costo Operativo / Pérdida en Insumos"></i>
@@ -199,8 +200,13 @@
                                     <h3 id="kpi-fuga" class="text-xl sm:text-2xl font-black text-amber-600 leading-tight">0.0</h3>
                                 </div>
                                 <div id="trend-fuga-container" class="mt-1"></div>
+                                <!-- Sparkline Fuga -->
+                                <div class="h-8 w-full mt-auto pt-2"><canvas id="sparkFuga"></canvas></div>
                             </div>
-                            <div class="h-10 w-px bg-slate-200 mx-1"></div>
+                            
+                            <div class="h-full w-px bg-slate-200 mx-1"></div>
+                            
+                            <!-- Columna Derecha: Severidad -->
                             <div class="w-[48%] flex flex-col items-end text-right">
                                 <div class="flex items-center gap-1 mb-0.5">
                                     <p class="text-[9px] text-red-500 font-bold uppercase leading-none" title="Desviación Promedio del Límite">Severidad</p>
@@ -208,10 +214,11 @@
                                 </div>
                                 <h3 id="kpi-severidad" class="text-xl sm:text-2xl font-black text-red-600 leading-tight">0.0%</h3>
                                 <div id="trend-severidad-container" class="mt-1"></div>
+                                <!-- Sparkline Severidad -->
+                                <div class="h-8 w-full mt-auto pt-2"><canvas id="sparkSeveridad"></canvas></div>
                             </div>
                         </div>
                     </div>
-                    <div class="h-8 mt-2 -mx-2"><canvas id="sparkImpacto"></canvas></div>
                 </div>
             </div>
 
