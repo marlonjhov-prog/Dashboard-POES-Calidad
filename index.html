@@ -31,7 +31,7 @@
         .ts-control { background-color: #f8fafc !important; border: 1px solid #cbd5e1 !important; border-radius: 0.5rem !important; color: #334155 !important; font-size: 0.875rem !important; padding: 0.6rem 0.75rem !important; font-weight: 600 !important; box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05); cursor: pointer; }
         .ts-control > input { color: #334155 !important; font-size: 0.875rem !important; font-weight: 500 !important; }
         .ts-wrapper.single .ts-control:after { border-color: #64748b transparent transparent transparent !important; }
-        .ts-dropdown { background-color: #ffffff !important; border: 1px solid #e2e8f0 !important; border-radius: 0.5rem !important; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1) !important; margin-top: 4px !important; }
+        .ts-dropdown { background-color: #ffffff !important; border: 1px solid #e2e8f0 !important; border-radius: 0.5rem !important; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1) !important; margin-top: 4px !important; z-index: 9999 !important; }
         .ts-dropdown .option:hover, .ts-dropdown .option.active { background-color: #273c75 !important; color: #ffffff !important; font-weight: 600; }
         .ts-wrapper.focus .ts-control { border-color: #273c75 !important; box-shadow: 0 0 0 1px #273c75 !important; background-color: #ffffff !important; }
         
@@ -55,7 +55,7 @@
     </div>
 
     <div id="dashboard-content" class="opacity-0 transition-opacity duration-500 flex flex-col flex-grow">
-        <header class="bg-corporate-blue border-b border-blue-900 px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4 sticky top-0 z-30 shadow-md">
+        <header class="bg-corporate-blue border-b border-blue-900 px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4 sticky top-0 z-50 shadow-md">
             <div class="flex items-center space-x-4">
                 <div class="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white font-bold text-xl shadow-inner border border-white/20"><i class="fa-solid fa-shield-virus"></i></div>
                 <div>
@@ -76,7 +76,8 @@
 
         <main class="p-6 space-y-6 flex-grow max-w-[1600px] w-full mx-auto">
             
-            <section class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col gap-4">
+            <!-- CAPA SUPERIOR PARA FILTROS (z-40) PARA EVITAR SUPERPOSICIÓN DE ICONOS -->
+            <section class="relative z-40 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col gap-4">
                 <div class="flex flex-wrap items-center gap-2 pb-4 border-b border-slate-100">
                     <span class="text-[11px] font-bold text-slate-500 uppercase mr-2"><i class="fa-regular fa-clock mr-1 text-slate-400"></i> Rango Temporal:</span>
                     <button id="btn-hoy" onclick="setRangoFechas('hoy')" class="rango-btn bg-slate-100 hover:bg-corporate-blue hover:text-white text-slate-600 text-[11px] font-bold py-1.5 px-4 rounded-full transition-colors border border-transparent shadow-sm">Hoy</button>
@@ -114,8 +115,8 @@
                 </div>
             </section>
 
-            <!-- TARJETAS KPI PREMIUM -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <!-- TARJETAS KPI PREMIUM (z-10) -->
+            <div class="relative z-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 
                 <!-- Eficacia Sanitaria -->
                 <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between relative overflow-hidden group">
@@ -180,15 +181,15 @@
                     <div class="h-12 mt-2 -mx-2"><canvas id="sparkExceso"></canvas></div>
                 </div>
 
-                <!-- TARJETA 5: DUAL INTERACTIVA (Con Zonas Independientes para Fuga y Severidad) -->
+                <!-- TARJETA 5: DUAL INTERACTIVA (Con Zonas Independientes) -->
                 <div id="card-impacto" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between relative overflow-hidden">
-                    <div class="w-full h-full flex flex-col">
+                    <div class="w-full h-full flex flex-col z-10">
                         <div class="flex justify-between items-start mb-2 border-b border-slate-100 pb-1">
                             <p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Impacto de Desvíos</p>
                             <i class="fa-solid fa-scale-unbalanced text-slate-300"></i>
                         </div>
                         <div class="flex justify-between items-stretch flex-grow gap-2">
-                            <!-- Columna Izquierda: Fuga (Interactiva Independiente) -->
+                            <!-- Columna Izquierda: Fuga -->
                             <div onclick="abrirModalImpacto('fuga')" class="w-[48%] flex flex-col cursor-pointer p-1.5 rounded-xl hover:bg-amber-50/70 hover:border-amber-200 border border-transparent transition-all group/fuga">
                                 <div class="flex items-center justify-between mb-0.5">
                                     <div class="flex items-center gap-1">
@@ -207,7 +208,7 @@
                             
                             <div class="h-full w-px bg-slate-200 my-1"></div>
                             
-                            <!-- Columna Derecha: Severidad (Interactiva Independiente) -->
+                            <!-- Columna Derecha: Severidad -->
                             <div onclick="abrirModalImpacto('severidad')" class="w-[48%] flex flex-col items-end text-right cursor-pointer p-1.5 rounded-xl hover:bg-red-50/70 hover:border-red-200 border border-transparent transition-all group/sev">
                                 <div class="flex items-center justify-between w-full mb-0.5">
                                     <i class="fa-solid fa-arrow-up-right-from-square text-[9px] text-slate-300 opacity-0 group-hover/sev:opacity-100 transition-opacity"></i>
@@ -325,16 +326,16 @@
     <!-- MODALES -->
     <div id="modal-expandido" class="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[70] hidden flex items-center justify-center p-4 lg:p-8"><div class="bg-white border border-slate-200 w-full h-full max-h-[95vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden"><div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 id="expandido-titulo" class="font-black text-corporate-blue text-lg flex items-center"></h3><button onclick="cerrarModalExpandido()" class="text-slate-400 hover:text-red-500 text-3xl font-bold px-2 py-1 leading-none transition-colors">&times;</button></div><div class="p-6 bg-white flex-grow relative w-full h-full overflow-auto flex flex-col"><canvas id="expandidoChart" class="hidden"></canvas><div id="expandidoDiv" class="hidden w-full h-full flex flex-col items-center justify-center"></div></div></div></div>
     
-    <div id="modal-detalle" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4"><div class="bg-white border border-slate-200 w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"><div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 id="modal-titulo" class="font-bold text-slate-800 text-base">Auditoría de Registros</h3><button onclick="cerrarModalDetalle()" class="text-slate-400 hover:text-slate-700 text-lg font-bold px-2 py-1">&times;</button></div><div class="p-6 overflow-y-auto flex-grow bg-white"><table class="w-full text-left text-xs border-collapse"><thead><tr class="text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200"><th class="py-3 px-6">Fecha y Hora</th><th class="py-3 px-6">Equipo</th><th class="py-3 px-6">Solución</th><th class="py-3 px-6 text-center">Concentración</th><th class="py-3 px-6">Responsable</th></tr></thead><tbody id="modal-tbody" class="divide-y divide-slate-100 text-slate-700"></tbody></table></div><div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end"><button onclick="cerrarModalDetalle()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs py-2 px-5 rounded-lg transition">Cerrar</button></div></div></div>
+    <div id="modal-detalle" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] hidden flex items-center justify-center p-4"><div class="bg-white border border-slate-200 w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"><div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 id="modal-titulo" class="font-bold text-slate-800 text-base">Auditoría de Registros</h3><button onclick="cerrarModalDetalle()" class="text-slate-400 hover:text-slate-700 text-lg font-bold px-2 py-1">&times;</button></div><div class="p-6 overflow-y-auto flex-grow bg-white"><table class="w-full text-left text-xs border-collapse"><thead><tr class="text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200"><th class="py-3 px-6">Fecha y Hora</th><th class="py-3 px-6">Equipo</th><th class="py-3 px-6">Solución</th><th class="py-3 px-6 text-center">Concentración</th><th class="py-3 px-6">Responsable</th></tr></thead><tbody id="modal-tbody" class="divide-y divide-slate-100 text-slate-700"></tbody></table></div><div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end"><button onclick="cerrarModalDetalle()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs py-2 px-5 rounded-lg transition">Cerrar</button></div></div></div>
 
     <div id="modal-drilldown" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[80] hidden flex items-center justify-center p-4"><div class="bg-white border border-slate-200 w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden flex flex-col"><div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50"><div><h3 id="drilldown-titulo" class="font-black text-corporate-blue text-lg flex items-center"><i class="fa-solid fa-microscope text-indigo-500 mr-2"></i> Análisis Profundo de Dispersión</h3><p class="text-[11px] text-slate-500 mt-1">Muestras vs Límites técnicos (Segmento aislado)</p></div><button onclick="cerrarModalDrilldown()" class="text-slate-400 hover:text-slate-700 text-2xl font-bold px-2 py-1">&times;</button></div><div class="p-6 bg-white border-b border-slate-100"><div class="h-[400px] w-full relative"><canvas id="drilldownChart"></canvas></div></div><div class="px-6 py-4 bg-slate-50 flex justify-end"><button onclick="cerrarModalDrilldown()" class="bg-corporate-blue hover:bg-blue-800 text-white font-bold text-xs py-2 px-6 rounded-lg transition shadow-sm">Volver al Dashboard principal</button></div></div></div>
 
     <div id="modal-turno" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[80] hidden flex items-center justify-center p-4"><div class="bg-white border border-slate-200 w-full max-w-6xl rounded-2xl shadow-2xl overflow-hidden flex flex-col"><div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50"><div><h3 id="turno-titulo" class="font-black text-orange-600 text-lg flex items-center"><i class="fa-solid fa-clipboard-user mr-2"></i> Radiografía Operativa</h3><p class="text-[11px] text-slate-500 mt-1">Desglose integral de químicos manipulados, operadores implicados y equipos intervenidos.</p></div><button onclick="cerrarModalTurno()" class="text-slate-400 hover:text-slate-700 text-2xl font-bold px-2 py-1">&times;</button></div><div class="p-6 bg-slate-50 grid grid-cols-1 lg:grid-cols-3 gap-6 border-b border-slate-100 overflow-y-auto max-h-[70vh]"><div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm"><h4 class="text-xs font-bold text-slate-500 text-center mb-4 uppercase tracking-wider">Químicos Intervenidos</h4><div class="h-[220px] relative"><canvas id="turnoQuimicosChart"></canvas></div></div><div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm"><h4 class="text-xs font-bold text-slate-500 text-center mb-4 uppercase tracking-wider">Volumen por Operador</h4><div class="h-[220px] relative"><canvas id="turnoOperadoresChart"></canvas></div></div><div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm"><h4 class="text-xs font-bold text-slate-500 text-center mb-4 uppercase tracking-wider">Equipos Auditados</h4><div class="h-[220px] relative"><canvas id="turnoEquiposChart"></canvas></div></div></div><div class="px-6 py-4 bg-white flex justify-end"><button onclick="cerrarModalTurno()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs py-2 px-6 rounded-lg transition shadow-sm">Cerrar Radiografía</button></div></div></div>
 
-    <div id="modal-config-ia" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4"><div class="bg-white border border-slate-200 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4"><div class="flex justify-between items-center pb-3 border-b border-slate-100"><h3 class="font-bold text-slate-800 text-sm flex items-center"><i class="fa-solid fa-key text-blue-500 mr-2"></i> Clave API Gemini</h3><button onclick="cerrarConfigIA()" class="text-slate-400 hover:text-slate-700 text-lg font-bold px-2">&times;</button></div><p class="text-xs text-slate-500 leading-relaxed">Local storage seguro.</p><div><input type="password" id="input-api-key" placeholder="AIzaSy..." class="w-full bg-slate-50 text-slate-800 text-xs font-mono p-3 rounded-xl border border-slate-200 focus:outline-none focus:border-corporate-blue"></div><div class="flex justify-between items-center pt-3 border-t border-slate-100"><button onclick="limpiarApiKey()" class="text-red-500 hover:text-red-600 text-xs font-bold transition">Eliminar Clave</button><div class="space-x-2"><button onclick="cerrarConfigIA()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold py-2 px-4 rounded-xl transition">Cancelar</button><button onclick="guardarApiKey()" class="bg-corporate-blue hover:bg-blue-800 text-white text-xs font-bold py-2 px-4 rounded-xl transition shadow-sm">Guardar</button></div></div></div></div>
+    <div id="modal-config-ia" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[90] hidden flex items-center justify-center p-4"><div class="bg-white border border-slate-200 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4"><div class="flex justify-between items-center pb-3 border-b border-slate-100"><h3 class="font-bold text-slate-800 text-sm flex items-center"><i class="fa-solid fa-key text-blue-500 mr-2"></i> Clave API Gemini</h3><button onclick="cerrarConfigIA()" class="text-slate-400 hover:text-slate-700 text-lg font-bold px-2">&times;</button></div><p class="text-xs text-slate-500 leading-relaxed">Local storage seguro.</p><div><input type="password" id="input-api-key" placeholder="AIzaSy..." class="w-full bg-slate-50 text-slate-800 text-xs font-mono p-3 rounded-xl border border-slate-200 focus:outline-none focus:border-corporate-blue"></div><div class="flex justify-between items-center pt-3 border-t border-slate-100"><button onclick="limpiarApiKey()" class="text-red-500 hover:text-red-600 text-xs font-bold transition">Eliminar Clave</button><div class="space-x-2"><button onclick="cerrarConfigIA()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold py-2 px-4 rounded-xl transition">Cancelar</button><button onclick="guardarApiKey()" class="bg-corporate-blue hover:bg-blue-800 text-white text-xs font-bold py-2 px-4 rounded-xl transition shadow-sm">Guardar</button></div></div></div></div>
 
-    <!-- MODAL DINÁMICO DE IMPACTO (FUGA / SEVERIDAD) -->
-    <div id="modal-impacto" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <!-- MODAL DINÁMICO DE IMPACTO (ESTRUCTURA DE COLUMNAS DINÁMICA) -->
+    <div id="modal-impacto" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[80] hidden flex items-center justify-center p-4">
         <div class="bg-white border border-slate-200 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                 <div>
@@ -345,14 +346,8 @@
             </div>
             <div class="p-6 overflow-y-auto flex-grow bg-white">
                 <table class="w-full text-left text-xs border-collapse">
-                    <thead>
-                        <tr class="text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200">
-                            <th class="py-3 px-4">Solución Química</th>
-                            <th class="py-3 px-4 text-center">Muestras Desviadas</th>
-                            <th class="py-3 px-4 text-center text-amber-600"><i class="fa-solid fa-hand-holding-dollar mr-1"></i> Fuga Acumulada</th>
-                            <th class="py-3 px-4 text-center text-red-600"><i class="fa-solid fa-gauge-high mr-1"></i> Severidad Prom.</th>
-                        </tr>
-                    </thead>
+                    <!-- Se construye dinámicamente desde JS -->
+                    <thead id="modal-impacto-thead"></thead>
                     <tbody id="modal-impacto-tbody" class="divide-y divide-slate-100 text-slate-700"></tbody>
                 </table>
             </div>
