@@ -181,7 +181,11 @@ function renderizarCore() {
     document.getElementById('kpi-severidad').innerText = severidadPromedio.toFixed(2) + '%';
     document.getElementById('kpi-total-top').innerText = total.toLocaleString();
 
-    calcularTendencias(eficacia, stats.conformes, stats.riesgo, stats.exceso, total);
+    // Actualización de Tooltip Dinámico en la Tarjeta de Impacto
+    let cardImpacto = document.getElementById('card-impacto');
+    if(cardImpacto) { cardImpacto.title = `Clic para desglosar.\nFuga Acumulada: Equivale a sumar toda la concentración excedente.\nSeveridad: El promedio de qué tan lejos estamos del límite técnico permitido.`; }
+
+    calcularTendencias(eficacia, stats.conformes, stats.riesgo, stats.exceso, total, totalFuga, severidadPromedio);
 
     const iconRiesgo = document.getElementById('icon-riesgo'); const iconExceso = document.getElementById('icon-exceso');
     if(iconRiesgo) { stats.riesgo > 0 ? iconRiesgo.classList.add('anim-risk-active') : iconRiesgo.classList.remove('anim-risk-active'); }
@@ -189,22 +193,24 @@ function renderizarCore() {
 
     drawSparklines(datos); drawHeatmapOperativo(datos, 'heatmap-container', false); drawEficaciaSoluciones(datos, 'barSolucionesChart', false); drawRadarFugas(stats.desviosList, 'fugaQuimicaChart', false); drawTendenciaHistorica(datos, 'historicoChart', false); drawMagicQuadrant(datos, 'quadrantChart', false); 
     desviosUltimoFiltro = stats.desviosList; 
+    
     const tbody = document.getElementById('ai-action-plan-tbody');
     if(tbody) {
         if(desviosUltimoFiltro.length === 0) { tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-green-600 font-medium bg-green-50/50 rounded-lg"><i class="fa-solid fa-check-circle mr-2"></i>Cero desvíos reportados en este periodo.</td></tr>`; } 
-        else { tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-slate-500 font-medium bg-slate-50/50 rounded-lg">Hay <b>${desviosUltimoFiltro.length} desvíos</b> detectados. Ejecuta el Motor IA para la auditoría técnica.</td></tr>`; }
+        else { tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-slate-500 font-medium bg-slate-50/50 rounded-lg">Hay <b>${desviosUltimoFiltro.length} desvíos</b> detectados. Ejecuta el Motor IA para el desglose financiero y técnico.</td></tr>`; }
     }
 }
 
-function calcularTendencias(efActual, confActual, riesActual, excActual, totActual) {
+function calcularTendencias(efActual, confActual, riesActual, excActual, totActual, fugaActual, sevActual) {
     const renderClear = (containerId, topId = null) => {
         let c = document.getElementById(containerId);
-        if(c) { c.innerHTML = `<span class="text-[10px] font-bold text-slate-400">Histórico Completo</span>`; }
+        if(c) { c.innerHTML = `<span class="text-[9px] font-bold text-slate-400">Histórico Completo</span>`; }
         if(topId) { let t = document.getElementById(topId); if(t) { t.innerHTML = `<span class="text-[10px] font-bold text-slate-400">Histórico Completo</span>`; t.className = "text-[10px] font-bold mt-1 hidden lg:inline-flex items-center"; } }
     };
 
     if(!fechaInicioGlobal || !fechaFinGlobal) {
         renderClear('trend-eficacia-container'); renderClear('trend-conformes-container'); renderClear('trend-riesgo-container'); renderClear('trend-exceso-container', 'trend-total-top');
+        renderClear('trend-fuga-container'); renderClear('trend-severidad-container');
         return;
     }
 
@@ -215,30 +221,47 @@ function calcularTendencias(efActual, confActual, riesActual, excActual, totActu
     
     let prevDatos = obtenerDatosFiltrados(formatoFecha(pInicio), formatoFecha(pFin));
     let pStats = { c: 0, r: 0, e: 0 };
-    prevDatos.forEach(r => { const p = PARAMETROS_TECNICOS.find(x => x.solucion === r.solucion); if (p) { const val = parseConcen(r.concen); if (val < p.min) pStats.r++; else if (val > p.max) pStats.e++; else pStats.c++; } });
+    let pFuga = 0; let pDesvAbs = 0; let pDesvCount = 0;
+
+    prevDatos.forEach(r => { 
+        const p = PARAMETROS_TECNICOS.find(x => x.solucion === r.solucion); 
+        if (p) { 
+            const val = parseConcen(r.concen); 
+            if (val < p.min) { pStats.r++; pDesvCount++; pDesvAbs += (p.min - val); } 
+            else if (val > p.max) { pStats.e++; pDesvCount++; let dif = val - p.max; pFuga += dif; pDesvAbs += dif; } 
+            else { pStats.c++; } 
+        } 
+    });
     
     let pTot = prevDatos.length; let pEf = pTot > 0 ? (pStats.c / pTot) * 100 : 0;
+    let pSev = pDesvCount > 0 ? (pDesvAbs / pDesvCount) : 0;
 
+    // renderizado responsivo del bloque de tendencias
     const render = (containerId, actual, prev, isPct, invertColors = false, isTop = false) => {
         const c = document.getElementById(containerId); if(!c) return;
-        if(pTot === 0) { c.innerHTML = `<span class="text-[10px] font-bold text-slate-400">Sin datos prev.</span>`; if(isTop) c.className = "text-[10px] font-bold hidden lg:inline-flex items-center ml-2 !mt-0"; return; }
+        if(pTot === 0) { c.innerHTML = `<span class="text-[9px] font-bold text-slate-400">Sin datos prev.</span>`; if(isTop) c.className = "text-[10px] font-bold hidden lg:inline-flex items-center ml-2 !mt-0"; return; }
         
         let diff = actual - prev;
         let prefix = diff > 0 ? '▲ +' : (diff < 0 ? '▼ ' : '■ ');
         let colorClass = 'text-slate-400';
+        
+        // Regla: invertColors = true -> Mayor es ROJO (Malo), Menor es VERDE (Bueno)
         if (diff !== 0) { colorClass = invertColors ? (diff > 0 ? 'text-red-500' : 'text-emerald-500') : (diff > 0 ? 'text-emerald-500' : 'text-red-500'); }
         
-        let valStr = isPct ? diff.toFixed(1) + '%' : diff.toFixed(0); // diff.toFixed(0) para cantidades
+        let valStr = isPct ? diff.toFixed(1) + '%' : diff.toFixed(0);
         let prevStr = isPct ? prev.toFixed(1) + '%' : prev.toLocaleString();
         
-        c.innerHTML = `<span class="trend-prev-value">Ant: ${prevStr} |</span><span class="text-[10px] font-bold ${colorClass}">${prefix}${valStr}</span>`;
+        // CSS Wrap aplicado aquí
+        c.innerHTML = `<div class="trend-wrap"><span class="trend-prev-value">Ant: ${prevStr} | </span><span class="text-[10px] font-bold ${colorClass}">${prefix}${valStr}</span></div>`;
         if(isTop) c.className = "text-[10px] font-bold hidden lg:inline-flex items-center ml-2 !mt-0";
     };
 
     render('trend-eficacia-container', efActual, pEf, true, false);
     render('trend-conformes-container', confActual, pStats.c, false, false);
-    render('trend-riesgo-container', riesActual, pStats.r, false, true);
-    render('trend-exceso-container', excActual, pStats.e, false, true);
+    render('trend-riesgo-container', riesActual, pStats.r, false, true); // Errores = malo si sube
+    render('trend-exceso-container', excActual, pStats.e, false, true); // Errores = malo si sube
+    render('trend-fuga-container', fugaActual, pFuga, false, true); // Costo Fuga = malo si sube
+    render('trend-severidad-container', sevActual, pSev, true, true); // Gravedad de desvío = malo si sube
     render('trend-total-top', totActual, pTot, false, false, true); 
 }
 
@@ -363,7 +386,64 @@ function abrirModalDrilldown(solucion) { document.getElementById('modal-drilldow
 function cerrarModalDrilldown() { document.getElementById('modal-drilldown').classList.add('hidden'); }
 function abrirModalDetalle(tipo) { const modal = document.getElementById('modal-detalle'); const tbody = document.getElementById('modal-tbody'); if(!modal || !tbody) return; tbody.innerHTML = ''; const datos = obtenerDatosFiltrados(); let rsl = []; if(tipo === 'conformes') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)>=p.min && parseConcen(f.concen)<=p.max;}); if(tipo === 'riesgo') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)<p.min;}); if(tipo === 'exceso') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)>p.max;}); document.getElementById('modal-titulo').innerText = tipo === 'conformes' ? "Auditoría: Muestras Conformes (Óptimas)" : (tipo === 'riesgo' ? "Auditoría: Desvíos por Riesgo (< Mínimo)" : "Auditoría: Desvíos por Sobredosificación (> Máximo)"); if(rsl.length===0) { tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-500 font-bold bg-slate-50">Sin registros en este filtro.</td></tr>`; } else { rsl.slice(0, 100).forEach(r => { let badgeColor = tipo === 'conformes' ? 'text-emerald-600 bg-emerald-50' : (tipo === 'riesgo' ? 'text-red-600 bg-red-50' : 'text-amber-600 bg-amber-50'); tbody.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-100"><td class="py-3 px-6">${r.fecha} ${r.hora?r.hora.substring(0,5):''}</td><td class="py-3 px-6 font-bold text-slate-800">${r.equipo}</td><td class="py-3 px-6 text-slate-600">${r.solucion}</td><td class="py-3 px-6 text-center font-black ${badgeColor}">${r.concen}</td><td class="py-3 px-6 text-[10px] text-slate-500">${r.operario || r.laboratorista}</td></tr>`; }); } modal.classList.remove('hidden'); }
 function cerrarModalDetalle() { document.getElementById('modal-detalle').classList.add('hidden'); }
-async function dispararAnalisisIA() { const tbody = document.getElementById('ai-action-plan-tbody'); if(desviosUltimoFiltro.length === 0) return; if(!obtenerApiKeySegura()) { tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-slate-500 font-bold bg-slate-50 rounded-lg">Falta API Key.</td></tr>`; return; } tbody.innerHTML = `<tr><td colspan="3" class="py-10 text-center text-blue-600 font-bold animate-pulse bg-blue-50/50 rounded-lg"><i class="fa-solid fa-microchip mr-2"></i>Evaluando matemáticas con 3.5 Flash-Lite...</td></tr>`; let excesos = desviosUltimoFiltro.filter(d => d.tipo.includes('Exceso')); let totalExcesos = excesos.length; let statsFugas = {}; let opsStats = {}; excesos.forEach(e => { if(!statsFugas[e.solucion]) statsFugas[e.solucion] = { conteo: 0, volumenPerdido: 0 }; statsFugas[e.solucion].conteo++; statsFugas[e.solucion].volumenPerdido += e.excesoAbs; let op = e.operario || e.laboratorista || 'Desconocido'; opsStats[op] = (opsStats[op] || 0) + 1; }); let desgloseTexto = `TOTAL EVENTOS: ${totalExcesos}\n`; Object.keys(statsFugas).forEach(sol => { desgloseTexto += `- Químico ${sol}: ${((statsFugas[sol].conteo / totalExcesos) * 100).toFixed(1)}% de eventos. Fuga: ${statsFugas[sol].volumenPerdido.toFixed(2)}.\n`; }); const prompt = `Eres Analista de Datos en Lácteos San Antonio. Analiza ESTOS DATOS DUROS:\n\n${desgloseTexto}\nOperadores implicados: ${Object.keys(opsStats).map(op => `${op} (${opsStats[op]} eventos)`).join(', ')}\n\nREGLAS ESTRICTAS:\n1. Usa porcentajes provistos.\n2. Explica qué químico representa mayor desperdicio.\n3. PROHIBIDO recomendaciones mecánicas.\n4. Devuelve JSON estricto: [{"desvio": "Hallazgo principal", "analisis_datos": "Análisis", "responsable": "Nombre"}]. Sin markdown.`; try { const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${obtenerApiKeySegura()}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) }); if (!res.ok) throw new Error(await res.text()); const jsonRes = await res.json(); let plan = JSON.parse((jsonRes.candidates?.[0]?.content?.parts?.[0]?.text || '').replace(/```json|```/gi, '').trim()); tbody.innerHTML = ''; plan.forEach(item => { tbody.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-100"><td class="py-4 px-3 align-top text-amber-600 font-bold text-[11px]">${item.desvio}</td><td class="py-4 px-3 align-top text-slate-600 text-[11px]">${item.analisis_datos}</td><td class="py-4 px-3 align-top text-slate-500 font-mono text-[10px]">${item.responsable}</td></tr>`; }); } catch(err) { tbody.innerHTML = `<tr><td colspan="3" class="py-6 px-6 text-center text-red-500 font-bold text-[11px] bg-red-50 rounded-lg">Fallo IA: ${err.message}.</td></tr>`; } }
+
+// NUEVA FUNCIÓN: Modal de Impacto Interactivo
+function abrirModalImpacto() {
+    const modal = document.getElementById('modal-impacto'); const tbody = document.getElementById('modal-impacto-tbody');
+    if(!modal || !tbody) return; tbody.innerHTML = '';
+    
+    if(desviosUltimoFiltro.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="py-8 text-center text-slate-500 font-bold bg-slate-50">No hay desvíos registrados en este periodo para analizar costos.</td></tr>`;
+        modal.classList.remove('hidden'); return;
+    }
+
+    let agrupado = {};
+    desviosUltimoFiltro.forEach(d => {
+        if(!agrupado[d.solucion]) { agrupado[d.solucion] = { conteo: 0, fuga: 0, severidadSum: 0 }; }
+        agrupado[d.solucion].conteo++;
+        agrupado[d.solucion].fuga += d.excesoAbs; 
+        agrupado[d.solucion].severidadSum += d.dif; 
+    });
+
+    let ranking = Object.keys(agrupado).map(k => ({ sol: k, c: agrupado[k].conteo, f: agrupado[k].fuga, s: agrupado[k].severidadSum / agrupado[k].conteo })).sort((a,b) => b.f - a.f);
+
+    ranking.forEach(item => {
+        tbody.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-100">
+            <td class="py-4 px-4 font-bold text-slate-700">${item.sol}</td>
+            <td class="py-4 px-4 text-center text-slate-500 font-bold">${item.c} <span class="text-[9px] font-normal text-slate-400 block">eventos</span></td>
+            <td class="py-4 px-4 text-center font-black text-amber-600 ${item.f > 0 ? 'bg-amber-50/50' : ''}">${item.f > 0 ? '$ ' + item.f.toFixed(2) : '-'}</td>
+            <td class="py-4 px-4 text-center font-bold text-red-500">${item.s.toFixed(2)}%</td>
+        </tr>`;
+    });
+    modal.classList.remove('hidden');
+}
+function cerrarModalImpacto() { document.getElementById('modal-impacto').classList.add('hidden'); }
+
+async function dispararAnalisisIA() { 
+    const tbody = document.getElementById('ai-action-plan-tbody'); 
+    if(desviosUltimoFiltro.length === 0) return; 
+    if(!obtenerApiKeySegura()) { tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-slate-500 font-bold bg-slate-50 rounded-lg">Falta API Key.</td></tr>`; return; } 
+    tbody.innerHTML = `<tr><td colspan="3" class="py-10 text-center text-blue-600 font-bold animate-pulse bg-blue-50/50 rounded-lg"><i class="fa-solid fa-microchip mr-2"></i>Evaluando matemáticas operativas con 3.5 Flash-Lite...</td></tr>`; 
+    
+    let excesos = desviosUltimoFiltro.filter(d => d.tipo.includes('Exceso')); 
+    let totalExcesos = excesos.length; let statsFugas = {}; let opsStats = {}; 
+    excesos.forEach(e => { if(!statsFugas[e.solucion]) statsFugas[e.solucion] = { conteo: 0, volumenPerdido: 0 }; statsFugas[e.solucion].conteo++; statsFugas[e.solucion].volumenPerdido += e.excesoAbs; let op = e.operario || e.laboratorista || 'Desconocido'; opsStats[op] = (opsStats[op] || 0) + 1; }); 
+    
+    let desgloseTexto = `TOTAL EVENTOS EXCESO: ${totalExcesos}\n`; 
+    Object.keys(statsFugas).forEach(sol => { desgloseTexto += `- Químico ${sol}: ${((statsFugas[sol].conteo / totalExcesos) * 100).toFixed(1)}% de eventos. Costo de Fuga acumulada: ${statsFugas[sol].volumenPerdido.toFixed(2)}.\n`; }); 
+    
+    const prompt = `Eres Analista de Datos Ejecutivo en Lácteos San Antonio. Analiza ESTOS DATOS DUROS referidos a mermas químicas:\n\n${desgloseTexto}\nOperadores implicados: ${Object.keys(opsStats).map(op => `${op} (${opsStats[op]} eventos)`).join(', ')}\n\nREGLAS ESTRICTAS:\n1. Explica qué químico representa la mayor fuga/costo desperdiciado de inventario.\n2. Incluye siempre una "Alerta de Impacto en Costos" clara en el análisis.\n3. PROHIBIDO recomendaciones mecánicas o teóricas de mantenimiento general.\n4. Devuelve el resultado en JSON estricto: [{"desvio": "Hallazgo principal", "analisis_datos": "Análisis con Alerta de Costos", "responsable": "Nombre"}]. Sin markdown.`; 
+    
+    try { 
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${obtenerApiKeySegura()}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) }); 
+        if (!res.ok) throw new Error(await res.text()); 
+        const jsonRes = await res.json(); 
+        let plan = JSON.parse((jsonRes.candidates?.[0]?.content?.parts?.[0]?.text || '').replace(/```json|```/gi, '').trim()); 
+        tbody.innerHTML = ''; 
+        plan.forEach(item => { tbody.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-100"><td class="py-4 px-3 align-top text-amber-600 font-bold text-[11px]">${item.desvio}</td><td class="py-4 px-3 align-top text-slate-600 text-[11px] leading-relaxed">${item.analisis_datos}</td><td class="py-4 px-3 align-top text-slate-500 font-mono text-[10px]">${item.responsable}</td></tr>`; }); 
+    } catch(err) { tbody.innerHTML = `<tr><td colspan="3" class="py-6 px-6 text-center text-red-500 font-bold text-[11px] bg-red-50 rounded-lg">Fallo IA: ${err.message}.</td></tr>`; } 
+}
+
 function obtenerApiKeySegura() { return localStorage.getItem('poes_gemini_key') || ''; }
 function actualizarBadgeIA() { const b = document.getElementById('badge-ia-status'); if(!b) return; if(obtenerApiKeySegura()) { b.innerHTML = `<i class="fa-solid fa-check text-green-500 mr-1"></i> IA Lista`; b.className = "text-[10px] font-bold px-2 py-1 rounded bg-green-50 text-green-700 border border-green-200 shadow-sm"; } else { b.innerHTML = `<i class="fa-solid fa-lock mr-1"></i> Falta API Key`; b.className = "text-[10px] font-bold px-2 py-1 rounded bg-slate-100 text-slate-400 border border-slate-200 shadow-sm"; } }
 function abrirConfigIA() { document.getElementById('input-api-key').value = obtenerApiKeySegura(); document.getElementById('modal-config-ia').classList.remove('hidden'); }
