@@ -43,8 +43,9 @@
         .anim-risk-active { animation: pulse-risk 2s infinite; }
         .anim-warn-active { animation: pulse-warn 2s infinite; }
         
-        /* Estilos para el texto secundario (valor anterior) */
-        .trend-prev-value { color: #94a3b8; font-weight: 500; font-size: 9px; margin-right: 4px; display: inline-block;}
+        /* Ajuste Responsivo para las Tendencias */
+        .trend-wrap { display: flex; flex-wrap: wrap; align-items: baseline; line-height: 1.2; gap: 2px; }
+        .trend-prev-value { color: #94a3b8; font-weight: 500; font-size: 9px; white-space: nowrap; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col antialiased selection:bg-blue-500 selection:text-white">
@@ -180,38 +181,40 @@
                     <div class="h-12 mt-2 -mx-2"><canvas id="sparkExceso"></canvas></div>
                 </div>
 
-                <!-- TARJETA 5: DUAL (Desperdicio + Severidad) -->
-                <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between relative overflow-hidden group">
+                <!-- TARJETA 5: DUAL INTERACTIVA (Fuga + Severidad) -->
+                <div id="card-impacto" onclick="abrirModalImpacto()" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between cursor-pointer hover:border-amber-400 hover:shadow-md transition-all relative overflow-hidden group">
                     <div class="w-full">
                         <div class="flex justify-between items-start mb-2 border-b border-slate-100 pb-1">
                             <p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Impacto de Desvíos</p>
+                            <i class="fa-solid fa-up-right-and-down-left-from-center text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity"></i>
                         </div>
-                        <div class="flex justify-between items-center">
-                            <div class="w-1/2 flex flex-col">
+                        <div class="flex justify-between items-start">
+                            <div class="w-[48%] flex flex-col">
                                 <div class="flex items-center gap-1 mb-0.5">
-                                    <i class="fa-solid fa-hand-holding-dollar text-[10px] text-amber-400" title="Costo/Volumen Desperdiciado"></i>
-                                    <p class="text-[9px] text-amber-500 font-bold uppercase leading-none" title="Sumatoria de químicos desperdiciados">Fuga (Σ%)</p>
+                                    <i class="fa-solid fa-hand-holding-dollar text-[10px] text-amber-400" title="Costo Operativo / Pérdida en Insumos"></i>
+                                    <p class="text-[9px] text-amber-500 font-bold uppercase leading-none" title="Sumatoria de sobredosificaciones">Fuga (Σ%)</p>
                                 </div>
                                 <div class="flex items-baseline gap-0.5">
-                                    <span class="text-lg font-bold text-amber-500/50">$</span>
-                                    <h3 id="kpi-fuga" class="text-2xl font-black text-amber-600 leading-tight">0.0</h3>
+                                    <span class="text-[14px] font-bold text-amber-500/60">$</span>
+                                    <h3 id="kpi-fuga" class="text-xl sm:text-2xl font-black text-amber-600 leading-tight">0.0</h3>
                                 </div>
+                                <div id="trend-fuga-container" class="mt-1"></div>
                             </div>
-                            <div class="h-8 w-px bg-slate-200 mx-2"></div>
-                            <div class="w-1/2 flex flex-col items-end">
+                            <div class="h-10 w-px bg-slate-200 mx-1"></div>
+                            <div class="w-[48%] flex flex-col items-end text-right">
                                 <div class="flex items-center gap-1 mb-0.5">
-                                    <p class="text-[9px] text-red-500 font-bold uppercase leading-none" title="Severidad promedio del desfase">Severidad</p>
-                                    <i class="fa-solid fa-gauge-high text-[10px] text-red-400" title="Desfase Promedio vs Límite"></i>
+                                    <p class="text-[9px] text-red-500 font-bold uppercase leading-none" title="Desviación Promedio del Límite">Severidad</p>
+                                    <i class="fa-solid fa-gauge-high text-[10px] text-red-400"></i>
                                 </div>
-                                <h3 id="kpi-severidad" class="text-2xl font-black text-red-600 leading-tight">0.0%</h3>
+                                <h3 id="kpi-severidad" class="text-xl sm:text-2xl font-black text-red-600 leading-tight">0.0%</h3>
+                                <div id="trend-severidad-container" class="mt-1"></div>
                             </div>
                         </div>
                     </div>
-                    <div class="h-10 mt-1 -mx-2"><canvas id="sparkImpacto"></canvas></div>
+                    <div class="h-8 mt-2 -mx-2"><canvas id="sparkImpacto"></canvas></div>
                 </div>
             </div>
 
-            <!-- RESTO DEL DASHBOARD (Fila 1, 2, 3...) -->
             <!-- Fila 1 -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div class="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
@@ -286,7 +289,7 @@
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 pb-3 border-b border-slate-100 gap-3">
                     <div>
                         <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-robot text-corporate-blue mr-2"></i> MOTOR DE AUDITORÍA CON IA (GEMINI 3.5 FLASH-LITE)</h2>
-                        <p class="text-[11px] text-slate-500 mt-0.5">Análisis gerencial generado sobre matemáticas duras pre-calculadas por el sistema.</p>
+                        <p class="text-[11px] text-slate-500 mt-0.5">Análisis de rendimiento y mermas (Costos) sobre matemáticas duras.</p>
                     </div>
                     <div class="flex items-center space-x-3">
                         <span id="badge-ia-status" class="text-[10px] font-bold px-2 py-1 rounded bg-slate-100 text-slate-400 border border-slate-200">IA Inactiva</span>
@@ -298,10 +301,10 @@
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse min-w-[800px]">
                         <thead>
-                            <tr class="text-[10px] uppercase font-bold text-slate-400 border-b border-slate-100"><th class="py-2 px-2 w-1/4">Desvío Principal</th><th class="py-2 px-2">Análisis Estadístico Ejecutivo (Basado en Datos Reales)</th><th class="py-2 px-2 w-48">Responsables Implicados</th></tr>
+                            <tr class="text-[10px] uppercase font-bold text-slate-400 border-b border-slate-100"><th class="py-2 px-2 w-1/4">Desvío Principal</th><th class="py-2 px-2">Análisis Estadístico Ejecutivo & Alerta de Costos</th><th class="py-2 px-2 w-48">Responsables Implicados</th></tr>
                         </thead>
                         <tbody id="ai-action-plan-tbody" class="divide-y divide-slate-50 text-xs">
-                            <tr><td colspan="3" class="py-10 text-center text-slate-400 font-medium bg-slate-50/50 rounded-lg border border-slate-100">Selecciona filtros y ejecuta la auditoría para generar el diagnóstico técnico.</td></tr>
+                            <tr><td colspan="3" class="py-10 text-center text-slate-400 font-medium bg-slate-50/50 rounded-lg border border-slate-100">Selecciona filtros y ejecuta la auditoría para generar el diagnóstico.</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -309,7 +312,7 @@
         </main>
     </div>
 
-    <!-- MODALES INTACTOS -->
+    <!-- MODALES -->
     <div id="modal-expandido" class="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[70] hidden flex items-center justify-center p-4 lg:p-8"><div class="bg-white border border-slate-200 w-full h-full max-h-[95vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden"><div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 id="expandido-titulo" class="font-black text-corporate-blue text-lg flex items-center"></h3><button onclick="cerrarModalExpandido()" class="text-slate-400 hover:text-red-500 text-3xl font-bold px-2 py-1 leading-none transition-colors">&times;</button></div><div class="p-6 bg-white flex-grow relative w-full h-full overflow-auto flex flex-col"><canvas id="expandidoChart" class="hidden"></canvas><div id="expandidoDiv" class="hidden w-full h-full flex flex-col items-center justify-center"></div></div></div></div>
     
     <div id="modal-detalle" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4"><div class="bg-white border border-slate-200 w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"><div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 id="modal-titulo" class="font-bold text-slate-800 text-base">Auditoría de Registros</h3><button onclick="cerrarModalDetalle()" class="text-slate-400 hover:text-slate-700 text-lg font-bold px-2 py-1">&times;</button></div><div class="p-6 overflow-y-auto flex-grow bg-white"><table class="w-full text-left text-xs border-collapse"><thead><tr class="text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200"><th class="py-3 px-6">Fecha y Hora</th><th class="py-3 px-6">Equipo</th><th class="py-3 px-6">Solución</th><th class="py-3 px-6 text-center">Concentración</th><th class="py-3 px-6">Responsable</th></tr></thead><tbody id="modal-tbody" class="divide-y divide-slate-100 text-slate-700"></tbody></table></div><div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end"><button onclick="cerrarModalDetalle()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs py-2 px-5 rounded-lg transition">Cerrar</button></div></div></div>
@@ -319,6 +322,35 @@
     <div id="modal-turno" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[80] hidden flex items-center justify-center p-4"><div class="bg-white border border-slate-200 w-full max-w-6xl rounded-2xl shadow-2xl overflow-hidden flex flex-col"><div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50"><div><h3 id="turno-titulo" class="font-black text-orange-600 text-lg flex items-center"><i class="fa-solid fa-clipboard-user mr-2"></i> Radiografía Operativa</h3><p class="text-[11px] text-slate-500 mt-1">Desglose integral de químicos manipulados, operadores implicados y equipos intervenidos.</p></div><button onclick="cerrarModalTurno()" class="text-slate-400 hover:text-slate-700 text-2xl font-bold px-2 py-1">&times;</button></div><div class="p-6 bg-slate-50 grid grid-cols-1 lg:grid-cols-3 gap-6 border-b border-slate-100 overflow-y-auto max-h-[70vh]"><div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm"><h4 class="text-xs font-bold text-slate-500 text-center mb-4 uppercase tracking-wider">Químicos Intervenidos</h4><div class="h-[220px] relative"><canvas id="turnoQuimicosChart"></canvas></div></div><div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm"><h4 class="text-xs font-bold text-slate-500 text-center mb-4 uppercase tracking-wider">Volumen por Operador</h4><div class="h-[220px] relative"><canvas id="turnoOperadoresChart"></canvas></div></div><div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm"><h4 class="text-xs font-bold text-slate-500 text-center mb-4 uppercase tracking-wider">Equipos Auditados</h4><div class="h-[220px] relative"><canvas id="turnoEquiposChart"></canvas></div></div></div><div class="px-6 py-4 bg-white flex justify-end"><button onclick="cerrarModalTurno()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs py-2 px-6 rounded-lg transition shadow-sm">Cerrar Radiografía</button></div></div></div>
 
     <div id="modal-config-ia" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4"><div class="bg-white border border-slate-200 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4"><div class="flex justify-between items-center pb-3 border-b border-slate-100"><h3 class="font-bold text-slate-800 text-sm flex items-center"><i class="fa-solid fa-key text-blue-500 mr-2"></i> Clave API Gemini</h3><button onclick="cerrarConfigIA()" class="text-slate-400 hover:text-slate-700 text-lg font-bold px-2">&times;</button></div><p class="text-xs text-slate-500 leading-relaxed">Local storage seguro.</p><div><input type="password" id="input-api-key" placeholder="AIzaSy..." class="w-full bg-slate-50 text-slate-800 text-xs font-mono p-3 rounded-xl border border-slate-200 focus:outline-none focus:border-corporate-blue"></div><div class="flex justify-between items-center pt-3 border-t border-slate-100"><button onclick="limpiarApiKey()" class="text-red-500 hover:text-red-600 text-xs font-bold transition">Eliminar Clave</button><div class="space-x-2"><button onclick="cerrarConfigIA()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold py-2 px-4 rounded-xl transition">Cancelar</button><button onclick="guardarApiKey()" class="bg-corporate-blue hover:bg-blue-800 text-white text-xs font-bold py-2 px-4 rounded-xl transition shadow-sm">Guardar</button></div></div></div></div>
+
+    <!-- NUEVO MODAL: DESGLOSE DE IMPACTO (FUGA / SEVERIDAD) -->
+    <div id="modal-impacto" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white border border-slate-200 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <div>
+                    <h3 class="font-black text-amber-600 text-lg flex items-center"><i class="fa-solid fa-scale-unbalanced mr-2"></i> Desglose de Impacto Operativo</h3>
+                    <p class="text-[11px] text-slate-500 mt-0.5">Ranking de Pérdidas y Riesgo agrupado por Solución Química.</p>
+                </div>
+                <button onclick="cerrarModalImpacto()" class="text-slate-400 hover:text-slate-700 text-2xl font-bold px-2 py-1">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-grow bg-white">
+                <table class="w-full text-left text-xs border-collapse">
+                    <thead>
+                        <tr class="text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200">
+                            <th class="py-3 px-4">Solución Química</th>
+                            <th class="py-3 px-4 text-center">Muestras Desviadas</th>
+                            <th class="py-3 px-4 text-center text-amber-600"><i class="fa-solid fa-hand-holding-dollar mr-1"></i> Fuga Acumulada</th>
+                            <th class="py-3 px-4 text-center text-red-600"><i class="fa-solid fa-gauge-high mr-1"></i> Severidad Prom.</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modal-impacto-tbody" class="divide-y divide-slate-100 text-slate-700"></tbody>
+                </table>
+            </div>
+            <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+                <button onclick="cerrarModalImpacto()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs py-2 px-5 rounded-lg transition">Cerrar Análisis</button>
+            </div>
+        </div>
+    </div>
 
     <script src="js/app.js"></script>
 </body>
