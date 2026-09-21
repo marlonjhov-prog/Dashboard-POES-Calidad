@@ -181,9 +181,6 @@ function renderizarCore() {
     document.getElementById('kpi-severidad').innerText = severidadPromedio.toFixed(2) + '%';
     document.getElementById('kpi-total-top').innerText = total.toLocaleString();
 
-    let cardImpacto = document.getElementById('card-impacto');
-    if(cardImpacto) { cardImpacto.title = `Clic para desglosar.\nFuga Acumulada: Equivale a sumar toda la concentración excedente.\nSeveridad: El promedio de qué tan lejos estamos del límite técnico permitido.`; }
-
     calcularTendencias(eficacia, stats.conformes, stats.riesgo, stats.exceso, total, totalFuga, severidadPromedio);
 
     const iconRiesgo = document.getElementById('icon-riesgo'); const iconExceso = document.getElementById('icon-exceso');
@@ -297,8 +294,8 @@ function drawSparklines(datos) {
     renderSpark('sparkConformes', 'bar', dConf, 'rgba(16, 185, 129, 1)'); 
     renderSpark('sparkRiesgo', 'bar', dRies, 'rgba(239, 68, 68, 1)'); 
     renderSpark('sparkExceso', 'bar', dExc, 'rgba(245, 158, 11, 1)'); 
-    renderSpark('sparkFuga', 'line', dFuga, 'rgba(245, 158, 11, 1)', true); // Naranja Ámbar
-    renderSpark('sparkSeveridad', 'line', dImpacto, 'rgba(239, 68, 68, 1)', true); // Rojo Riesgo
+    renderSpark('sparkFuga', 'line', dFuga, 'rgba(245, 158, 11, 1)', true); 
+    renderSpark('sparkSeveridad', 'line', dImpacto, 'rgba(239, 68, 68, 1)', true); 
 }
 
 function drawHeatmapOperativo(datos, containerId = 'heatmap-container', isExpanded = false) {
@@ -397,13 +394,18 @@ function cerrarModalDrilldown() { document.getElementById('modal-drilldown').cla
 function abrirModalDetalle(tipo) { const modal = document.getElementById('modal-detalle'); const tbody = document.getElementById('modal-tbody'); if(!modal || !tbody) return; tbody.innerHTML = ''; const datos = obtenerDatosFiltrados(); let rsl = []; if(tipo === 'conformes') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)>=p.min && parseConcen(f.concen)<=p.max;}); if(tipo === 'riesgo') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)<p.min;}); if(tipo === 'exceso') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)>p.max;}); document.getElementById('modal-titulo').innerText = tipo === 'conformes' ? "Auditoría: Muestras Conformes (Óptimas)" : (tipo === 'riesgo' ? "Auditoría: Desvíos por Riesgo (< Mínimo)" : "Auditoría: Desvíos por Sobredosificación (> Máximo)"); if(rsl.length===0) { tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-500 font-bold bg-slate-50">Sin registros en este filtro.</td></tr>`; } else { rsl.slice(0, 100).forEach(r => { let badgeColor = tipo === 'conformes' ? 'text-emerald-600 bg-emerald-50' : (tipo === 'riesgo' ? 'text-red-600 bg-red-50' : 'text-amber-600 bg-amber-50'); tbody.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-100"><td class="py-3 px-6">${r.fecha} ${r.hora?r.hora.substring(0,5):''}</td><td class="py-3 px-6 font-bold text-slate-800">${r.equipo}</td><td class="py-3 px-6 text-slate-600">${r.solucion}</td><td class="py-3 px-6 text-center font-black ${badgeColor}">${r.concen}</td><td class="py-3 px-6 text-[10px] text-slate-500">${r.operario || r.laboratorista}</td></tr>`; }); } modal.classList.remove('hidden'); }
 function cerrarModalDetalle() { document.getElementById('modal-detalle').classList.add('hidden'); }
 
-function abrirModalImpacto() {
-    const modal = document.getElementById('modal-impacto'); const tbody = document.getElementById('modal-impacto-tbody');
-    if(!modal || !tbody) return; tbody.innerHTML = '';
+// NUEVA FUNCIÓN DINÁMICA: Independencia para Fuga vs Severidad
+function abrirModalImpacto(tipo = 'fuga') {
+    const modal = document.getElementById('modal-impacto'); 
+    const tbody = document.getElementById('modal-impacto-tbody');
+    const tituloModal = document.getElementById('modal-impacto-titulo');
+    const subtituloModal = document.getElementById('modal-impacto-subtitulo');
+    if(!modal || !tbody) return; 
+    tbody.innerHTML = '';
     
     if(desviosUltimoFiltro.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="py-8 text-center text-slate-500 font-bold bg-slate-50">No hay desvíos registrados en este periodo para analizar costos.</td></tr>`;
-        modal.classList.remove('hidden'); return;
+        tbody.innerHTML = `<tr><td colspan="4" class="py-8 text-center text-slate-500 font-bold bg-slate-50">No hay desvíos registrados en este periodo para analizar.</td></tr>`;
+        modal.classList.add('flex'); modal.classList.remove('hidden'); return;
     }
 
     let agrupado = {};
@@ -414,19 +416,46 @@ function abrirModalImpacto() {
         agrupado[d.solucion].severidadSum += d.dif; 
     });
 
-    let ranking = Object.keys(agrupado).map(k => ({ sol: k, c: agrupado[k].conteo, f: agrupado[k].fuga, s: agrupado[k].severidadSum / agrupado[k].conteo })).sort((a,b) => b.f - a.f);
+    let ranking = Object.keys(agrupado).map(k => ({ 
+        sol: k, 
+        c: agrupado[k].conteo, 
+        f: agrupado[k].fuga, 
+        s: agrupado[k].severidadSum / agrupado[k].conteo 
+    }));
+
+    // Configuración independiente según el KPI seleccionado
+    if (tipo === 'severidad') {
+        ranking.sort((a, b) => b.s - a.s); // Ordenar por mayor gravedad técnica
+        if(tituloModal) tituloModal.innerHTML = `<i class="fa-solid fa-gauge-high text-red-500 mr-2"></i> Desglose de Severidad Técnica`;
+        if(subtituloModal) subtituloModal.innerText = `Ranking de soluciones ordenado por el promedio de desviación de los límites técnicos.`;
+    } else {
+        ranking.sort((a, b) => b.f - a.f); // Ordenar por mayor costo/fuga
+        if(tituloModal) tituloModal.innerHTML = `<i class="fa-solid fa-hand-holding-dollar text-amber-600 mr-2"></i> Desglose de Fuga Financiera (Σ%)`;
+        if(subtituloModal) subtituloModal.innerText = `Ranking de pérdidas de insumos acumuladas agrupado por Solución Química.`;
+    }
 
     ranking.forEach(item => {
+        let highlightFuga = tipo === 'fuga' ? 'bg-amber-50/80 font-black' : '';
+        let highlightSev = tipo === 'severidad' ? 'bg-red-50/80 font-black' : '';
+        
         tbody.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-100">
             <td class="py-4 px-4 font-bold text-slate-700">${item.sol}</td>
             <td class="py-4 px-4 text-center text-slate-500 font-bold">${item.c} <span class="text-[9px] font-normal text-slate-400 block">eventos</span></td>
-            <td class="py-4 px-4 text-center font-black text-amber-600 ${item.f > 0 ? 'bg-amber-50/50' : ''}">${item.f > 0 ? '$ ' + item.f.toFixed(2) : '-'}</td>
-            <td class="py-4 px-4 text-center font-bold text-red-500">${item.s.toFixed(2)}%</td>
+            <td class="py-4 px-4 text-center font-bold text-amber-600 ${highlightFuga}">${item.f > 0 ? '$ ' + item.f.toFixed(2) : '-'}</td>
+            <td class="py-4 px-4 text-center font-bold text-red-500 ${highlightSev}">${item.s.toFixed(2)}%</td>
         </tr>`;
     });
+    modal.classList.add('flex');
     modal.classList.remove('hidden');
 }
-function cerrarModalImpacto() { document.getElementById('modal-impacto').classList.add('hidden'); }
+
+function cerrarModalImpacto() { 
+    const modal = document.getElementById('modal-impacto');
+    if(modal) {
+        modal.classList.remove('flex');
+        modal.classList.add('hidden');
+    }
+}
 
 async function dispararAnalisisIA() { 
     const tbody = document.getElementById('ai-action-plan-tbody'); 
