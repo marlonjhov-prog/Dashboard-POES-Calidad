@@ -102,7 +102,6 @@ async function cargarSupabase() {
 function initFiltrosInteligentes() {
     ['filtro-equipo', 'filtro-solucion'].forEach(id => { 
         const el = document.getElementById(id);
-        // SOLUCIÓN AL MENÚ DESAPARECIDO: Al asignar $order, forzamos a que el primer elemento insertado sea siempre el primero en mostrarse, sin importar el alfabeto.
         if(el) { tsInstances[id] = new TomSelect(el, { create: false, sortField: [{field: '$order'}] }); tsInstances[id].on('change', renderizarCore); }
     });
 }
@@ -156,20 +155,39 @@ function obtenerDatosFiltrados(inicio = fechaInicioGlobal, fin = fechaFinGlobal)
 function renderizarCore() {
     const datos = obtenerDatosFiltrados(); 
     let stats = { conformes: 0, riesgo: 0, exceso: 0, conformesList: [], desviosList: [] };
-    let totalFuga = 0; let totalDesvioAbsoluto = 0;
+    
+    // VARIABLES ESTRICTAMENTE SEPARADAS
+    let totalFuga = 0; // Exclusivo de Exceso (> Max)
+    let totalSeveridadAbs = 0; // Exclusivo de Riesgo (< Min)
 
     datos.forEach(r => {
         const p = PARAMETROS_TECNICOS.find(x => x.solucion === r.solucion);
         if (p) {
             const val = parseConcen(r.concen);
-            if (val < p.min) { stats.riesgo++; let dif = p.min - val; totalDesvioAbsoluto += dif; stats.desviosList.push({...r, tipo: 'Riesgo (<Min)', excesoAbs: 0, dif: dif}); } 
-            else if (val > p.max) { stats.exceso++; let dif = val - p.max; totalFuga += dif; totalDesvioAbsoluto += dif; stats.desviosList.push({...r, tipo: 'Exceso (>Max)', excesoAbs: dif, dif: dif}); } 
-            else { stats.conformes++; stats.conformesList.push({...r, tipo: 'Conforme'}); }
+            if (val < p.min) { 
+                stats.riesgo++; 
+                let dif = p.min - val; 
+                totalSeveridadAbs += dif; 
+                stats.desviosList.push({...r, dif: dif}); 
+            } 
+            else if (val > p.max) { 
+                stats.exceso++; 
+                let dif = val - p.max; 
+                totalFuga += dif; 
+                stats.desviosList.push({...r, dif: dif}); 
+            } 
+            else { 
+                stats.conformes++; 
+                stats.conformesList.push({...r}); 
+            }
         }
     });
 
-    let total = datos.length; let eficacia = total > 0 ? ((stats.conformes / total) * 100) : 0;
-    let totalDesviosCount = stats.riesgo + stats.exceso; let severidadPromedio = totalDesviosCount > 0 ? (totalDesvioAbsoluto / totalDesviosCount) : 0;
+    let total = datos.length; 
+    let eficacia = total > 0 ? ((stats.conformes / total) * 100) : 0;
+    
+    // Severidad ahora promedia ESTRICTAMENTE sobre los eventos de Riesgo
+    let severidadPromedio = stats.riesgo > 0 ? (totalSeveridadAbs / stats.riesgo) : 0;
 
     document.getElementById('kpi-eficacia').innerText = eficacia.toFixed(1) + '%'; 
     document.getElementById('kpi-conformes').innerText = stats.conformes.toLocaleString();
@@ -219,20 +237,20 @@ function calcularTendencias(efActual, confActual, riesActual, excActual, totActu
     
     let prevDatos = obtenerDatosFiltrados(formatoFecha(pInicio), formatoFecha(pFin));
     let pStats = { c: 0, r: 0, e: 0 };
-    let pFuga = 0; let pDesvAbs = 0; let pDesvCount = 0;
+    let pFuga = 0; let pSeveridadAbs = 0;
 
     prevDatos.forEach(r => { 
         const p = PARAMETROS_TECNICOS.find(x => x.solucion === r.solucion); 
         if (p) { 
             const val = parseConcen(r.concen); 
-            if (val < p.min) { pStats.r++; pDesvCount++; pDesvAbs += (p.min - val); } 
-            else if (val > p.max) { pStats.e++; pDesvCount++; let dif = val - p.max; pFuga += dif; pDesvAbs += dif; } 
+            if (val < p.min) { pStats.r++; pSeveridadAbs += (p.min - val); } 
+            else if (val > p.max) { pStats.e++; pFuga += (val - p.max); } 
             else { pStats.c++; } 
         } 
     });
     
     let pTot = prevDatos.length; let pEf = pTot > 0 ? (pStats.c / pTot) * 100 : 0;
-    let pSev = pDesvCount > 0 ? (pDesvAbs / pDesvCount) : 0;
+    let pSev = pStats.r > 0 ? (pSeveridadAbs / pStats.r) : 0;
 
     const render = (containerId, actual, prev, isPct, invertColors = false, isTop = false) => {
         const c = document.getElementById(containerId); if(!c) return;
@@ -263,17 +281,20 @@ function calcularTendencias(efActual, confActual, riesActual, excActual, totActu
 function drawSparklines(datos) {
     if(datos.length === 0) { ['sparkEficacia', 'sparkConformes', 'sparkRiesgo', 'sparkExceso', 'sparkFuga', 'sparkSeveridad'].forEach(id => { if(sparkInst[id]) sparkInst[id].destroy(); }); return; }
     let agrupaPorHora = [...new Set(datos.map(d => d.fecha))].length === 1; let grouped = {};
+    
     datos.forEach(r => {
         let key = agrupaPorHora ? (r.hora ? r.hora.substring(0,2) + 'h' : '00h') : (r.fecha ? r.fecha.substring(5) : 'N/A');
-        if(!grouped[key]) grouped[key] = { t: 0, c: 0, r: 0, e: 0, desviosCount: 0, desviosAbs: 0, fugaAbs: 0 };
+        if(!grouped[key]) grouped[key] = { t: 0, c: 0, r: 0, e: 0, severidadAbs: 0, fugaAbs: 0 };
         grouped[key].t++; let p = PARAMETROS_TECNICOS.find(x => x.solucion === r.solucion);
         if(p) { 
             let v = parseConcen(r.concen); 
             if(v < p.min) { 
-                grouped[key].r++; grouped[key].desviosCount++; grouped[key].desviosAbs += (p.min - v); 
+                grouped[key].r++; 
+                grouped[key].severidadAbs += (p.min - v); 
             } else if(v > p.max) { 
-                grouped[key].e++; grouped[key].desviosCount++; 
-                let dif = v - p.max; grouped[key].desviosAbs += dif; grouped[key].fugaAbs += dif; 
+                grouped[key].e++; 
+                let dif = v - p.max; 
+                grouped[key].fugaAbs += dif; 
             } else { grouped[key].c++; } 
         }
     });
@@ -281,7 +302,7 @@ function drawSparklines(datos) {
     let keys = Object.keys(grouped).sort(); if(keys.length > 30 && !agrupaPorHora) keys = keys.slice(-30);
     let dConf = keys.map(k => grouped[k].c); let dRies = keys.map(k => grouped[k].r); let dExc = keys.map(k => grouped[k].e); let dEfi = keys.map(k => (grouped[k].c / grouped[k].t) * 100);
     let dFuga = keys.map(k => grouped[k].fugaAbs);
-    let dImpacto = keys.map(k => grouped[k].desviosCount > 0 ? (grouped[k].desviosAbs / grouped[k].desviosCount) : 0);
+    let dImpacto = keys.map(k => grouped[k].r > 0 ? (grouped[k].severidadAbs / grouped[k].r) : 0);
 
     const baseOpts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: true, mode: 'index', intersect: false, displayColors: false, titleFont: {size: 9}, bodyFont: {size: 10, weight: 'bold'}, padding: 6, backgroundColor: 'rgba(30, 41, 59, 0.9)' } }, scales: { x: { display: false }, y: { display: false, min: 0 } } };
 
@@ -376,10 +397,19 @@ function drawEficaciaSoluciones(datos, canvasId = 'barSolucionesChart', isExpand
 
 function drawRadarFugas(desvios, canvasId = 'fugaQuimicaChart', isExpanded = false) {
     let targetInst = isExpanded ? expandedChartInst : fugaChartInst; if(targetInst) targetInst.destroy();
-    let excesos = desvios.filter(d => d.tipo.includes('Exceso'));
+    
+    // FILTRO MATEMÁTICO: Solo dibuja los que de verdad superaron el máximo.
+    let excesos = desvios.filter(d => { let p=PARAMETROS_TECNICOS.find(x=>x.solucion===d.solucion); return p && parseConcen(d.concen)>p.max; });
+    
     if(!isExpanded) { const msgObj = document.getElementById('fuga-empty-msg'); if(excesos.length === 0) { if(msgObj) msgObj.classList.remove('hidden'); return; } if(msgObj) msgObj.classList.add('hidden'); }
     if(isExpanded && excesos.length === 0) return;
-    let fugas = {}; excesos.forEach(e => { if(!fugas[e.solucion]) fugas[e.solucion] = 0; fugas[e.solucion] += e.excesoAbs; }); 
+    
+    let fugas = {}; excesos.forEach(e => { 
+        if(!fugas[e.solucion]) fugas[e.solucion] = 0; 
+        let p=PARAMETROS_TECNICOS.find(x=>x.solucion===e.solucion);
+        fugas[e.solucion] += (parseConcen(e.concen) - p.max); 
+    }); 
+    
     let newInst = new Chart(document.getElementById(canvasId).getContext('2d'), { 
         type: 'radar', data: { labels: Object.keys(fugas), datasets: [{ label: 'Índice de Fuga (Σ%)', data: Object.values(fugas), backgroundColor: 'rgba(245, 158, 11, 0.25)', borderColor: '#f59e0b', pointBackgroundColor: '#ffffff', pointBorderColor: '#f59e0b', pointBorderWidth: 2, pointRadius: isExpanded ? 6 : 4, borderWidth: isExpanded ? 3 : 2 }] }, 
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { titleFont: {size: isExpanded?14:12}, bodyFont: {size: isExpanded?14:12}, callbacks: { label: c => ` Volumen Desperdiciado: ${c.raw.toFixed(2)} Índice de Fuga (Σ%)` } } }, scales: { r: { angleLines: { color: '#e2e8f0' }, grid: { color: '#e2e8f0', circular: true }, pointLabels: { font: { size: isExpanded?12:9, weight: 'bold' }, color: '#475569' }, ticks: { display: false, beginAtZero: true } } } } 
@@ -397,7 +427,7 @@ function abrirModalDetalle(tipo) { const modal = document.getElementById('modal-
 function cerrarModalDetalle() { document.getElementById('modal-detalle').classList.add('hidden'); }
 
 // ==========================================
-// FIX CRÍTICO: FILTRO ESTRICTO SEGÚN TIPO (FUGA O SEVERIDAD)
+// FIX CRÍTICO MATEMÁTICO: SEPARACIÓN DE CÁLCULO
 // ==========================================
 function abrirModalImpacto(tipo = 'fuga') {
     const modal = document.getElementById('modal-impacto'); 
@@ -409,72 +439,85 @@ function abrirModalImpacto(tipo = 'fuga') {
     if(!modal || !tbody || !thead) return; 
     tbody.innerHTML = '';
     
-    // 1. FILTRADO ESTRICTO DE DATOS
+    // 1. FILTRO MATEMÁTICO ESTRICTO: Previene que cualquier química con error inverso se filtre.
     let datosAnalisis = [];
     if (tipo === 'fuga') {
-        // Para Fuga: Excluimos todos los "Riesgos" y dejamos SOLAMENTE los excesos que nos hacen perder dinero.
-        datosAnalisis = desviosUltimoFiltro.filter(d => d.tipo.includes('Exceso'));
-    } else {
-        // Para Severidad: Todo desvío (arriba o abajo) es un error técnico y se evalúa.
-        datosAnalisis = desviosUltimoFiltro;
+        datosAnalisis = desviosUltimoFiltro.filter(d => {
+            let p = PARAMETROS_TECNICOS.find(x => x.solucion === d.solucion);
+            return p && parseConcen(d.concen) > p.max; // SÓLO EXCESOS
+        });
+    } else if (tipo === 'severidad') {
+        datosAnalisis = desviosUltimoFiltro.filter(d => {
+            let p = PARAMETROS_TECNICOS.find(x => x.solucion === d.solucion);
+            return p && parseConcen(d.concen) < p.min; // SÓLO RIESGOS
+        });
     }
 
     if(datosAnalisis.length === 0) {
-        thead.innerHTML = `<tr><th class="py-3 px-4">Análisis de Costos y Severidad</th></tr>`;
+        thead.innerHTML = `<tr><th class="py-3 px-4">Análisis de Desvíos</th></tr>`;
         tbody.innerHTML = `<tr><td class="py-8 text-center text-slate-500 font-bold bg-slate-50">No hay eventos que apliquen a este criterio.</td></tr>`;
         modal.classList.add('flex'); modal.classList.remove('hidden'); return;
     }
 
-    // 2. AGRUPACIÓN DE LOS DATOS YA FILTRADOS
+    // 2. AGRUPACIÓN DINÁMICA: Solo procesa e inyecta los químicos que sobrevivieron el filtro matemático.
     let agrupado = {};
     datosAnalisis.forEach(d => {
-        if(!agrupado[d.solucion]) { agrupado[d.solucion] = { conteo: 0, fuga: 0, severidadSum: 0 }; }
+        if(!agrupado[d.solucion]) { agrupado[d.solucion] = { conteo: 0, valorAcumulado: 0 }; }
         agrupado[d.solucion].conteo++;
-        agrupado[d.solucion].fuga += d.excesoAbs; 
-        agrupado[d.solucion].severidadSum += d.dif; 
+        
+        let p = PARAMETROS_TECNICOS.find(x => x.solucion === d.solucion);
+        let val = parseConcen(d.concen);
+        
+        if (tipo === 'fuga') {
+            agrupado[d.solucion].valorAcumulado += (val - p.max);
+        } else if (tipo === 'severidad') {
+            agrupado[d.solucion].valorAcumulado += (p.min - val);
+        }
     });
 
     let ranking = Object.keys(agrupado).map(k => ({ 
         sol: k, 
         c: agrupado[k].conteo, 
-        f: agrupado[k].fuga, 
-        s: agrupado[k].severidadSum / agrupado[k].conteo 
+        val: agrupado[k].valorAcumulado
     }));
 
-    // 3. RECONSTRUCCIÓN DEL ENCABEZADO Y ORDENAMIENTO
+    // 3. ENCABEZADOS Y ORDENAMIENTO ESTRICTO
     if (tipo === 'severidad') {
-        ranking.sort((a, b) => b.s - a.s);
+        // Ordena por Severidad Promedio de mayor a menor
+        ranking.sort((a, b) => (b.val / b.c) - (a.val / a.c));
         if(tituloModal) tituloModal.innerHTML = `<i class="fa-solid fa-gauge-high text-red-500 mr-2"></i> Desglose de Severidad Técnica`;
-        if(subtituloModal) subtituloModal.innerText = `Ranking de soluciones ordenado por el promedio de desviación de los límites técnicos.`;
+        if(subtituloModal) subtituloModal.innerText = `Soluciones que incurrieron en Riesgo (< Mínimo), ordenadas por gravedad.`;
         
         thead.innerHTML = `
             <tr class="text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200">
-                <th class="py-3 px-4">Solución Química</th>
+                <th class="py-3 px-4">Solución Química (Riesgo)</th>
                 <th class="py-3 px-4 text-center">Muestras Desviadas</th>
                 <th class="py-3 px-4 text-center text-red-600"><i class="fa-solid fa-gauge-high mr-1"></i> Severidad Prom.</th>
             </tr>
         `;
     } else {
-        ranking.sort((a, b) => b.f - a.f);
+        // Ordena por Fuga de Dinero de mayor a menor
+        ranking.sort((a, b) => b.val - a.val);
         if(tituloModal) tituloModal.innerHTML = `<i class="fa-solid fa-hand-holding-dollar text-amber-600 mr-2"></i> Desglose de Fuga Financiera (Σ%)`;
-        if(subtituloModal) subtituloModal.innerText = `Ranking de pérdidas de insumos acumuladas agrupado por Solución Química. (Solo Excesos)`;
+        if(subtituloModal) subtituloModal.innerText = `Soluciones Sobredosificadas (> Máximo), agrupadas por la pérdida de químicos.`;
         
         thead.innerHTML = `
             <tr class="text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200">
-                <th class="py-3 px-4">Solución Química</th>
+                <th class="py-3 px-4">Solución Química (Sobredosis)</th>
                 <th class="py-3 px-4 text-center">Muestras Desviadas</th>
                 <th class="py-3 px-4 text-center text-amber-600"><i class="fa-solid fa-hand-holding-dollar mr-1"></i> Fuga Acumulada</th>
             </tr>
         `;
     }
 
-    // 4. DIBUJADO DE LAS FILAS
+    // 4. INSERCIÓN DE VALORES FINAL
     ranking.forEach(item => {
         let celdaDinamica = '';
         if (tipo === 'severidad') {
-            celdaDinamica = `<td class="py-4 px-4 text-center font-bold text-red-500 bg-red-50/80">${item.s.toFixed(2)}%</td>`;
+            let promedio = item.val / item.c;
+            celdaDinamica = `<td class="py-4 px-4 text-center font-bold text-red-500 bg-red-50/80">${promedio.toFixed(2)}%</td>`;
         } else {
-            celdaDinamica = `<td class="py-4 px-4 text-center font-black text-amber-600 bg-amber-50/80">${item.f > 0 ? '$ ' + item.f.toFixed(2) : '-'}</td>`;
+            celdaDinamica = `<td class="py-4 px-4 text-center font-black text-amber-600 bg-amber-50/80">$ ${item.val.toFixed(2)}</td>`;
         }
         
         tbody.innerHTML += `
@@ -500,9 +543,17 @@ async function dispararAnalisisIA() {
     if(!obtenerApiKeySegura()) { tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-slate-500 font-bold bg-slate-50 rounded-lg">Falta API Key.</td></tr>`; return; } 
     tbody.innerHTML = `<tr><td colspan="3" class="py-10 text-center text-blue-600 font-bold animate-pulse bg-blue-50/50 rounded-lg"><i class="fa-solid fa-microchip mr-2"></i>Evaluando matemáticas operativas con 3.5 Flash-Lite...</td></tr>`; 
     
-    let excesos = desviosUltimoFiltro.filter(d => d.tipo.includes('Exceso')); 
+    // IA también corregida para calcular matemáticamente los excesos
+    let excesos = desviosUltimoFiltro.filter(d => { let p=PARAMETROS_TECNICOS.find(x=>x.solucion===d.solucion); return p && parseConcen(d.concen)>p.max; });
+    
     let totalExcesos = excesos.length; let statsFugas = {}; let opsStats = {}; 
-    excesos.forEach(e => { if(!statsFugas[e.solucion]) statsFugas[e.solucion] = { conteo: 0, volumenPerdido: 0 }; statsFugas[e.solucion].conteo++; statsFugas[e.solucion].volumenPerdido += e.excesoAbs; let op = e.operario || e.laboratorista || 'Desconocido'; opsStats[op] = (opsStats[op] || 0) + 1; }); 
+    excesos.forEach(e => { 
+        if(!statsFugas[e.solucion]) statsFugas[e.solucion] = { conteo: 0, volumenPerdido: 0 }; 
+        statsFugas[e.solucion].conteo++; 
+        let p=PARAMETROS_TECNICOS.find(x=>x.solucion===e.solucion);
+        statsFugas[e.solucion].volumenPerdido += (parseConcen(e.concen) - p.max); 
+        let op = e.operario || e.laboratorista || 'Desconocido'; opsStats[op] = (opsStats[op] || 0) + 1; 
+    }); 
     
     let desgloseTexto = `TOTAL EVENTOS EXCESO: ${totalExcesos}\n`; 
     Object.keys(statsFugas).forEach(sol => { desgloseTexto += `- Químico ${sol}: ${((statsFugas[sol].conteo / totalExcesos) * 100).toFixed(1)}% de eventos. Costo de Fuga acumulada: ${statsFugas[sol].volumenPerdido.toFixed(2)}.\n`; }); 
