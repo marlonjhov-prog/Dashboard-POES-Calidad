@@ -31,7 +31,7 @@ let turnoQuimInst = null;
 let turnoOpInst = null;
 let turnoEqInst = null; 
 let expandedChartInst = null; 
-let sparkInst = { ef: null, co: null, ri: null, ex: null, impacto: null };
+let sparkInst = { ef: null, co: null, ri: null, ex: null, fuga: null, severidad: null };
 let heatmapCache = {}; 
 
 Chart.defaults.font.family = "'Inter', sans-serif";
@@ -181,7 +181,6 @@ function renderizarCore() {
     document.getElementById('kpi-severidad').innerText = severidadPromedio.toFixed(2) + '%';
     document.getElementById('kpi-total-top').innerText = total.toLocaleString();
 
-    // Actualización de Tooltip Dinámico en la Tarjeta de Impacto
     let cardImpacto = document.getElementById('card-impacto');
     if(cardImpacto) { cardImpacto.title = `Clic para desglosar.\nFuga Acumulada: Equivale a sumar toda la concentración excedente.\nSeveridad: El promedio de qué tan lejos estamos del límite técnico permitido.`; }
 
@@ -236,47 +235,53 @@ function calcularTendencias(efActual, confActual, riesActual, excActual, totActu
     let pTot = prevDatos.length; let pEf = pTot > 0 ? (pStats.c / pTot) * 100 : 0;
     let pSev = pDesvCount > 0 ? (pDesvAbs / pDesvCount) : 0;
 
-    // renderizado responsivo del bloque de tendencias
     const render = (containerId, actual, prev, isPct, invertColors = false, isTop = false) => {
         const c = document.getElementById(containerId); if(!c) return;
-        if(pTot === 0) { c.innerHTML = `<span class="text-[9px] font-bold text-slate-400">Sin datos prev.</span>`; if(isTop) c.className = "text-[10px] font-bold hidden lg:inline-flex items-center ml-2 !mt-0"; return; }
+        if(pTot === 0) { c.innerHTML = `<span class="text-[9px] font-bold text-slate-400">Sin prev.</span>`; if(isTop) c.className = "text-[10px] font-bold hidden lg:inline-flex items-center ml-2 !mt-0"; return; }
         
         let diff = actual - prev;
         let prefix = diff > 0 ? '▲ +' : (diff < 0 ? '▼ ' : '■ ');
         let colorClass = 'text-slate-400';
         
-        // Regla: invertColors = true -> Mayor es ROJO (Malo), Menor es VERDE (Bueno)
         if (diff !== 0) { colorClass = invertColors ? (diff > 0 ? 'text-red-500' : 'text-emerald-500') : (diff > 0 ? 'text-emerald-500' : 'text-red-500'); }
         
         let valStr = isPct ? diff.toFixed(1) + '%' : diff.toFixed(0);
         let prevStr = isPct ? prev.toFixed(1) + '%' : prev.toLocaleString();
         
-        // CSS Wrap aplicado aquí
         c.innerHTML = `<div class="trend-wrap"><span class="trend-prev-value">Ant: ${prevStr} | </span><span class="text-[10px] font-bold ${colorClass}">${prefix}${valStr}</span></div>`;
         if(isTop) c.className = "text-[10px] font-bold hidden lg:inline-flex items-center ml-2 !mt-0";
     };
 
     render('trend-eficacia-container', efActual, pEf, true, false);
     render('trend-conformes-container', confActual, pStats.c, false, false);
-    render('trend-riesgo-container', riesActual, pStats.r, false, true); // Errores = malo si sube
-    render('trend-exceso-container', excActual, pStats.e, false, true); // Errores = malo si sube
-    render('trend-fuga-container', fugaActual, pFuga, false, true); // Costo Fuga = malo si sube
-    render('trend-severidad-container', sevActual, pSev, true, true); // Gravedad de desvío = malo si sube
+    render('trend-riesgo-container', riesActual, pStats.r, false, true); 
+    render('trend-exceso-container', excActual, pStats.e, false, true); 
+    render('trend-fuga-container', fugaActual, pFuga, false, true); 
+    render('trend-severidad-container', sevActual, pSev, true, true); 
     render('trend-total-top', totActual, pTot, false, false, true); 
 }
 
 function drawSparklines(datos) {
-    if(datos.length === 0) { ['sparkEficacia', 'sparkConformes', 'sparkRiesgo', 'sparkExceso', 'sparkImpacto'].forEach(id => { if(sparkInst[id]) sparkInst[id].destroy(); }); return; }
+    if(datos.length === 0) { ['sparkEficacia', 'sparkConformes', 'sparkRiesgo', 'sparkExceso', 'sparkFuga', 'sparkSeveridad'].forEach(id => { if(sparkInst[id]) sparkInst[id].destroy(); }); return; }
     let agrupaPorHora = [...new Set(datos.map(d => d.fecha))].length === 1; let grouped = {};
     datos.forEach(r => {
         let key = agrupaPorHora ? (r.hora ? r.hora.substring(0,2) + 'h' : '00h') : (r.fecha ? r.fecha.substring(5) : 'N/A');
-        if(!grouped[key]) grouped[key] = { t: 0, c: 0, r: 0, e: 0, desviosCount: 0, desviosAbs: 0 };
+        if(!grouped[key]) grouped[key] = { t: 0, c: 0, r: 0, e: 0, desviosCount: 0, desviosAbs: 0, fugaAbs: 0 };
         grouped[key].t++; let p = PARAMETROS_TECNICOS.find(x => x.solucion === r.solucion);
-        if(p) { let v = parseConcen(r.concen); if(v < p.min) { grouped[key].r++; grouped[key].desviosCount++; grouped[key].desviosAbs += (p.min - v); } else if(v > p.max) { grouped[key].e++; grouped[key].desviosCount++; grouped[key].desviosAbs += (v - p.max); } else { grouped[key].c++; } }
+        if(p) { 
+            let v = parseConcen(r.concen); 
+            if(v < p.min) { 
+                grouped[key].r++; grouped[key].desviosCount++; grouped[key].desviosAbs += (p.min - v); 
+            } else if(v > p.max) { 
+                grouped[key].e++; grouped[key].desviosCount++; 
+                let dif = v - p.max; grouped[key].desviosAbs += dif; grouped[key].fugaAbs += dif; 
+            } else { grouped[key].c++; } 
+        }
     });
 
     let keys = Object.keys(grouped).sort(); if(keys.length > 30 && !agrupaPorHora) keys = keys.slice(-30);
     let dConf = keys.map(k => grouped[k].c); let dRies = keys.map(k => grouped[k].r); let dExc = keys.map(k => grouped[k].e); let dEfi = keys.map(k => (grouped[k].c / grouped[k].t) * 100);
+    let dFuga = keys.map(k => grouped[k].fugaAbs);
     let dImpacto = keys.map(k => grouped[k].desviosCount > 0 ? (grouped[k].desviosAbs / grouped[k].desviosCount) : 0);
 
     const baseOpts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: true, mode: 'index', intersect: false, displayColors: false, titleFont: {size: 9}, bodyFont: {size: 10, weight: 'bold'}, padding: 6, backgroundColor: 'rgba(30, 41, 59, 0.9)' } }, scales: { x: { display: false }, y: { display: false, min: 0 } } };
@@ -288,7 +293,12 @@ function drawSparklines(datos) {
         sparkInst[id] = new Chart(ctx, { type: type, data: { labels: keys, datasets: [ds] }, options: baseOpts });
     }
 
-    renderSpark('sparkEficacia', 'line', dEfi, 'rgba(59, 130, 246, 1)', true); renderSpark('sparkConformes', 'bar', dConf, 'rgba(16, 185, 129, 1)'); renderSpark('sparkRiesgo', 'bar', dRies, 'rgba(239, 68, 68, 1)'); renderSpark('sparkExceso', 'bar', dExc, 'rgba(245, 158, 11, 1)'); renderSpark('sparkImpacto', 'line', dImpacto, 'rgba(239, 68, 68, 1)', true); 
+    renderSpark('sparkEficacia', 'line', dEfi, 'rgba(59, 130, 246, 1)', true); 
+    renderSpark('sparkConformes', 'bar', dConf, 'rgba(16, 185, 129, 1)'); 
+    renderSpark('sparkRiesgo', 'bar', dRies, 'rgba(239, 68, 68, 1)'); 
+    renderSpark('sparkExceso', 'bar', dExc, 'rgba(245, 158, 11, 1)'); 
+    renderSpark('sparkFuga', 'line', dFuga, 'rgba(245, 158, 11, 1)', true); // Naranja Ámbar
+    renderSpark('sparkSeveridad', 'line', dImpacto, 'rgba(239, 68, 68, 1)', true); // Rojo Riesgo
 }
 
 function drawHeatmapOperativo(datos, containerId = 'heatmap-container', isExpanded = false) {
@@ -387,7 +397,6 @@ function cerrarModalDrilldown() { document.getElementById('modal-drilldown').cla
 function abrirModalDetalle(tipo) { const modal = document.getElementById('modal-detalle'); const tbody = document.getElementById('modal-tbody'); if(!modal || !tbody) return; tbody.innerHTML = ''; const datos = obtenerDatosFiltrados(); let rsl = []; if(tipo === 'conformes') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)>=p.min && parseConcen(f.concen)<=p.max;}); if(tipo === 'riesgo') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)<p.min;}); if(tipo === 'exceso') rsl = datos.filter(f=>{let p=PARAMETROS_TECNICOS.find(x=>x.solucion===f.solucion); return p && parseConcen(f.concen)>p.max;}); document.getElementById('modal-titulo').innerText = tipo === 'conformes' ? "Auditoría: Muestras Conformes (Óptimas)" : (tipo === 'riesgo' ? "Auditoría: Desvíos por Riesgo (< Mínimo)" : "Auditoría: Desvíos por Sobredosificación (> Máximo)"); if(rsl.length===0) { tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-500 font-bold bg-slate-50">Sin registros en este filtro.</td></tr>`; } else { rsl.slice(0, 100).forEach(r => { let badgeColor = tipo === 'conformes' ? 'text-emerald-600 bg-emerald-50' : (tipo === 'riesgo' ? 'text-red-600 bg-red-50' : 'text-amber-600 bg-amber-50'); tbody.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-100"><td class="py-3 px-6">${r.fecha} ${r.hora?r.hora.substring(0,5):''}</td><td class="py-3 px-6 font-bold text-slate-800">${r.equipo}</td><td class="py-3 px-6 text-slate-600">${r.solucion}</td><td class="py-3 px-6 text-center font-black ${badgeColor}">${r.concen}</td><td class="py-3 px-6 text-[10px] text-slate-500">${r.operario || r.laboratorista}</td></tr>`; }); } modal.classList.remove('hidden'); }
 function cerrarModalDetalle() { document.getElementById('modal-detalle').classList.add('hidden'); }
 
-// NUEVA FUNCIÓN: Modal de Impacto Interactivo
 function abrirModalImpacto() {
     const modal = document.getElementById('modal-impacto'); const tbody = document.getElementById('modal-impacto-tbody');
     if(!modal || !tbody) return; tbody.innerHTML = '';
