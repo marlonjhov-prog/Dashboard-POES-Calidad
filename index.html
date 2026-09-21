@@ -76,7 +76,6 @@
 
         <main class="p-6 space-y-6 flex-grow max-w-[1600px] w-full mx-auto">
             
-            <!-- CAPA SUPERIOR PARA FILTROS (z-40) PARA EVITAR SUPERPOSICIÓN DE ICONOS -->
             <section class="relative z-40 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col gap-4">
                 <div class="flex flex-wrap items-center gap-2 pb-4 border-b border-slate-100">
                     <span class="text-[11px] font-bold text-slate-500 uppercase mr-2"><i class="fa-regular fa-clock mr-1 text-slate-400"></i> Rango Temporal:</span>
@@ -115,7 +114,7 @@
                 </div>
             </section>
 
-            <!-- TARJETAS KPI PREMIUM (z-10) -->
+            <!-- TARJETAS KPI PREMIUM (Sin z-10 en iconos para evitar interferencia visual) -->
             <div class="relative z-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 
                 <!-- Eficacia Sanitaria -->
@@ -128,7 +127,7 @@
                             </div>
                             <div id="trend-eficacia-container" class="mt-1 h-4 flex items-center"></div>
                         </div>
-                        <div class="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 text-lg border border-blue-100 z-10"><i class="fa-solid fa-chart-line"></i></div>
+                        <div class="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 text-lg border border-blue-100 relative"><i class="fa-solid fa-chart-line"></i></div>
                     </div>
                     <div class="h-12 mt-2 -mx-2"><canvas id="sparkEficacia"></canvas></div>
                 </div>
@@ -144,7 +143,7 @@
                             </div>
                             <div id="trend-conformes-container" class="mt-1 h-4 flex items-center"></div>
                         </div>
-                        <div class="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 text-lg border border-emerald-200 z-10"><i class="fa-solid fa-circle-check"></i></div>
+                        <div class="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 text-lg border border-emerald-200 relative"><i class="fa-solid fa-circle-check"></i></div>
                     </div>
                     <div class="h-12 mt-2 -mx-2"><canvas id="sparkConformes"></canvas></div>
                 </div>
@@ -160,7 +159,7 @@
                             </div>
                             <div id="trend-riesgo-container" class="mt-1 h-4 flex items-center"></div>
                         </div>
-                        <div id="icon-riesgo" class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-red-600 text-lg border border-red-200 rounded-full z-10 transition-shadow"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                        <div id="icon-riesgo" class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-red-600 text-lg border border-red-200 relative transition-shadow"><i class="fa-solid fa-triangle-exclamation"></i></div>
                     </div>
                     <div class="h-12 mt-2 -mx-2"><canvas id="sparkRiesgo"></canvas></div>
                 </div>
@@ -176,14 +175,14 @@
                             </div>
                             <div id="trend-exceso-container" class="mt-1 h-4 flex items-center"></div>
                         </div>
-                        <div id="icon-exceso" class="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 text-lg border border-amber-200 rounded-full z-10 transition-shadow"><i class="fa-solid fa-flask"></i></div>
+                        <div id="icon-exceso" class="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 text-lg border border-amber-200 relative transition-shadow"><i class="fa-solid fa-flask"></i></div>
                     </div>
                     <div class="h-12 mt-2 -mx-2"><canvas id="sparkExceso"></canvas></div>
                 </div>
 
-                <!-- TARJETA 5: DUAL INTERACTIVA (Con Zonas Independientes) -->
+                <!-- TARJETA 5: DUAL INTERACTIVA -->
                 <div id="card-impacto" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between relative overflow-hidden">
-                    <div class="w-full h-full flex flex-col z-10">
+                    <div class="w-full h-full flex flex-col relative z-10">
                         <div class="flex justify-between items-start mb-2 border-b border-slate-100 pb-1">
                             <p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Impacto de Desvíos</p>
                             <i class="fa-solid fa-scale-unbalanced text-slate-300"></i>
@@ -334,7 +333,7 @@
 
     <div id="modal-config-ia" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[90] hidden flex items-center justify-center p-4"><div class="bg-white border border-slate-200 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4"><div class="flex justify-between items-center pb-3 border-b border-slate-100"><h3 class="font-bold text-slate-800 text-sm flex items-center"><i class="fa-solid fa-key text-blue-500 mr-2"></i> Clave API Gemini</h3><button onclick="cerrarConfigIA()" class="text-slate-400 hover:text-slate-700 text-lg font-bold px-2">&times;</button></div><p class="text-xs text-slate-500 leading-relaxed">Local storage seguro.</p><div><input type="password" id="input-api-key" placeholder="AIzaSy..." class="w-full bg-slate-50 text-slate-800 text-xs font-mono p-3 rounded-xl border border-slate-200 focus:outline-none focus:border-corporate-blue"></div><div class="flex justify-between items-center pt-3 border-t border-slate-100"><button onclick="limpiarApiKey()" class="text-red-500 hover:text-red-600 text-xs font-bold transition">Eliminar Clave</button><div class="space-x-2"><button onclick="cerrarConfigIA()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold py-2 px-4 rounded-xl transition">Cancelar</button><button onclick="guardarApiKey()" class="bg-corporate-blue hover:bg-blue-800 text-white text-xs font-bold py-2 px-4 rounded-xl transition shadow-sm">Guardar</button></div></div></div></div>
 
-    <!-- MODAL DINÁMICO DE IMPACTO (ESTRUCTURA DE COLUMNAS DINÁMICA) -->
+    <!-- MODAL DINÁMICO DE IMPACTO (FILTRO DE DATOS CORREGIDO) -->
     <div id="modal-impacto" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[80] hidden flex items-center justify-center p-4">
         <div class="bg-white border border-slate-200 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
@@ -346,7 +345,6 @@
             </div>
             <div class="p-6 overflow-y-auto flex-grow bg-white">
                 <table class="w-full text-left text-xs border-collapse">
-                    <!-- Se construye dinámicamente desde JS -->
                     <thead id="modal-impacto-thead"></thead>
                     <tbody id="modal-impacto-tbody" class="divide-y divide-slate-100 text-slate-700"></tbody>
                 </table>
