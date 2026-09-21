@@ -156,9 +156,8 @@ function renderizarCore() {
     const datos = obtenerDatosFiltrados(); 
     let stats = { conformes: 0, riesgo: 0, exceso: 0, conformesList: [], desviosList: [] };
     
-    // VARIABLES ESTRICTAMENTE SEPARADAS
-    let totalFuga = 0; // Exclusivo de Exceso (> Max)
-    let totalSeveridadAbs = 0; // Exclusivo de Riesgo (< Min)
+    let totalFuga = 0; 
+    let totalSeveridadAbs = 0; 
 
     datos.forEach(r => {
         const p = PARAMETROS_TECNICOS.find(x => x.solucion === r.solucion);
@@ -185,8 +184,6 @@ function renderizarCore() {
 
     let total = datos.length; 
     let eficacia = total > 0 ? ((stats.conformes / total) * 100) : 0;
-    
-    // Severidad ahora promedia ESTRICTAMENTE sobre los eventos de Riesgo
     let severidadPromedio = stats.riesgo > 0 ? (totalSeveridadAbs / stats.riesgo) : 0;
 
     document.getElementById('kpi-eficacia').innerText = eficacia.toFixed(1) + '%'; 
@@ -383,14 +380,63 @@ function drawMagicQuadrant(datos, canvasId = 'quadrantChart', isExpanded = false
     if(isExpanded) expandedChartInst = newInst; else quadrantInst = newInst;
 }
 
+// ==========================================
+// CONFORMIDAD TÉCNICA CON VALORES PERMANENTES
+// ==========================================
 function drawEficaciaSoluciones(datos, canvasId = 'barSolucionesChart', isExpanded = false) {
     let targetInst = isExpanded ? expandedChartInst : barSolucionesInst; if(targetInst) targetInst.destroy();
     let d = {}; datos.forEach(r => { let p = PARAMETROS_TECNICOS.find(x=>x.solucion===r.solucion); if(p) { if(!d[r.solucion]) d[r.solucion] = { t:0, c:0 }; d[r.solucion].t++; let v = parseConcen(r.concen); if(v>=p.min && v<=p.max) d[r.solucion].c++; } });
     let res = Object.keys(d).map(k => ({ n: k, p: Number(((d[k].c / d[k].t) * 100).toFixed(1)), t: d[k].t })).sort((a,b)=>b.t - a.t); if(res.length === 0) return; 
     let barColors = res.map(x => x.p >= 90 ? '#10b981' : (x.p >= 70 ? '#f59e0b' : '#ef4444'));
+    
     let newInst = new Chart(document.getElementById(canvasId).getContext('2d'), { 
-        type: 'bar', data: { labels: res.map(x => `${x.n} (${x.p}%)`), datasets: [{ data: res.map(x => x.p), backgroundColor: barColors, borderRadius: 4, barThickness: isExpanded ? 24 : 14 }] }, 
-        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { titleFont: {size: isExpanded?14:12}, bodyFont: {size: isExpanded?14:12}, callbacks: { label: c => ` Clic para aislar y ver diagrama de dispersión.` } } }, scales: { x: { max: 100, grid: { color: '#f1f5f9' }, ticks: { font: {size: isExpanded?12:10} } }, y: { grid: { display: false }, ticks: { color: '#475569', font: {size: isExpanded?12:9, weight: 'bold'} } } }, onHover: (e, elements) => { e.native.target.style.cursor = elements.length ? 'pointer' : 'default'; }, onClick: (e, elements) => { if (elements.length > 0) abrirModalDrilldown(res[elements[0].index].n); } } 
+        type: 'bar', 
+        data: { 
+            labels: res.map(x => x.n), // Nombres limpios en el eje Y
+            datasets: [{ 
+                data: res.map(x => x.p), 
+                backgroundColor: barColors, 
+                borderRadius: 4, 
+                barThickness: isExpanded ? 24 : 14 
+            }] 
+        }, 
+        options: { 
+            indexAxis: 'y', 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            plugins: { 
+                legend: { display: false }, 
+                tooltip: { 
+                    titleFont: {size: isExpanded?14:12}, 
+                    bodyFont: {size: isExpanded?14:12}, 
+                    callbacks: { label: c => ` Eficacia: ${c.raw}% | Clic para aislar y ver diagrama de dispersión.` } 
+                } 
+            }, 
+            scales: { 
+                x: { max: 100, grid: { color: '#f1f5f9' }, ticks: { font: {size: isExpanded?12:10}, callback: v => v + '%' } }, 
+                y: { grid: { display: false }, ticks: { color: '#475569', font: {size: isExpanded?12:9, weight: 'bold'} } } 
+            },
+            onHover: (e, elements) => { e.native.target.style.cursor = elements.length ? 'pointer' : 'default'; }, 
+            onClick: (e, elements) => { if (elements.length > 0) abrirModalDrilldown(res[elements[0].index].n); }
+        },
+        plugins: [{
+            id: 'barValuesEficacia',
+            afterDatasetsDraw(chart) {
+                const {ctx} = chart;
+                chart.data.datasets.forEach((dataset, i) => {
+                    chart.getDatasetMeta(i).data.forEach((bar, index) => {
+                        let value = dataset.data[index] + '%';
+                        ctx.save();
+                        ctx.font = 'bold 10px Inter';
+                        ctx.fillStyle = '#475569';
+                        ctx.textAlign = 'left';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(value, bar.x + 6, bar.y);
+                        ctx.restore();
+                    });
+                });
+            }
+        }]
     });
     if(isExpanded) expandedChartInst = newInst; else barSolucionesInst = newInst;
 }
@@ -398,7 +444,6 @@ function drawEficaciaSoluciones(datos, canvasId = 'barSolucionesChart', isExpand
 function drawRadarFugas(desvios, canvasId = 'fugaQuimicaChart', isExpanded = false) {
     let targetInst = isExpanded ? expandedChartInst : fugaChartInst; if(targetInst) targetInst.destroy();
     
-    // FILTRO MATEMÁTICO: Solo dibuja los que de verdad superaron el máximo.
     let excesos = desvios.filter(d => { let p=PARAMETROS_TECNICOS.find(x=>x.solucion===d.solucion); return p && parseConcen(d.concen)>p.max; });
     
     if(!isExpanded) { const msgObj = document.getElementById('fuga-empty-msg'); if(excesos.length === 0) { if(msgObj) msgObj.classList.remove('hidden'); return; } if(msgObj) msgObj.classList.add('hidden'); }
@@ -419,7 +464,179 @@ function drawRadarFugas(desvios, canvasId = 'fugaQuimicaChart', isExpanded = fal
 
 function expandirGrafico(tipo, titulo) { document.getElementById('expandido-titulo').innerHTML = `<i class="fa-solid fa-expand text-blue-500 mr-2"></i> Vista Detallada: ${titulo}`; document.getElementById('modal-expandido').classList.remove('hidden'); const canvas = document.getElementById('expandidoChart'); const div = document.getElementById('expandidoDiv'); canvas.classList.add('hidden'); div.classList.add('hidden'); const datos = obtenerDatosFiltrados(); if(tipo === 'heatmap') { div.classList.remove('hidden'); drawHeatmapOperativo(datos, 'expandidoDiv', true); } else { canvas.classList.remove('hidden'); if(tipo === 'cuadrante') drawMagicQuadrant(datos, 'expandidoChart', true); if(tipo === 'historico') drawTendenciaHistorica(datos, 'expandidoChart', true); if(tipo === 'barras') drawEficaciaSoluciones(datos, 'expandidoChart', true); if(tipo === 'radar') drawRadarFugas(desviosUltimoFiltro, 'expandidoChart', true); } }
 function cerrarModalExpandido() { document.getElementById('modal-expandido').classList.add('hidden'); if(expandedChartInst) { expandedChartInst.destroy(); expandedChartInst = null; } document.getElementById('expandidoDiv').innerHTML = ''; }
-function clicRadiografiaTurno(franjaKey, diaKey, diaLabel) { let lista = heatmapCache[franjaKey] && heatmapCache[franjaKey][diaKey] ? heatmapCache[franjaKey][diaKey] : []; if(lista.length === 0) return; let dictQuimicos = {}; let dictOperadores = {}; let dictEquipos = {}; lista.forEach(r => { dictQuimicos[r.solucion] = (dictQuimicos[r.solucion] || 0) + 1; dictOperadores[r.operario || 'Sin nombre'] = (dictOperadores[r.operario || 'Sin nombre'] || 0) + 1; dictEquipos[r.equipo || 'Sin equipo'] = (dictEquipos[r.equipo || 'Sin equipo'] || 0) + 1; }); document.getElementById('turno-titulo').innerHTML = `<i class="fa-solid fa-clipboard-user mr-2"></i> Radiografía Operativa: ${franjaKey.toUpperCase()} (${diaLabel.toUpperCase()})`; document.getElementById('modal-turno').classList.remove('hidden'); if(turnoQuimInst) turnoQuimInst.destroy(); turnoQuimInst = new Chart(document.getElementById('turnoQuimicosChart').getContext('2d'), { type: 'doughnut', data: { labels: Object.keys(dictQuimicos), datasets: [{ data: Object.values(dictQuimicos), backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'], borderWidth: 2, borderColor: '#ffffff' }] }, options: { maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 12, font: {size: 10, family: 'Inter'} } } } } }); if(turnoOpInst) turnoOpInst.destroy(); let opsArr = Object.keys(dictOperadores).map(k => ({ nombre: k, cant: dictOperadores[k] })).sort((a,b)=> b.cant - a.cant); turnoOpInst = new Chart(document.getElementById('turnoOperadoresChart').getContext('2d'), { type: 'bar', data: { labels: opsArr.map(o => o.nombre.split(' ').slice(0,2).join(' ')), datasets: [{ data: opsArr.map(o => o.cant), backgroundColor: '#6366f1', borderRadius: 4 }] }, options: { indexAxis: 'y', maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { stepSize: 1 } }, y: { ticks: { font: {size: 9} } } } } }); if(turnoEqInst) turnoEqInst.destroy(); let eqArr = Object.keys(dictEquipos).map(k => ({ nombre: k, cant: dictEquipos[k] })).sort((a,b)=> b.cant - a.cant).slice(0, 10); turnoEqInst = new Chart(document.getElementById('turnoEquiposChart').getContext('2d'), { type: 'bar', data: { labels: eqArr.map(e => e.nombre.substring(0, 15) + (e.nombre.length > 15 ? '...' : '')), datasets: [{ data: eqArr.map(e => e.cant), backgroundColor: '#0ea5e9', borderRadius: 4 }] }, options: { indexAxis: 'y', maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { stepSize: 1 } }, y: { ticks: { font: {size: 9} } } } } }); }
+
+// ==========================================
+// RADIOGRAFÍA OPERATIVA: GRÁFICAS CON ETIQUETAS VISIBLES (%) Y (VALORES)
+// ==========================================
+function clicRadiografiaTurno(franjaKey, diaKey, diaLabel) { 
+    let lista = heatmapCache[franjaKey] && heatmapCache[franjaKey][diaKey] ? heatmapCache[franjaKey][diaKey] : []; 
+    if(lista.length === 0) return; 
+    
+    let dictQuimicos = {}; let dictOperadores = {}; let dictEquipos = {}; 
+    lista.forEach(r => { 
+        dictQuimicos[r.solucion] = (dictQuimicos[r.solucion] || 0) + 1; 
+        dictOperadores[r.operario || 'Sin nombre'] = (dictOperadores[r.operario || 'Sin nombre'] || 0) + 1; 
+        dictEquipos[r.equipo || 'Sin equipo'] = (dictEquipos[r.equipo || 'Sin equipo'] || 0) + 1; 
+    }); 
+    
+    document.getElementById('turno-titulo').innerHTML = `<i class="fa-solid fa-clipboard-user mr-2"></i> Radiografía Operativa: ${franjaKey.toUpperCase()} (${diaLabel.toUpperCase()})`; 
+    document.getElementById('modal-turno').classList.remove('hidden'); 
+    
+    // 1. GRÁFICA DE DONA (QUÍMICOS) CON PORCENTAJES EN LAS ETIQUETAS DIRECTAS
+    if(turnoQuimInst) turnoQuimInst.destroy(); 
+    let totalQuimicosMuestras = lista.length;
+    turnoQuimInst = new Chart(document.getElementById('turnoQuimicosChart').getContext('2d'), { 
+        type: 'doughnut', 
+        data: { 
+            labels: Object.keys(dictQuimicos), 
+            datasets: [{ 
+                data: Object.values(dictQuimicos), 
+                backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#64748b'], 
+                borderWidth: 2, 
+                borderColor: '#ffffff' 
+            }] 
+        }, 
+        options: { 
+            maintainAspectRatio: false, 
+            plugins: { 
+                legend: { 
+                    position: 'right', 
+                    labels: { boxWidth: 10, font: {size: 9, family: 'Inter'} } 
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let val = context.raw;
+                            let percentage = ((val / totalQuimicosMuestras) * 100).toFixed(1);
+                            return ` ${context.label}: ${val} muestras (${percentage}%)`;
+                        }
+                    }
+                }
+            } 
+        },
+        plugins: [{
+            id: 'piePercentageLabels',
+            afterDraw(chart) {
+                const {ctx, chartArea: {width, height}} = chart;
+                chart.data.datasets.forEach((dataset, i) => {
+                    chart.getDatasetMeta(i).data.forEach((datapoint, index) => {
+                        const {x, y} = datapoint.tooltipPosition();
+                        let val = dataset.data[index];
+                        let percentage = ((val / totalQuimicosMuestras) * 100).toFixed(0) + '%';
+                        if ((val / totalQuimicosMuestras) >= 0.04) {
+                            ctx.save();
+                            ctx.font = 'bold 9px Inter';
+                            ctx.fillStyle = '#ffffff';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillText(percentage, x, y);
+                            ctx.restore();
+                        }
+                    });
+                });
+            }
+        }]
+    }); 
+
+    // 2. GRÁFICA DE BARRAS HORIZONTALES (OPERADORES) CON VALORES NUMÉRICOS AL EXTREMO
+    if(turnoOpInst) turnoOpInst.destroy(); 
+    let opsArr = Object.keys(dictOperadores).map(k => ({ nombre: k, cant: dictOperadores[k] })).sort((a,b)=> b.cant - a.cant); 
+    turnoOpInst = new Chart(document.getElementById('turnoOperadoresChart').getContext('2d'), { 
+        type: 'bar', 
+        data: { 
+            labels: opsArr.map(o => o.nombre.split(' ').slice(0,2).join(' ')), 
+            datasets: [{ 
+                data: opsArr.map(o => o.cant), 
+                backgroundColor: '#6366f1', 
+                borderRadius: 4 
+            }] 
+        }, 
+        options: { 
+            indexAxis: 'y', 
+            maintainAspectRatio: false, 
+            plugins: { 
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) { return ` Eventos: ${context.raw}`; }
+                    }
+                }
+            }, 
+            scales: { 
+                x: { ticks: { stepSize: 1 }, grid: { color: '#f1f5f9' } }, 
+                y: { ticks: { font: {size: 9} }, grid: { display: false } } 
+            } 
+        },
+        plugins: [{
+            id: 'barValuesOperator',
+            afterDatasetsDraw(chart) {
+                const {ctx} = chart;
+                chart.data.datasets.forEach((dataset, i) => {
+                    chart.getDatasetMeta(i).data.forEach((bar, index) => {
+                        let value = dataset.data[index];
+                        ctx.save();
+                        ctx.font = 'bold 10px Inter';
+                        ctx.fillStyle = '#475569';
+                        ctx.textAlign = 'left';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(value, bar.x + 6, bar.y);
+                        ctx.restore();
+                    });
+                });
+            }
+        }]
+    }); 
+
+    // 3. GRÁFICA DE BARRAS HORIZONTALES (EQUIPOS) CON VALORES NUMÉRICOS AL EXTREMO
+    if(turnoEqInst) turnoEqInst.destroy(); 
+    let eqArr = Object.keys(dictEquipos).map(k => ({ nombre: k, cant: dictEquipos[k] })).sort((a,b)=> b.cant - a.cant).slice(0, 10); 
+    turnoEqInst = new Chart(document.getElementById('turnoEquiposChart').getContext('2d'), { 
+        type: 'bar', 
+        data: { 
+            labels: eqArr.map(e => e.nombre.substring(0, 15) + (e.nombre.length > 15 ? '...' : '')), 
+            datasets: [{ 
+                data: eqArr.map(e => e.cant), 
+                backgroundColor: '#0ea5e9', 
+                borderRadius: 4 
+            }] 
+        }, 
+        options: { 
+            indexAxis: 'y', 
+            maintainAspectRatio: false, 
+            plugins: { 
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) { return ` Muestras auditadas: ${context.raw}`; }
+                    }
+                }
+            }, 
+            scales: { 
+                x: { ticks: { stepSize: 1 }, grid: { color: '#f1f5f9' } }, 
+                y: { ticks: { font: {size: 9} }, grid: { display: false } } 
+            } 
+        },
+        plugins: [{
+            id: 'barValuesEquipment',
+            afterDatasetsDraw(chart) {
+                const {ctx} = chart;
+                chart.data.datasets.forEach((dataset, i) => {
+                    chart.getDatasetMeta(i).data.forEach((bar, index) => {
+                        let value = dataset.data[index];
+                        ctx.save();
+                        ctx.font = 'bold 10px Inter';
+                        ctx.fillStyle = '#475569';
+                        ctx.textAlign = 'left';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(value, bar.x + 6, bar.y);
+                        ctx.restore();
+                    });
+                });
+            }
+        }]
+    }); 
+}
+
 function cerrarModalTurno() { document.getElementById('modal-turno').classList.add('hidden'); }
 function abrirModalDrilldown(solucion) { document.getElementById('modal-drilldown').classList.remove('hidden'); document.getElementById('drilldown-titulo').innerHTML = `<i class="fa-solid fa-microscope text-indigo-500 mr-2"></i> Dispersión Técnica: ${solucion}`; const datosBase = obtenerDatosFiltrados(); const subset = datosBase.filter(r => r.solucion === solucion).slice(0, 100).reverse(); const regla = PARAMETROS_TECNICOS.find(p => p.solucion === solucion); if(drilldownInst) drilldownInst.destroy(); if(!regla || subset.length === 0) return; let dataPoints = subset.map(r => parseConcen(r.concen)); let colors = dataPoints.map(v => v < regla.min ? '#ef4444' : (v > regla.max ? '#f59e0b' : '#10b981')); drilldownInst = new Chart(document.getElementById('drilldownChart').getContext('2d'), { type: 'line', data: { labels: subset.map(r => `${r.fecha.substring(5)} ${r.hora?r.hora.substring(0,5):''}`), datasets: [ { label: 'Muestras', data: dataPoints, showLine: false, pointBackgroundColor: colors, pointBorderColor: '#ffffff', pointBorderWidth: 1.5, pointRadius: 6, pointHoverRadius: 9 }, { label: 'Max', data: Array(subset.length).fill(regla.max), borderColor: '#f59e0b', borderDash: [5,5], pointRadius: 0, fill: false, borderWidth: 2 }, { label: 'Min', data: Array(subset.length).fill(regla.min), borderColor: '#ef4444', borderDash: [5,5], pointRadius: 0, fill: false, borderWidth: 2 } ] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#1e293b', padding: 12, callbacks: { label: function(ctx) { let obj = subset[ctx.dataIndex]; return [ `Concentración: ${ctx.raw}%`, `Operador: ${obj.operario || obj.laboratorista}`, `Límites: ${regla.min}% - ${regla.max}%` ]; } } } }, scales: { y: { grid: { color: '#f1f5f9' } }, x: { grid: { display: false }, ticks: { maxRotation: 45, minRotation: 45, font: {size: 10} } } } } }); }
 function cerrarModalDrilldown() { document.getElementById('modal-drilldown').classList.add('hidden'); }
@@ -427,7 +644,7 @@ function abrirModalDetalle(tipo) { const modal = document.getElementById('modal-
 function cerrarModalDetalle() { document.getElementById('modal-detalle').classList.add('hidden'); }
 
 // ==========================================
-// FIX CRÍTICO MATEMÁTICO: SEPARACIÓN DE CÁLCULO
+// MODAL DE IMPACTO INDEPENDIENTE Y SEGURO
 // ==========================================
 function abrirModalImpacto(tipo = 'fuga') {
     const modal = document.getElementById('modal-impacto'); 
@@ -439,17 +656,16 @@ function abrirModalImpacto(tipo = 'fuga') {
     if(!modal || !tbody || !thead) return; 
     tbody.innerHTML = '';
     
-    // 1. FILTRO MATEMÁTICO ESTRICTO: Previene que cualquier química con error inverso se filtre.
     let datosAnalisis = [];
     if (tipo === 'fuga') {
         datosAnalisis = desviosUltimoFiltro.filter(d => {
             let p = PARAMETROS_TECNICOS.find(x => x.solucion === d.solucion);
-            return p && parseConcen(d.concen) > p.max; // SÓLO EXCESOS
+            return p && parseConcen(d.concen) > p.max; 
         });
     } else if (tipo === 'severidad') {
         datosAnalisis = desviosUltimoFiltro.filter(d => {
             let p = PARAMETROS_TECNICOS.find(x => x.solucion === d.solucion);
-            return p && parseConcen(d.concen) < p.min; // SÓLO RIESGOS
+            return p && parseConcen(d.concen) < p.min; 
         });
     }
 
@@ -459,7 +675,6 @@ function abrirModalImpacto(tipo = 'fuga') {
         modal.classList.add('flex'); modal.classList.remove('hidden'); return;
     }
 
-    // 2. AGRUPACIÓN DINÁMICA: Solo procesa e inyecta los químicos que sobrevivieron el filtro matemático.
     let agrupado = {};
     datosAnalisis.forEach(d => {
         if(!agrupado[d.solucion]) { agrupado[d.solucion] = { conteo: 0, valorAcumulado: 0 }; }
@@ -481,9 +696,7 @@ function abrirModalImpacto(tipo = 'fuga') {
         val: agrupado[k].valorAcumulado
     }));
 
-    // 3. ENCABEZADOS Y ORDENAMIENTO ESTRICTO
     if (tipo === 'severidad') {
-        // Ordena por Severidad Promedio de mayor a menor
         ranking.sort((a, b) => (b.val / b.c) - (a.val / a.c));
         if(tituloModal) tituloModal.innerHTML = `<i class="fa-solid fa-gauge-high text-red-500 mr-2"></i> Desglose de Severidad Técnica`;
         if(subtituloModal) subtituloModal.innerText = `Soluciones que incurrieron en Riesgo (< Mínimo), ordenadas por gravedad.`;
@@ -496,7 +709,6 @@ function abrirModalImpacto(tipo = 'fuga') {
             </tr>
         `;
     } else {
-        // Ordena por Fuga de Dinero de mayor a menor
         ranking.sort((a, b) => b.val - a.val);
         if(tituloModal) tituloModal.innerHTML = `<i class="fa-solid fa-hand-holding-dollar text-amber-600 mr-2"></i> Desglose de Fuga Financiera (Σ%)`;
         if(subtituloModal) subtituloModal.innerText = `Soluciones Sobredosificadas (> Máximo), agrupadas por la pérdida de químicos.`;
@@ -510,7 +722,6 @@ function abrirModalImpacto(tipo = 'fuga') {
         `;
     }
 
-    // 4. INSERCIÓN DE VALORES FINAL
     ranking.forEach(item => {
         let celdaDinamica = '';
         if (tipo === 'severidad') {
@@ -543,14 +754,13 @@ async function dispararAnalisisIA() {
     if(!obtenerApiKeySegura()) { tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-slate-500 font-bold bg-slate-50 rounded-lg">Falta API Key.</td></tr>`; return; } 
     tbody.innerHTML = `<tr><td colspan="3" class="py-10 text-center text-blue-600 font-bold animate-pulse bg-blue-50/50 rounded-lg"><i class="fa-solid fa-microchip mr-2"></i>Evaluando matemáticas operativas con 3.5 Flash-Lite...</td></tr>`; 
     
-    // IA también corregida para calcular matemáticamente los excesos
     let excesos = desviosUltimoFiltro.filter(d => { let p=PARAMETROS_TECNICOS.find(x=>x.solucion===d.solucion); return p && parseConcen(d.concen)>p.max; });
     
     let totalExcesos = excesos.length; let statsFugas = {}; let opsStats = {}; 
     excesos.forEach(e => { 
         if(!statsFugas[e.solucion]) statsFugas[e.solucion] = { conteo: 0, volumenPerdido: 0 }; 
         statsFugas[e.solucion].conteo++; 
-        let p=PARAMETROS_TECNICOS.find(x=>x.solucion===e.solucion);
+        let p=PARAMETROS_TECNICOS.find(x=>x.solucion==e.solucion);
         statsFugas[e.solucion].volumenPerdido += (parseConcen(e.concen) - p.max); 
         let op = e.operario || e.laboratorista || 'Desconocido'; opsStats[op] = (opsStats[op] || 0) + 1; 
     }); 
