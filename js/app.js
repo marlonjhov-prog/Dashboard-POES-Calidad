@@ -887,7 +887,6 @@ async function importarArchivoExcel(event) {
                 let sol = findValue(cleanRow, ['solucion', 'quimico', 'producto']);
                 let conc = findValue(cleanRow, ['concen', 'resultado', 'valor']);
                 
-                // Búsqueda separada para asegurar que ambos roles tengan datos
                 let op = findValue(cleanRow, ['operario', 'operador', 'responsable']);
                 let lab = findValue(cleanRow, ['laboratorista', 'analista', 'calidad']);
                 
@@ -910,7 +909,6 @@ async function importarArchivoExcel(event) {
                     }
                 }
 
-                // ESTRUCTURA FINAL CON TODOS LOS CAMPOS BLINDADOS CONTRA VALORES NULOS
                 return {
                     fecha: fechaParsed,
                     hora: parseExcelTime(h),
@@ -918,8 +916,8 @@ async function importarArchivoExcel(event) {
                     equipo: String(eq || 'N/A').trim(),
                     solucion: estandarizarSolucion(String(sol || 'S/N').trim()), 
                     concen: String(conc || '0').replace('%', '').replace(',', '.').replace(/[^\d.-]/g, '').trim(),
-                    operario: String(op || lab || 'Desconocido').trim(), // Se inyecta 'Desconocido' si no hay dato
-                    laboratorista: String(lab || op || 'Desconocido').trim(), // El campo exigido por Supabase ahora nunca estará vacío
+                    operario: String(op || lab || 'Desconocido').trim(), 
+                    laboratorista: String(lab || op || 'Desconocido').trim(), 
                     proceso: String(proc || 'CIP').trim().toUpperCase()
                 };
             }).filter(r => r.fecha && r.solucion !== 'S/N'); 
@@ -963,9 +961,6 @@ async function importarArchivoExcel(event) {
             if(loaderText) loaderText.innerText = 'CARGANDO MÓDULO POES...';
         }
     };
-    
-    reader.readAsArrayBuffer(file);
-}
     
     reader.readAsArrayBuffer(file);
 }
