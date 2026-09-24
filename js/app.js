@@ -788,7 +788,7 @@ function guardarApiKey() { localStorage.setItem('poes_gemini_key', document.getE
 function limpiarApiKey() { localStorage.removeItem('poes_gemini_key'); cerrarConfigIA(); actualizarBadgeIA(); }
 
 // ==========================================
-// MÓDULO DE IMPORTACIÓN DE EXCEL (SANEAMIENTO EXTREMO)
+// MÓDULO DE IMPORTACIÓN DE EXCEL (SANEAMIENTO Y AUTO-CÁLCULO DE MES)
 // ==========================================
 async function importarArchivoExcel(event) {
     const file = event.target.files[0];
@@ -817,7 +817,7 @@ async function importarArchivoExcel(event) {
                 return;
             }
 
-            // 1. EXTRACTOR DE FECHAS (Corta cualquier hora pegada al texto)
+            // 1. EXTRACTOR DE FECHAS
             const parseExcelDate = (val) => {
                 if (!val) return null;
                 
@@ -831,13 +831,11 @@ async function importarArchivoExcel(event) {
                 }
                 
                 let strVal = String(val).trim();
-                let datePart = strVal.split(' ')[0]; // AISLA "24/09/2026" ignorando "17:03:19"
+                let datePart = strVal.split(' ')[0]; 
                 let parts = datePart.split(/[/\-]/);
                 
                 if (parts.length === 3) {
-                    // Si el año está al final (DD/MM/YYYY)
                     if (parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-                    // Si el año está al inicio (YYYY-MM-DD)
                     if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
                 }
                 
@@ -893,7 +891,6 @@ async function importarArchivoExcel(event) {
                 let f = findValue(cleanRow, ['fecha', 'date', 'creado']);
                 let h = findValue(cleanRow, ['hora', 'time']);
                 
-                // Si la hora viene embebida en la fecha y no hay columna dedicada de hora, extraela.
                 if (!h && String(f).includes(' ')) h = String(f).split(' ')[1];
 
                 let eq = findValue(cleanRow, ['equipo', 'maquina', 'linea']);
@@ -901,10 +898,29 @@ async function importarArchivoExcel(event) {
                 let conc = findValue(cleanRow, ['concen', 'resultado', 'valor']);
                 let op = findValue(cleanRow, ['operario', 'responsable', 'laboratorista', 'analista']);
                 let proc = findValue(cleanRow, ['proceso', 'tipo']);
+                let mesRaw = findValue(cleanRow, ['mes', 'month']);
+
+                let fechaParsed = parseExcelDate(f);
+                let mesFinal = "N/A";
+
+                // AUTO-CÁLCULO DEL MES PARA CUMPLIR REQUISITO DE SUPABASE
+                if (mesRaw) {
+                    mesFinal = String(mesRaw).trim().toUpperCase();
+                } else if (fechaParsed) {
+                    const nombresMeses = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"];
+                    let parts = fechaParsed.split('-');
+                    if (parts.length === 3) {
+                        let mIndex = parseInt(parts[1], 10) - 1;
+                        if (mIndex >= 0 && mIndex < 12) {
+                            mesFinal = nombresMeses[mIndex];
+                        }
+                    }
+                }
 
                 return {
-                    fecha: parseExcelDate(f),
+                    fecha: fechaParsed,
                     hora: parseExcelTime(h),
+                    mes: mesFinal, // AQUÍ SE INYECTA EL MES SOLICITADO
                     equipo: String(eq || 'N/A').trim(),
                     solucion: estandarizarSolucion(String(sol || 'S/N').trim()), 
                     concen: String(conc || '0').replace('%', '').replace(',', '.').replace(/[^\d.-]/g, '').trim(),
