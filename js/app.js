@@ -788,7 +788,7 @@ function guardarApiKey() { localStorage.setItem('poes_gemini_key', document.getE
 function limpiarApiKey() { localStorage.removeItem('poes_gemini_key'); cerrarConfigIA(); actualizarBadgeIA(); }
 
 // ==========================================
-// MÓDULO DE IMPORTACIÓN DE EXCEL (SANEAMIENTO Y AUTO-CÁLCULO DE MES)
+// MÓDULO DE IMPORTACIÓN DE EXCEL (BLINDAJE TOTAL ANTI-NULL)
 // ==========================================
 async function importarArchivoExcel(event) {
     const file = event.target.files[0];
@@ -817,10 +817,8 @@ async function importarArchivoExcel(event) {
                 return;
             }
 
-            // 1. EXTRACTOR DE FECHAS
             const parseExcelDate = (val) => {
                 if (!val) return null;
-                
                 if (typeof val === 'number') {
                     let utc_days = Math.floor(val - 25569);
                     let date_info = new Date(utc_days * 86400 * 1000);
@@ -841,16 +839,12 @@ async function importarArchivoExcel(event) {
                 
                 let fallback = new Date(strVal);
                 if (!isNaN(fallback)) return fallback.toISOString().split('T')[0];
-                
                 return null;
             };
 
-            // 2. EXTRACTOR DE HORAS
             const parseExcelTime = (val) => {
                 if (val === null || val === undefined || val === '') return '00:00:00';
-                
                 let strVal = String(val).trim();
-                
                 if (typeof val === 'number') {
                     let frac = val - Math.floor(val);
                     let totalSeconds = Math.floor(frac * 86400 + 0.5);
@@ -859,12 +853,10 @@ async function importarArchivoExcel(event) {
                     let s = String(totalSeconds % 60).padStart(2, '0');
                     return `${h}:${m}:${s}`;
                 }
-
                 if (strVal.includes(' ')) {
                     let timePart = strVal.split(' ')[1];
                     if (timePart) strVal = timePart;
                 }
-
                 if (strVal.includes(':')) {
                     let parts = strVal.split(':');
                     let h = parts[0].padStart(2, '0');
@@ -872,7 +864,6 @@ async function importarArchivoExcel(event) {
                     let s = (parts[2] || '00').padStart(2, '0');
                     return `${h}:${m}:${s}`;
                 }
-                
                 return '00:00:00';
             };
 
@@ -890,20 +881,22 @@ async function importarArchivoExcel(event) {
 
                 let f = findValue(cleanRow, ['fecha', 'date', 'creado']);
                 let h = findValue(cleanRow, ['hora', 'time']);
-                
                 if (!h && String(f).includes(' ')) h = String(f).split(' ')[1];
 
                 let eq = findValue(cleanRow, ['equipo', 'maquina', 'linea']);
                 let sol = findValue(cleanRow, ['solucion', 'quimico', 'producto']);
                 let conc = findValue(cleanRow, ['concen', 'resultado', 'valor']);
-                let op = findValue(cleanRow, ['operario', 'responsable', 'laboratorista', 'analista']);
+                
+                // Búsqueda separada para asegurar que ambos roles tengan datos
+                let op = findValue(cleanRow, ['operario', 'operador', 'responsable']);
+                let lab = findValue(cleanRow, ['laboratorista', 'analista', 'calidad']);
+                
                 let proc = findValue(cleanRow, ['proceso', 'tipo']);
                 let mesRaw = findValue(cleanRow, ['mes', 'month']);
 
                 let fechaParsed = parseExcelDate(f);
                 let mesFinal = "N/A";
 
-                // AUTO-CÁLCULO DEL MES PARA CUMPLIR REQUISITO DE SUPABASE
                 if (mesRaw) {
                     mesFinal = String(mesRaw).trim().toUpperCase();
                 } else if (fechaParsed) {
@@ -917,14 +910,16 @@ async function importarArchivoExcel(event) {
                     }
                 }
 
+                // ESTRUCTURA FINAL CON TODOS LOS CAMPOS BLINDADOS CONTRA VALORES NULOS
                 return {
                     fecha: fechaParsed,
                     hora: parseExcelTime(h),
-                    mes: mesFinal, // AQUÍ SE INYECTA EL MES SOLICITADO
+                    mes: mesFinal,
                     equipo: String(eq || 'N/A').trim(),
                     solucion: estandarizarSolucion(String(sol || 'S/N').trim()), 
                     concen: String(conc || '0').replace('%', '').replace(',', '.').replace(/[^\d.-]/g, '').trim(),
-                    operario: String(op || 'Desconocido').trim(),
+                    operario: String(op || lab || 'Desconocido').trim(), // Se inyecta 'Desconocido' si no hay dato
+                    laboratorista: String(lab || op || 'Desconocido').trim(), // El campo exigido por Supabase ahora nunca estará vacío
                     proceso: String(proc || 'CIP').trim().toUpperCase()
                 };
             }).filter(r => r.fecha && r.solucion !== 'S/N'); 
@@ -953,7 +948,7 @@ async function importarArchivoExcel(event) {
             }
 
             if (!huboError) {
-                alert(`¡Auditoría cargada! Se inyectaron ${registrosNuevos.length} registros a la base de datos.`);
+                alert(`¡Auditoría cargada con éxito! Se inyectaron ${registrosNuevos.length} registros a la base de datos.`);
             }
 
             if (loaderText) loaderText.innerText = 'CONSOLIDANDO DASHBOARD...';
@@ -968,6 +963,9 @@ async function importarArchivoExcel(event) {
             if(loaderText) loaderText.innerText = 'CARGANDO MÓDULO POES...';
         }
     };
+    
+    reader.readAsArrayBuffer(file);
+}
     
     reader.readAsArrayBuffer(file);
 }
