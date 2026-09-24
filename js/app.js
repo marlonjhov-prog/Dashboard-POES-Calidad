@@ -788,13 +788,12 @@ function guardarApiKey() { localStorage.setItem('poes_gemini_key', document.getE
 function limpiarApiKey() { localStorage.removeItem('poes_gemini_key'); cerrarConfigIA(); actualizarBadgeIA(); }
 
 // ==========================================
-// MÓDULO DE IMPORTACIÓN DE EXCEL (SANEAMIENTO ESTRICTO DE DATOS)
+// MÓDULO DE IMPORTACIÓN DE EXCEL (SANEAMIENTO EXTREMO)
 // ==========================================
 async function importarArchivoExcel(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Activar Loader
     const loader = document.getElementById('loader');
     const loaderText = loader ? loader.querySelector('p') : null;
     if(loader) {
@@ -810,7 +809,6 @@ async function importarArchivoExcel(event) {
             const firstSheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[firstSheetName];
             
-            // raw: true es vital para poder interceptar los números seriales de las fechas
             const rawData = XLSX.utils.sheet_to_json(worksheet, { raw: true, defval: null });
             
             if(rawData.length === 0) {
@@ -819,9 +817,10 @@ async function importarArchivoExcel(event) {
                 return;
             }
 
-            // 1. UTILIDAD INTELIGENTE: Formateador de Fechas ocultas de Excel a YYYY-MM-DD
+            // 1. EXTRACTOR DE FECHAS (Corta cualquier hora pegada al texto)
             const parseExcelDate = (val) => {
                 if (!val) return null;
+                
                 if (typeof val === 'number') {
                     let utc_days = Math.floor(val - 25569);
                     let date_info = new Date(utc_days * 86400 * 1000);
@@ -830,22 +829,30 @@ async function importarArchivoExcel(event) {
                     let d = String(date_info.getUTCDate()).padStart(2, '0');
                     return `${y}-${m}-${d}`;
                 }
-                if (typeof val === 'string') {
-                    let parts = val.split(/[/\-]/);
-                    if (parts.length === 3) {
-                        if (parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`; 
-                        if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2,'0')}-${parts[2].padStart(2,'0')}`;
-                    }
-                    // Plan de contingencia si viene un string complejo
-                    let fallback = new Date(val);
-                    if(!isNaN(fallback)) return fallback.toISOString().split('T')[0];
+                
+                let strVal = String(val).trim();
+                let datePart = strVal.split(' ')[0]; // AISLA "24/09/2026" ignorando "17:03:19"
+                let parts = datePart.split(/[/\-]/);
+                
+                if (parts.length === 3) {
+                    // Si el año está al final (DD/MM/YYYY)
+                    if (parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                    // Si el año está al inicio (YYYY-MM-DD)
+                    if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
                 }
-                return String(val).trim();
+                
+                let fallback = new Date(strVal);
+                if (!isNaN(fallback)) return fallback.toISOString().split('T')[0];
+                
+                return null;
             };
 
-            // 2. UTILIDAD INTELIGENTE: Formateador de Horas
+            // 2. EXTRACTOR DE HORAS
             const parseExcelTime = (val) => {
-                if (val === null || val === undefined) return '00:00:00';
+                if (val === null || val === undefined || val === '') return '00:00:00';
+                
+                let strVal = String(val).trim();
+                
                 if (typeof val === 'number') {
                     let frac = val - Math.floor(val);
                     let totalSeconds = Math.floor(frac * 86400 + 0.5);
@@ -854,27 +861,41 @@ async function importarArchivoExcel(event) {
                     let s = String(totalSeconds % 60).padStart(2, '0');
                     return `${h}:${m}:${s}`;
                 }
-                return String(val).trim();
+
+                if (strVal.includes(' ')) {
+                    let timePart = strVal.split(' ')[1];
+                    if (timePart) strVal = timePart;
+                }
+
+                if (strVal.includes(':')) {
+                    let parts = strVal.split(':');
+                    let h = parts[0].padStart(2, '0');
+                    let m = (parts[1] || '00').padStart(2, '0');
+                    let s = (parts[2] || '00').padStart(2, '0');
+                    return `${h}:${m}:${s}`;
+                }
+                
+                return '00:00:00';
             };
 
-            // 3. BUSCADOR DINÁMICO DE COLUMNAS (A prueba de errores de tipeo del usuario)
             const findValue = (row, keywords) => {
                 const foundKey = Object.keys(row).find(k => keywords.some(kw => k.includes(kw)));
                 return foundKey ? row[foundKey] : null;
             };
 
-            // 4. MAPEO Y LIMPIEZA TOTAL
             const registrosNuevos = rawData.map(row => {
                 let cleanRow = {};
                 Object.keys(row).forEach(key => {
-                    // Minúsculas, sin tildes ni espacios raros
                     let cleanKey = key.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
                     cleanRow[cleanKey] = row[key];
                 });
 
-                // Extraemos interceptando múltiples variaciones de cabeceras
-                let f = findValue(cleanRow, ['fecha', 'date']);
+                let f = findValue(cleanRow, ['fecha', 'date', 'creado']);
                 let h = findValue(cleanRow, ['hora', 'time']);
+                
+                // Si la hora viene embebida en la fecha y no hay columna dedicada de hora, extraela.
+                if (!h && String(f).includes(' ')) h = String(f).split(' ')[1];
+
                 let eq = findValue(cleanRow, ['equipo', 'maquina', 'linea']);
                 let sol = findValue(cleanRow, ['solucion', 'quimico', 'producto']);
                 let conc = findValue(cleanRow, ['concen', 'resultado', 'valor']);
@@ -885,13 +906,12 @@ async function importarArchivoExcel(event) {
                     fecha: parseExcelDate(f),
                     hora: parseExcelTime(h),
                     equipo: String(eq || 'N/A').trim(),
-                    solucion: String(sol || 'S/N').trim(),
-                    // Parseo crítico para Postgres: Convierte "3,5%" a "3.5" (número puro)
+                    solucion: estandarizarSolucion(String(sol || 'S/N').trim()), 
                     concen: String(conc || '0').replace('%', '').replace(',', '.').replace(/[^\d.-]/g, '').trim(),
                     operario: String(op || 'Desconocido').trim(),
                     proceso: String(proc || 'CIP').trim().toUpperCase()
                 };
-            }).filter(r => r.fecha && r.solucion !== 'S/N'); // Filtro de seguridad anti-filas vacías
+            }).filter(r => r.fecha && r.solucion !== 'S/N'); 
 
             if(registrosNuevos.length === 0) {
                 alert('No se encontraron registros tras la limpieza. Revisa que tu Excel tenga fechas válidas.');
@@ -901,7 +921,6 @@ async function importarArchivoExcel(event) {
 
             if (loaderText) loaderText.innerText = `SUBIENDO ${registrosNuevos.length} REGISTROS SANITIZADOS...`;
 
-            // 5. INYECCIÓN A SUPABASE CON MANEJO DE ERRORES DETALLADO
             const chunkSize = 500;
             let huboError = false;
             
@@ -911,26 +930,24 @@ async function importarArchivoExcel(event) {
                 
                 if (error) {
                     console.error('Error insertando lote en Supabase:', error);
-                    console.error('Primer registro problemático detectado:', lote[0]);
                     huboError = true;
-                    alert(`Fallo en la nube: ${error.message}. Presiona F12 para ver el registro causante en consola.`);
+                    alert(`Fallo en la nube: ${error.message}.`);
                     break;
                 }
             }
 
             if (!huboError) {
-                alert(`¡Auditoría cargada! Se inyectaron ${registrosNuevos.length} registros a la base de datos de manera impecable.`);
+                alert(`¡Auditoría cargada! Se inyectaron ${registrosNuevos.length} registros a la base de datos.`);
             }
 
-            // 6. ACTUALIZACIÓN EN VIVO DEL DASHBOARD
             if (loaderText) loaderText.innerText = 'CONSOLIDANDO DASHBOARD...';
             await cargarSupabase(); 
             
         } catch (error) {
             console.error("Error crítico de JS durante la lectura:", error);
-            alert("El archivo Excel está corrupto o protegido. Intenta guardarlo nuevamente como .xlsx normal.");
+            alert("Error procesando Excel. Verifica formato.");
         } finally {
-            event.target.value = ''; // Resetea el botón para subir otro archivo si se desea
+            event.target.value = ''; 
             if(loader) loader.classList.add('opacity-0', 'pointer-events-none');
             if(loaderText) loaderText.innerText = 'CARGANDO MÓDULO POES...';
         }
