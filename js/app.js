@@ -786,68 +786,122 @@ function abrirConfigIA() { document.getElementById('input-api-key').value = obte
 function cerrarConfigIA() { document.getElementById('modal-config-ia').classList.add('hidden'); }
 function guardarApiKey() { localStorage.setItem('poes_gemini_key', document.getElementById('input-api-key').value.trim()); cerrarConfigIA(); actualizarBadgeIA(); }
 function limpiarApiKey() { localStorage.removeItem('poes_gemini_key'); cerrarConfigIA(); actualizarBadgeIA(); }
+
 // ==========================================
-// MÓDULO DE IMPORTACIÓN DE BASE DE DATOS (EXCEL/CSV)
+// MÓDULO DE IMPORTACIÓN DE EXCEL (SANEAMIENTO ESTRICTO DE DATOS)
 // ==========================================
 async function importarArchivoExcel(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Activar la pantalla de carga para que el usuario sepa que está procesando
+    // Activar Loader
     const loader = document.getElementById('loader');
     const loaderText = loader ? loader.querySelector('p') : null;
     if(loader) {
         loader.classList.remove('opacity-0', 'pointer-events-none');
-        if(loaderText) loaderText.innerText = 'EXTRAYENDO DATOS DEL ARCHIVO EXCEL...';
+        if(loaderText) loaderText.innerText = 'EXTRAYENDO Y LIMPIANDO DATOS DEL EXCEL...';
     }
 
     const reader = new FileReader();
     reader.onload = async (e) => {
         try {
-            // Leer el archivo con SheetJS
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
             const firstSheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[firstSheetName];
             
-            // Convertir la hoja a un array de objetos JSON
-            const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+            // raw: true es vital para poder interceptar los números seriales de las fechas
+            const rawData = XLSX.utils.sheet_to_json(worksheet, { raw: true, defval: null });
             
-            if(jsonData.length === 0) {
-                alert('El archivo Excel está vacío.');
+            if(rawData.length === 0) {
+                alert('El archivo Excel está vacío o no tiene el formato correcto.');
                 if(loader) loader.classList.add('opacity-0', 'pointer-events-none');
                 return;
             }
 
-            // Normalizar las columnas del Excel para que coincidan con la base de datos Supabase
-            const registrosNuevos = jsonData.map(row => {
+            // 1. UTILIDAD INTELIGENTE: Formateador de Fechas ocultas de Excel a YYYY-MM-DD
+            const parseExcelDate = (val) => {
+                if (!val) return null;
+                if (typeof val === 'number') {
+                    let utc_days = Math.floor(val - 25569);
+                    let date_info = new Date(utc_days * 86400 * 1000);
+                    let y = date_info.getUTCFullYear();
+                    let m = String(date_info.getUTCMonth() + 1).padStart(2, '0');
+                    let d = String(date_info.getUTCDate()).padStart(2, '0');
+                    return `${y}-${m}-${d}`;
+                }
+                if (typeof val === 'string') {
+                    let parts = val.split(/[/\-]/);
+                    if (parts.length === 3) {
+                        if (parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`; 
+                        if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2,'0')}-${parts[2].padStart(2,'0')}`;
+                    }
+                    // Plan de contingencia si viene un string complejo
+                    let fallback = new Date(val);
+                    if(!isNaN(fallback)) return fallback.toISOString().split('T')[0];
+                }
+                return String(val).trim();
+            };
+
+            // 2. UTILIDAD INTELIGENTE: Formateador de Horas
+            const parseExcelTime = (val) => {
+                if (val === null || val === undefined) return '00:00:00';
+                if (typeof val === 'number') {
+                    let frac = val - Math.floor(val);
+                    let totalSeconds = Math.floor(frac * 86400 + 0.5);
+                    let h = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+                    let m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+                    let s = String(totalSeconds % 60).padStart(2, '0');
+                    return `${h}:${m}:${s}`;
+                }
+                return String(val).trim();
+            };
+
+            // 3. BUSCADOR DINÁMICO DE COLUMNAS (A prueba de errores de tipeo del usuario)
+            const findValue = (row, keywords) => {
+                const foundKey = Object.keys(row).find(k => keywords.some(kw => k.includes(kw)));
+                return foundKey ? row[foundKey] : null;
+            };
+
+            // 4. MAPEO Y LIMPIEZA TOTAL
+            const registrosNuevos = rawData.map(row => {
                 let cleanRow = {};
                 Object.keys(row).forEach(key => {
-                    // Quitar espacios, tildes y pasar a minúsculas las cabeceras del Excel
+                    // Minúsculas, sin tildes ni espacios raros
                     let cleanKey = key.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
                     cleanRow[cleanKey] = row[key];
                 });
 
+                // Extraemos interceptando múltiples variaciones de cabeceras
+                let f = findValue(cleanRow, ['fecha', 'date']);
+                let h = findValue(cleanRow, ['hora', 'time']);
+                let eq = findValue(cleanRow, ['equipo', 'maquina', 'linea']);
+                let sol = findValue(cleanRow, ['solucion', 'quimico', 'producto']);
+                let conc = findValue(cleanRow, ['concen', 'resultado', 'valor']);
+                let op = findValue(cleanRow, ['operario', 'responsable', 'laboratorista', 'analista']);
+                let proc = findValue(cleanRow, ['proceso', 'tipo']);
+
                 return {
-                    fecha: cleanRow['fecha'] || null,
-                    hora: cleanRow['hora'] || null,
-                    equipo: String(cleanRow['equipo'] || cleanRow['maquina'] || 'N/A').trim(),
-                    solucion: String(cleanRow['solucion'] || cleanRow['quimico'] || 'S/N').trim(),
-                    concen: String(cleanRow['concentracion'] || cleanRow['concen'] || '0').replace('%','').trim(),
-                    operario: String(cleanRow['operario'] || cleanRow['responsable'] || cleanRow['laboratorista'] || 'Desconocido').trim(),
-                    proceso: String(cleanRow['proceso'] || 'CIP').trim().toUpperCase()
+                    fecha: parseExcelDate(f),
+                    hora: parseExcelTime(h),
+                    equipo: String(eq || 'N/A').trim(),
+                    solucion: String(sol || 'S/N').trim(),
+                    // Parseo crítico para Postgres: Convierte "3,5%" a "3.5" (número puro)
+                    concen: String(conc || '0').replace('%', '').replace(',', '.').replace(/[^\d.-]/g, '').trim(),
+                    operario: String(op || 'Desconocido').trim(),
+                    proceso: String(proc || 'CIP').trim().toUpperCase()
                 };
-            }).filter(r => r.fecha && r.solucion !== 'S/N'); // Descartar filas vacías
+            }).filter(r => r.fecha && r.solucion !== 'S/N'); // Filtro de seguridad anti-filas vacías
 
             if(registrosNuevos.length === 0) {
-                alert('No se encontraron registros válidos. Verifica que las columnas del Excel se llamen: Fecha, Hora, Equipo, Solucion, Concentracion.');
+                alert('No se encontraron registros tras la limpieza. Revisa que tu Excel tenga fechas válidas.');
                 if(loader) loader.classList.add('opacity-0', 'pointer-events-none');
                 return;
             }
 
-            if (loaderText) loaderText.innerText = `SUBIENDO ${registrosNuevos.length} REGISTROS A LA NUBE...`;
+            if (loaderText) loaderText.innerText = `SUBIENDO ${registrosNuevos.length} REGISTROS SANITIZADOS...`;
 
-            // Enviar a Supabase en lotes de 500 para evitar bloqueos por tamaño
+            // 5. INYECCIÓN A SUPABASE CON MANEJO DE ERRORES DETALLADO
             const chunkSize = 500;
             let huboError = false;
             
@@ -857,36 +911,30 @@ async function importarArchivoExcel(event) {
                 
                 if (error) {
                     console.error('Error insertando lote en Supabase:', error);
+                    console.error('Primer registro problemático detectado:', lote[0]);
                     huboError = true;
-                    alert('Hubo un error subiendo algunos registros. Revisa la consola para más detalles.');
+                    alert(`Fallo en la nube: ${error.message}. Presiona F12 para ver el registro causante en consola.`);
                     break;
                 }
             }
 
             if (!huboError) {
-                alert(`¡Éxito! Se importaron ${registrosNuevos.length} registros a la base de datos.`);
+                alert(`¡Auditoría cargada! Se inyectaron ${registrosNuevos.length} registros a la base de datos de manera impecable.`);
             }
 
-            // Recalcular y repintar todo el dashboard con la nueva base de datos
-            if (loaderText) loaderText.innerText = 'RECALCULANDO DASHBOARD...';
+            // 6. ACTUALIZACIÓN EN VIVO DEL DASHBOARD
+            if (loaderText) loaderText.innerText = 'CONSOLIDANDO DASHBOARD...';
             await cargarSupabase(); 
             
         } catch (error) {
-            console.error("Error al procesar el archivo:", error);
-            alert("Ocurrió un error al leer el Excel. Verifica que el archivo no esté dañado.");
+            console.error("Error crítico de JS durante la lectura:", error);
+            alert("El archivo Excel está corrupto o protegido. Intenta guardarlo nuevamente como .xlsx normal.");
         } finally {
-            // Limpiar el input file para poder subir el mismo archivo si es necesario y ocultar loader
-            event.target.value = ''; 
+            event.target.value = ''; // Resetea el botón para subir otro archivo si se desea
             if(loader) loader.classList.add('opacity-0', 'pointer-events-none');
             if(loaderText) loaderText.innerText = 'CARGANDO MÓDULO POES...';
         }
     };
     
-    // Iniciar la lectura del archivo
     reader.readAsArrayBuffer(file);
 }
-
-
-
-
-
