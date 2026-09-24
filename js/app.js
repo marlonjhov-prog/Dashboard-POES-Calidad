@@ -786,3 +786,107 @@ function abrirConfigIA() { document.getElementById('input-api-key').value = obte
 function cerrarConfigIA() { document.getElementById('modal-config-ia').classList.add('hidden'); }
 function guardarApiKey() { localStorage.setItem('poes_gemini_key', document.getElementById('input-api-key').value.trim()); cerrarConfigIA(); actualizarBadgeIA(); }
 function limpiarApiKey() { localStorage.removeItem('poes_gemini_key'); cerrarConfigIA(); actualizarBadgeIA(); }
+// ==========================================
+// MÓDULO DE IMPORTACIÓN DE BASE DE DATOS (EXCEL/CSV)
+// ==========================================
+async function importarArchivoExcel(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Activar la pantalla de carga para que el usuario sepa que está procesando
+    const loader = document.getElementById('loader');
+    const loaderText = loader ? loader.querySelector('p') : null;
+    if(loader) {
+        loader.classList.remove('opacity-0', 'pointer-events-none');
+        if(loaderText) loaderText.innerText = 'EXTRAYENDO DATOS DEL ARCHIVO EXCEL...';
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            // Leer el archivo con SheetJS
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            
+            // Convertir la hoja a un array de objetos JSON
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+            
+            if(jsonData.length === 0) {
+                alert('El archivo Excel está vacío.');
+                if(loader) loader.classList.add('opacity-0', 'pointer-events-none');
+                return;
+            }
+
+            // Normalizar las columnas del Excel para que coincidan con la base de datos Supabase
+            const registrosNuevos = jsonData.map(row => {
+                let cleanRow = {};
+                Object.keys(row).forEach(key => {
+                    // Quitar espacios, tildes y pasar a minúsculas las cabeceras del Excel
+                    let cleanKey = key.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                    cleanRow[cleanKey] = row[key];
+                });
+
+                return {
+                    fecha: cleanRow['fecha'] || null,
+                    hora: cleanRow['hora'] || null,
+                    equipo: String(cleanRow['equipo'] || cleanRow['maquina'] || 'N/A').trim(),
+                    solucion: String(cleanRow['solucion'] || cleanRow['quimico'] || 'S/N').trim(),
+                    concen: String(cleanRow['concentracion'] || cleanRow['concen'] || '0').replace('%','').trim(),
+                    operario: String(cleanRow['operario'] || cleanRow['responsable'] || cleanRow['laboratorista'] || 'Desconocido').trim(),
+                    proceso: String(cleanRow['proceso'] || 'CIP').trim().toUpperCase()
+                };
+            }).filter(r => r.fecha && r.solucion !== 'S/N'); // Descartar filas vacías
+
+            if(registrosNuevos.length === 0) {
+                alert('No se encontraron registros válidos. Verifica que las columnas del Excel se llamen: Fecha, Hora, Equipo, Solucion, Concentracion.');
+                if(loader) loader.classList.add('opacity-0', 'pointer-events-none');
+                return;
+            }
+
+            if (loaderText) loaderText.innerText = `SUBIENDO ${registrosNuevos.length} REGISTROS A LA NUBE...`;
+
+            // Enviar a Supabase en lotes de 500 para evitar bloqueos por tamaño
+            const chunkSize = 500;
+            let huboError = false;
+            
+            for (let i = 0; i < registrosNuevos.length; i += chunkSize) {
+                const lote = registrosNuevos.slice(i, i + chunkSize);
+                const { error } = await clienteSupabase.from('registros_limpieza').insert(lote);
+                
+                if (error) {
+                    console.error('Error insertando lote en Supabase:', error);
+                    huboError = true;
+                    alert('Hubo un error subiendo algunos registros. Revisa la consola para más detalles.');
+                    break;
+                }
+            }
+
+            if (!huboError) {
+                alert(`¡Éxito! Se importaron ${registrosNuevos.length} registros a la base de datos.`);
+            }
+
+            // Recalcular y repintar todo el dashboard con la nueva base de datos
+            if (loaderText) loaderText.innerText = 'RECALCULANDO DASHBOARD...';
+            await cargarSupabase(); 
+            
+        } catch (error) {
+            console.error("Error al procesar el archivo:", error);
+            alert("Ocurrió un error al leer el Excel. Verifica que el archivo no esté dañado.");
+        } finally {
+            // Limpiar el input file para poder subir el mismo archivo si es necesario y ocultar loader
+            event.target.value = ''; 
+            if(loader) loader.classList.add('opacity-0', 'pointer-events-none');
+            if(loaderText) loaderText.innerText = 'CARGANDO MÓDULO POES...';
+        }
+    };
+    
+    // Iniciar la lectura del archivo
+    reader.readAsArrayBuffer(file);
+}
+
+
+
+
+
