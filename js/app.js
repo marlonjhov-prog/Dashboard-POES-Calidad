@@ -6409,19 +6409,11 @@ function cerrarModalImpacto() {
         );
     }
 }
-            'flex'
-        );
-
-        modal.classList.add(
-            'hidden'
-        );
-    }
-}
-
+           
 
 // ==========================================
 // 22. MOTOR IA
-// ==========================================
+// ========================================== 
 async function dispararAnalisisIA() {
 
     const tbody =
