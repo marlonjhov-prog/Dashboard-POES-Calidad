@@ -185,67 +185,107 @@ function parseConcen(v) {
 }
 
 
+// ==========================================
+// NORMALIZACIÓN OFICIAL DE SOLUCIONES
+// ==========================================
 function estandarizarSolucion(nombre) {
 
     const l = n(nombre);
+
+    // ======================================
+    // EQUIVALENCIA VALIDADA
+    // ======================================
+    // El repositorio fuente puede entregar:
+    //
+    // ÁCIDO (MADRE)
+    //
+    // En el catálogo oficial de Supabase
+    // corresponde a:
+    //
+    // ÁCIDO NÍTRICO MADRE
+    //
+    // Esto evita que la FK fk_solucion
+    // rechace estos registros.
+    // ======================================
+
+    if (
+        l === 'ACIDO (MADRE)' ||
+        l === 'ACIDO MADRE'
+    ) {
+        return 'ÁCIDO NÍTRICO MADRE';
+    }
+
 
     if (l.includes('SOSA (MADRE)')) {
         return 'SOSA (MADRE)';
     }
 
+
     if (l.includes('CENTRO ACOPIO')) {
         return 'SOSA (CENTRO ACOPIO)';
     }
 
-    if (l.includes('SOSA (PASIVACION')) {
+
+    if (l.includes('SOSA (PASIVACION)')) {
         return 'SOSA (PASIVACIÓN)';
     }
+
 
     if (l.includes('SOSA')) {
         return 'SOSA';
     }
 
+
     if (l.includes('NITRICO MADRE')) {
         return 'ÁCIDO NÍTRICO MADRE';
     }
+
 
     if (l.includes('ACIDO NITRICO')) {
         return 'ÁCIDO NÍTRICO';
     }
 
+
     if (l.includes('PERACETICO')) {
         return 'ÁCIDO PERACÉTICO';
     }
+
 
     if (l.includes('FOSFORICO')) {
         return 'ÁCIDO FOSFÓRICO';
     }
 
+
     if (l.includes('ACIDO (PASIVACION')) {
         return 'ÁCIDO (PASIVACIÓN)';
     }
+
 
     if (l.includes('ENJUAGUE')) {
         return 'AGUA ENJUAGUE';
     }
 
+
     if (l.includes('PEROXIDO')) {
         return 'PEROXIDO';
     }
+
 
     if (l.includes('BACOXIN')) {
         return 'BACOXIN';
     }
 
+
     if (l.includes('CLORO')) {
         return 'CLORO';
     }
 
+
     return String(
         nombre || 'S/N'
     )
-    .trim()
-    .toUpperCase();
+        .trim()
+        .toUpperCase();
 }
 
 
@@ -384,14 +424,14 @@ async function cargarSupabase() {
                     String(
                         r.equipo || 'N/A'
                     )
-                    .trim(),
+                        .trim(),
 
                 proceso:
                     String(
                         r.proceso || 'CIP'
                     )
-                    .trim()
-                    .toUpperCase()
+                        .trim()
+                        .toUpperCase()
             })
         );
 
@@ -424,39 +464,39 @@ function initFiltrosInteligentes() {
         'filtro-equipo',
         'filtro-solucion'
     ]
-    .forEach(
-        id => {
+        .forEach(
+            id => {
 
-            const el =
-                document.getElementById(
-                    id
-                );
-
-            if (el) {
-
-                tsInstances[id] =
-                    new TomSelect(
-                        el,
-                        {
-                            create: false,
-
-                            sortField: [
-                                {
-                                    field:
-                                        '$order'
-                                }
-                            ]
-                        }
+                const el =
+                    document.getElementById(
+                        id
                     );
 
-                tsInstances[id]
-                    .on(
-                        'change',
-                        renderizarCore
-                    );
+                if (el) {
+
+                    tsInstances[id] =
+                        new TomSelect(
+                            el,
+                            {
+                                create: false,
+
+                                sortField: [
+                                    {
+                                        field:
+                                            '$order'
+                                    }
+                                ]
+                            }
+                        );
+
+                    tsInstances[id]
+                        .on(
+                            'change',
+                            renderizarCore
+                        );
+                }
             }
-        }
-    );
+        );
 }
 
 
@@ -729,7 +769,7 @@ function actualizarOpcionesFiltros() {
         ]
             ? tsInstances[
                 'filtro-equipo'
-              ].getValue()
+            ].getValue()
 
             : 'TODOS';
 
@@ -740,7 +780,7 @@ function actualizarOpcionesFiltros() {
         ]
             ? tsInstances[
                 'filtro-solucion'
-              ].getValue()
+            ].getValue()
 
             : 'TODAS';
 
@@ -754,21 +794,21 @@ function actualizarOpcionesFiltros() {
         tsInstances[
             'filtro-equipo'
         ]
-        .clearOptions();
+            .clearOptions();
 
 
         tsInstances[
             'filtro-equipo'
         ]
-        .addOption(
-            {
-                value:
-                    'TODOS',
+            .addOption(
+                {
+                    value:
+                        'TODOS',
 
-                text:
-                    'Todos los Equipos'
-            }
-        );
+                    text:
+                        'Todos los Equipos'
+                }
+            );
 
 
         Array
@@ -780,15 +820,15 @@ function actualizarOpcionesFiltros() {
                     tsInstances[
                         'filtro-equipo'
                     ]
-                    .addOption(
-                        {
-                            value:
-                                e,
+                        .addOption(
+                            {
+                                value:
+                                    e,
 
-                            text:
-                                e
-                        }
-                    );
+                                text:
+                                    e
+                            }
+                        );
                 }
             );
 
@@ -796,10 +836,10 @@ function actualizarOpcionesFiltros() {
         tsInstances[
             'filtro-equipo'
         ]
-        .setValue(
-            currEq,
-            true
-        );
+            .setValue(
+                currEq,
+                true
+            );
     }
 
 
@@ -812,21 +852,21 @@ function actualizarOpcionesFiltros() {
         tsInstances[
             'filtro-solucion'
         ]
-        .clearOptions();
+            .clearOptions();
 
 
         tsInstances[
             'filtro-solucion'
         ]
-        .addOption(
-            {
-                value:
-                    'TODAS',
+            .addOption(
+                {
+                    value:
+                        'TODAS',
 
-                text:
-                    'Todas las Soluciones'
-            }
-        );
+                    text:
+                        'Todas las Soluciones'
+                }
+            );
 
 
         Array
@@ -838,15 +878,15 @@ function actualizarOpcionesFiltros() {
                     tsInstances[
                         'filtro-solucion'
                     ]
-                    .addOption(
-                        {
-                            value:
-                                s,
+                        .addOption(
+                            {
+                                value:
+                                    s,
 
-                            text:
-                                s
-                        }
-                    );
+                                text:
+                                    s
+                            }
+                        );
                 }
             );
 
@@ -854,14 +894,81 @@ function actualizarOpcionesFiltros() {
         tsInstances[
             'filtro-solucion'
         ]
-        .setValue(
-            currSol,
-            true
-        );
+            .setValue(
+                currSol,
+                true
+            );
     }
 }
 
 
+function obtenerDatosFiltrados(
+    inicio = fechaInicioGlobal,
+    fin = fechaFinGlobal
+) {
+
+    const s =
+        tsInstances[
+            'filtro-solucion'
+        ]
+            ? tsInstances[
+                'filtro-solucion'
+            ].getValue()
+
+            : 'TODAS';
+
+
+    const e =
+        tsInstances[
+            'filtro-equipo'
+        ]
+            ? tsInstances[
+                'filtro-equipo'
+            ].getValue()
+
+            : 'TODOS';
+
+
+    return listaRegistros
+        .filter(
+            r => {
+
+                const pasaEquipo =
+                    (
+                        !e ||
+                        e === 'TODOS' ||
+                        r.equipo === e
+                    );
+
+                const pasaSolucion =
+                    (
+                        !s ||
+                        s === 'TODAS' ||
+                        r.solucion === s
+                    );
+
+                const pasaFechaInicio =
+                    (
+                        !inicio ||
+                        r.fecha >= inicio
+                    );
+
+                const pasaFechaFin =
+                    (
+                        !fin ||
+                        r.fecha <= fin
+                    );
+
+
+                return (
+                    pasaEquipo &&
+                    pasaSolucion &&
+                    pasaFechaInicio &&
+                    pasaFechaFin
+                );
+            }
+        );
+}
 function obtenerDatosFiltrados(
     inicio = fechaInicioGlobal,
     fin = fechaFinGlobal
@@ -1818,8 +1925,6 @@ function calcularTendencias(
         true
     );
 }
-
-
 // ==========================================
 // 11. SPARKLINES
 // ==========================================
@@ -3497,7 +3602,7 @@ function drawMagicQuadrant(
                                         padding:
                                             12,
 
-                                        titleFont:
+                                                                                titleFont:
                                             {
                                                 size:
                                                     isExpanded
@@ -4396,9 +4501,7 @@ function expandirGrafico(
         .remove(
             'hidden'
         );
-
-
-    const canvas =
+        const canvas =
         document.getElementById(
             'expandidoChart'
         );
@@ -5348,7 +5451,7 @@ function abrirModalDrilldown(
                                     `${r.fecha.substring(5)} ${
                                         r.hora
                                             ? r.hora.substring(
-                                                0,
+                                                                                                0,
                                                 5
                                               )
                                             : ''
@@ -6306,6 +6409,14 @@ function cerrarModalImpacto() {
         );
     }
 }
+            'flex'
+        );
+
+        modal.classList.add(
+            'hidden'
+        );
+    }
+}
 
 
 // ==========================================
@@ -7248,1171 +7359,1170 @@ async function importarArchivoExcel(
 
 
                 // ======================================
-                // F. UTILIDAD HORA
-                // ======================================
-
-                const parseExcelTime =
-                    (
-                        val
-                    ) => {
-
-                        if (
-                            val ===
-                            null ||
-                            val ===
-                            undefined ||
-                            val ===
-                            ''
-                        ) {
-
-                            return '00:00:00';
-                        }
-
-
-                        if (
-                            typeof val ===
-                            'number'
-                        ) {
-
-                            const frac =
-                                val -
-                                Math.floor(
-                                    val
-                                );
-
-
-                            const totalSeconds =
-                                Math.floor(
-                                    frac *
-                                    86400 +
-                                    0.5
-                                );
-
-
-                            const h =
-                                String(
-                                    Math.floor(
-                                        totalSeconds /
-                                        3600
-                                    )
-                                )
-                                .padStart(
-                                    2,
-                                    '0'
-                                );
-
-
-                            const m =
-                                String(
-                                    Math.floor(
-                                        (
-                                            totalSeconds %
-                                            3600
-                                        ) /
-                                        60
-                                    )
-                                )
-                                .padStart(
-                                    2,
-                                    '0'
-                                );
-
-
-                            const s =
-                                String(
-                                    totalSeconds %
-                                    60
-                                )
-                                .padStart(
-                                    2,
-                                    '0'
-                                );
-
-
-                            return (
-                                `${h}:` +
-                                `${m}:` +
-                                `${s}`
-                            );
-                        }
-
-
-                        let strVal =
-                            String(
-                                val
-                            )
-                            .trim();
-
-
-                        if (
-                            strVal.includes(
-                                ' '
-                            )
-                        ) {
-
-                            const partes =
-                                strVal
-                                    .split(
-                                        ' '
-                                    );
-
-
-                            if (
-                                partes.length >
-                                1
-                            ) {
-
-                                strVal =
-                                    partes[1];
-                            }
-                        }
-
-
-                        if (
-                            strVal.includes(
-                                ':'
-                            )
-                        ) {
-
-                            const parts =
-                                strVal
-                                    .split(
-                                        ':'
-                                    );
-
-
-                            const h =
-                                String(
-                                    parts[0] ||
-                                    '00'
-                                )
-                                .padStart(
-                                    2,
-                                    '0'
-                                );
-
-
-                            const m =
-                                String(
-                                    parts[1] ||
-                                    '00'
-                                )
-                                .padStart(
-                                    2,
-                                    '0'
-                                );
-
-
-                            const s =
-                                String(
-                                    parts[2] ||
-                                    '00'
-                                )
-                                .split(
-                                    '.'
-                                )[0]
-                                .padStart(
-                                    2,
-                                    '0'
-                                );
-
-
-                            return (
-                                `${h}:` +
-                                `${m}:` +
-                                `${s}`
-                            );
-                        }
-
-
-                        return '00:00:00';
-                    };
-
-
-                // ======================================
-                // G. TEXTO NORMALIZADO PARA UID
-                // ======================================
-
-                const normalizarTexto =
-                    (
-                        valor
-                    ) => {
-
-                        return String(
-                            valor ??
-                            ''
-                        )
-                        .trim()
-                        .toUpperCase();
-                    };
-
-
-                // ======================================
-                // H. CONCENTRACIÓN
-                // ======================================
-
-                const normalizarConcentracion =
-                    (
-                        valor
-                    ) => {
-
-                        let limpio =
-                            String(
-                                valor ??
-                                '0'
-                            )
-                            .replace(
-                                '%',
-                                ''
-                            )
-                            .replace(
-                                ',',
-                                '.'
-                            )
-                            .replace(
-                                /[^\d.-]/g,
-                                ''
-                            )
-                            .trim();
-
-
-                        let numero =
-                            Number(
-                                limpio
-                            );
-
-
-                        if (
-                            !Number.isFinite(
-                                numero
-                            )
-                        ) {
-
-                            numero =
-                                0;
-                        }
-
-
-                        return String(
-                            numero
-                        );
-                    };
-
-
-                // ======================================
-                // I. MES
-                // ======================================
-
-                const obtenerMes =
-                    (
-                        fecha
-                    ) => {
-
-                        if (!fecha) {
-
-                            return 'N/A';
-                        }
-
-
-                        const nombresMeses =
-                            [
-                                'ENERO',
-                                'FEBRERO',
-                                'MARZO',
-                                'ABRIL',
-                                'MAYO',
-                                'JUNIO',
-                                'JULIO',
-                                'AGOSTO',
-                                'SEPTIEMBRE',
-                                'OCTUBRE',
-                                'NOVIEMBRE',
-                                'DICIEMBRE'
-                            ];
-
-
-                        const parts =
-                            fecha
-                                .split(
-                                    '-'
-                                );
-
-
-                        if (
-                            parts.length !==
-                            3
-                        ) {
-
-                            return 'N/A';
-                        }
-
-
-                        const indice =
-                            parseInt(
-                                parts[1],
-                                10
-                            ) -
-                            1;
-
-
-                        return (
-                            nombresMeses[
-                                indice
-                            ] ||
-                            'N/A'
-                        );
-                    };
-
-
-                // ======================================
-                // J. BUSCADOR DE CABECERAS
-                // ======================================
-
-                const findValue =
-                    (
-                        row,
-                        keywords
-                    ) => {
-
-                        const foundKey =
-                            Object
-                                .keys(
-                                    row
-                                )
-                                .find(
-                                    key =>
-                                        keywords
-                                            .some(
-                                                kw =>
-                                                    key
-                                                        .includes(
-                                                            kw
-                                                        )
-                                            )
-                                );
-
-
-                        return foundKey
-                            ? row[
-                                foundKey
-                              ]
-                            : null;
-                    };
-
-
-                // ======================================
-                // K. GENERAR UID
-                // ======================================
-
-                const crearUID =
-                    (
-                        r
-                    ) => {
-
-                        return [
-                            r.fecha ||
-                            '',
-
-                            r.hora ||
-                            '',
-
-                            normalizarTexto(
-                                r.equipo
-                            ),
-
-                            normalizarTexto(
-                                r.solucion
-                            ),
-
-                            normalizarConcentracion(
-                                r.concen
-                            ),
-
-                            normalizarTexto(
-                                r.operario
-                            ),
-
-                            normalizarTexto(
-                                r.laboratorista
-                            ),
-
-                            normalizarTexto(
-                                r.proceso
-                            )
-                        ]
-                        .join(
-                            '|'
-                        );
-                    };
-
-
-                // ======================================
-                // L. PROCESAR FILAS
-                // ======================================
-
-                const registrosProcesados =
-                    [];
-
-
-                const solucionesDesconocidas =
-                    new Map();
-
-
-                let filasInvalidas =
-                    0;
-
-
-                rawData
-                    .forEach(
-                        (
-                            row
-                        ) => {
-
-                            const cleanRow =
-                                {};
-
-
-                            Object
-                                .keys(
-                                    row
-                                )
-                                .forEach(
-                                    key => {
-
-                                        const cleanKey =
-                                            key
-                                                .trim()
-                                                .toLowerCase()
-                                                .normalize(
-                                                    'NFD'
-                                                )
-                                                .replace(
-                                                    /[\u0300-\u036f]/g,
-                                                    ''
-                                                );
-
-
-                                        cleanRow[
-                                            cleanKey
-                                        ] =
-                                            row[
-                                                key
-                                            ];
-                                    }
-                                );
-
-
-                            const f =
-                                findValue(
-                                    cleanRow,
-                                    [
-                                        'fecha',
-                                        'date',
-                                        'creado'
-                                    ]
-                                );
-
-
-                            let h =
-                                findValue(
-                                    cleanRow,
-                                    [
-                                        'hora',
-                                        'time'
-                                    ]
-                                );
-
-
-                            if (
-                                !h &&
-                                f &&
-                                String(
-                                    f
-                                )
-                                .includes(
-                                    ' '
-                                )
-                            ) {
-
-                                h =
-                                    String(
-                                        f
-                                    )
-                                    .split(
-                                        ' '
-                                    )[1];
-                            }
-
-
-                            const eq =
-                                findValue(
-                                    cleanRow,
-                                    [
-                                        'equipo',
-                                        'maquina',
-                                        'linea'
-                                    ]
-                                );
-
-
-                            const solRaw =
-                                findValue(
-                                    cleanRow,
-                                    [
-                                        'solucion',
-                                        'quimico',
-                                        'producto'
-                                    ]
-                                );
-
-
-                            const conc =
-                                findValue(
-                                    cleanRow,
-                                    [
-                                        'concen',
-                                        'resultado',
-                                        'valor'
-                                    ]
-                                );
-
-
-                            const op =
-                                findValue(
-                                    cleanRow,
-                                    [
-                                        'operario',
-                                        'operador',
-                                        'responsable'
-                                    ]
-                                );
-
-
-                            const lab =
-                                findValue(
-                                    cleanRow,
-                                    [
-                                        'laboratorista',
-                                        'analista',
-                                        'calidad'
-                                    ]
-                                );
-
-
-                            const proc =
-                                findValue(
-                                    cleanRow,
-                                    [
-                                        'proceso',
-                                        'tipo'
-                                    ]
-                                );
-
-
-                            const fechaParsed =
-                                parseExcelDate(
-                                    f
-                                );
-
-
-                            if (
-                                !fechaParsed
-                            ) {
-
-                                filasInvalidas++;
-
-                                return;
-                            }
-
-
-                            const solucionOficial =
-                                resolverSolucion(
-                                    solRaw
-                                );
-
-
-                            if (
-                                !solucionOficial
-                            ) {
-
-                                const nombreProblema =
-                                    String(
-                                        solRaw ??
-                                        'VACÍO'
-                                    )
-                                    .trim();
-
-
-                                solucionesDesconocidas
-                                    .set(
-                                        nombreProblema,
-
-                                        (
-                                            solucionesDesconocidas
-                                                .get(
-                                                    nombreProblema
-                                                ) ||
-                                            0
-                                        ) +
-                                        1
-                                    );
-
-
-                                return;
-                            }
-
-
-                            const registro =
-                                {
-                                    fecha:
-                                        fechaParsed,
-
-                                    hora:
-                                        parseExcelTime(
-                                            h
-                                        ),
-
-                                    mes:
-                                        obtenerMes(
-                                            fechaParsed
-                                        ),
-
-                                    equipo:
-                                        String(
-                                            eq ||
-                                            'N/A'
-                                        )
-                                        .trim(),
-
-                                    solucion:
-                                        solucionOficial,
-
-                                    concen:
-                                        normalizarConcentracion(
-                                            conc
-                                        ),
-
-                                    operario:
-                                        String(
-                                            op ||
-                                            lab ||
-                                            'Desconocido'
-                                        )
-                                        .trim(),
-
-                                    laboratorista:
-                                        String(
-                                            lab ||
-                                            op ||
-                                            'Desconocido'
-                                        )
-                                        .trim(),
-
-                                    proceso:
-                                        String(
-                                            proc ||
-                                            'CIP'
-                                        )
-                                        .trim()
-                                        .toUpperCase()
-                                };
-
-
-                            registro.registro_uid =
-                                crearUID(
-                                    registro
-                                );
-
-
-                            registrosProcesados
-                                .push(
-                                    registro
-                                );
-                        }
-                    );
-
-
-                // ======================================
-                // M. VALIDAR RESULTADOS
-                // ======================================
-
-                if (
-                    registrosProcesados.length ===
-                    0
-                ) {
-
-                    let mensaje =
-                        'No existen registros válidos para importar.';
-
-
-                    if (
-                        solucionesDesconocidas.size >
-                        0
-                    ) {
-
-                        mensaje +=
-                            '\n\nSoluciones no reconocidas:\n';
-
-
-                        Array
-                            .from(
-                                solucionesDesconocidas
-                                    .entries()
-                            )
-                            .forEach(
-                                (
-                                    [
-                                        nombre,
-                                        cantidad
-                                    ]
-                                ) => {
-
-                                    mensaje +=
-                                        `- ${nombre} (${cantidad})\n`;
-                                }
-                            );
-                    }
-
-
-                    alert(
-                        mensaje
-                    );
-
-                    return;
-                }
-
-
-                // ======================================
-                // N. ELIMINAR DUPLICADOS DEL MISMO EXCEL
-                // ======================================
-
-                const mapaArchivo =
-                    new Map();
-
-
-                let duplicadosArchivo =
-                    0;
-
-
-                registrosProcesados
-                    .forEach(
-                        registro => {
-
-                            if (
-                                mapaArchivo
-                                    .has(
-                                        registro.registro_uid
-                                    )
-                            ) {
-
-                                duplicadosArchivo++;
-
-                            } else {
-
-                                mapaArchivo
-                                    .set(
-                                        registro.registro_uid,
-                                        registro
-                                    );
-                            }
-                        }
-                    );
-
-
-                const registrosUnicosArchivo =
-                    Array
-                        .from(
-                            mapaArchivo
-                                .values()
-                        );
-
-
-                // ======================================
-                // O. COMPARAR CON BD LOCALMENTE
-                // ======================================
-
-                if (
-                    loaderText
-                ) {
-
-                    loaderText.innerText =
-                        'COMPARANDO CONTRA LA BASE ACTUAL...';
-                }
-
-
-                const uidsExistentes =
-                    new Set();
-
-
-                listaRegistros
-                    .forEach(
-                        registro => {
-
-                            if (
-                                registro.registro_uid
-                            ) {
-
-                                uidsExistentes
-                                    .add(
-                                        String(
-                                            registro.registro_uid
-                                        )
-                                    );
-
-                            } else {
-
-                                const uidCalculado =
-                                    crearUID(
-                                        {
-                                            fecha:
-                                                registro.fecha,
-
-                                            hora:
-                                                registro.hora,
-
-                                            equipo:
-                                                registro.equipo,
-
-                                            solucion:
-                                                registro.solucion,
-
-                                            concen:
-                                                registro.concen,
-
-                                            operario:
-                                                registro.operario,
-
-                                            laboratorista:
-                                                registro.laboratorista,
-
-                                            proceso:
-                                                registro.proceso
-                                        }
-                                    );
-
-
-                                uidsExistentes
-                                    .add(
-                                        uidCalculado
-                                    );
-                            }
-                        }
-                    );
-
-
-                // ======================================
-                // P. DETERMINAR NUEVOS
-                // ======================================
-
-                const registrosNuevos =
-                    registrosUnicosArchivo
-                        .filter(
-                            registro =>
-                                !uidsExistentes
-                                    .has(
-                                        registro.registro_uid
-                                    )
-                        );
-
-
-                const yaRegistrados =
-                    registrosUnicosArchivo.length -
-                    registrosNuevos.length;
-
-
-                // ======================================
-                // Q. LISTADO SOLUCIONES NO RECONOCIDAS
-                // ======================================
-
-                let textoDesconocidas =
-                    '';
-
-
-                if (
-                    solucionesDesconocidas.size >
-                    0
-                ) {
-
-                    textoDesconocidas =
-                        '\n\nSOLUCIONES NO RECONOCIDAS:\n';
-
-
-                    Array
-                        .from(
-                            solucionesDesconocidas
-                                .entries()
-                        )
-                        .forEach(
-                            (
-                                [
-                                    nombre,
-                                    cantidad
-                                ]
-                            ) => {
-
-                                textoDesconocidas +=
-                                    `- ${nombre}: ${cantidad} fila(s)\n`;
-                            }
-                        );
-                }
-
-
-                // ======================================
-                // R. RESUMEN PREVIO
-                // ======================================
-
-                const resumen =
-                    [
-                        'ANÁLISIS DE IMPORTACIÓN',
-                        '',
-                        `Filas leídas: ${rawData.length}`,
-                        `Registros válidos: ${registrosProcesados.length}`,
-                        `Duplicados dentro del archivo: ${duplicadosArchivo}`,
-                        `Ya registrados en BD: ${yaRegistrados}`,
-                        `Nuevos para importar: ${registrosNuevos.length}`,
-                        `Filas con fecha inválida: ${filasInvalidas}`,
-                        `Filas con solución no reconocida: ${
-                            Array
-                                .from(
-                                    solucionesDesconocidas
-                                        .values()
-                                )
-                                .reduce(
-                                    (
-                                        a,
-                                        b
-                                    ) =>
-                                        a +
-                                        b,
-                                    0
-                                )
-                        }`
-                    ]
-                    .join(
-                        '\n'
-                    ) +
-                    textoDesconocidas;
-
-
-                // ======================================
-                // S. SI NO EXISTEN NUEVOS
-                // ======================================
-
-                if (
-                    registrosNuevos.length ===
-                    0
-                ) {
-
-                    alert(
-                        resumen +
-                        '\n\nNo existen registros nuevos para agregar.'
-                    );
-
-                    return;
-                }
-
-
-                // ======================================
-                // T. CONFIRMAR
-                // ======================================
-
-                const confirmar =
-                    confirm(
-                        resumen +
-                        '\n\n' +
-                        `Se agregarán únicamente ${registrosNuevos.length} registros nuevos.` +
-                        '\n\n¿Deseas continuar?'
-                    );
-
-
-                if (
-                    !confirmar
-                ) {
-
-                    return;
-                }
-
-
-                // ======================================
-                // U. IMPORTAR POR LOTES
-                // ======================================
-
-                if (
-                    loaderText
-                ) {
-
-                    loaderText.innerText =
-                        `IMPORTANDO ${registrosNuevos.length} REGISTROS NUEVOS...`;
-                }
-
-
-                const chunkSize =
-                    500;
-
-
-                let procesados =
-                    0;
-
-
-                for (
-                    let i = 0;
-                    i <
-                    registrosNuevos.length;
-                    i +=
-                    chunkSize
-                ) {
-
-                    const lote =
-                        registrosNuevos
-                            .slice(
-                                i,
-                                i +
-                                chunkSize
-                            );
-
-
-                    const {
-                        error
-                    } =
-                        await clienteSupabase
-                            .from(
-                                'registros_limpieza'
-                            )
-                            .upsert(
-                                lote,
-                                {
-                                    onConflict:
-                                        'registro_uid',
-
-                                    ignoreDuplicates:
-                                        true
-                                }
-                            );
-
-
-                    if (
-                        error
-                    ) {
-
-                        console.error(
-                            'Error importando lote:',
-                            error
-                        );
-
-
-                        throw new Error(
-                            'Supabase rechazó la importación: ' +
-                            error.message
-                        );
-                    }
-
-
-                    procesados +=
-                        lote.length;
-                }
-
-
-                // ======================================
-                // V. RECARGAR DASHBOARD
-                // ======================================
-
-                if (
-                    loaderText
-                ) {
-
-                    loaderText.innerText =
-                        'CONSOLIDANDO DASHBOARD...';
-                }
-
-
-                await cargarSupabase();
-
-
-                // ======================================
-                // W. MENSAJE FINAL
-                // ======================================
-
-                alert(
-                    [
-                        'IMPORTACIÓN FINALIZADA',
-                        '',
-                        `Filas del archivo: ${rawData.length}`,
-                        `Duplicados internos omitidos: ${duplicadosArchivo}`,
-                        `Ya existentes omitidos: ${yaRegistrados}`,
-                        `Registros nuevos procesados: ${procesados}`,
-                        `Soluciones no reconocidas omitidas: ${
-                            Array
-                                .from(
-                                    solucionesDesconocidas
-                                        .values()
-                                )
-                                .reduce(
-                                    (
-                                        a,
-                                        b
-                                    ) =>
-                                        a +
-                                        b,
-                                    0
-                                )
-                        }`,
-                        '',
-                        `Total actual BD: ${listaRegistros.length.toLocaleString()}`,
-                        '',
-                        'La base fue consolidada sin insertar duplicados.'
-                    ]
-                    .join(
-                        '\n'
-                    )
+            // F. UTILIDAD HORA
+// ======================================
+
+const parseExcelTime =
+    (
+        val
+    ) => {
+
+        if (
+            val ===
+            null ||
+            val ===
+            undefined ||
+            val ===
+            ''
+        ) {
+
+            return '00:00:00';
+        }
+
+
+        if (
+            typeof val ===
+            'number'
+        ) {
+
+            const frac =
+                val -
+                Math.floor(
+                    val
                 );
 
 
-            } catch (
-                error
+            const totalSeconds =
+                Math.floor(
+                    frac *
+                    86400 +
+                    0.5
+                );
+
+
+            const h =
+                String(
+                    Math.floor(
+                        totalSeconds /
+                        3600
+                    )
+                )
+                .padStart(
+                    2,
+                    '0'
+                );
+
+
+            const m =
+                String(
+                    Math.floor(
+                        (
+                            totalSeconds %
+                            3600
+                        ) /
+                        60
+                    )
+                )
+                .padStart(
+                    2,
+                    '0'
+                );
+
+
+            const s =
+                String(
+                    totalSeconds %
+                    60
+                )
+                .padStart(
+                    2,
+                    '0'
+                );
+
+
+            return (
+                `${h}:` +
+                `${m}:` +
+                `${s}`
+            );
+        }
+
+
+        let strVal =
+            String(
+                val
+            )
+            .trim();
+
+
+        if (
+            strVal.includes(
+                ' '
+            )
+        ) {
+
+            const partes =
+                strVal
+                    .split(
+                        ' '
+                    );
+
+
+            if (
+                partes.length >
+                1
             ) {
 
-                console.error(
-                    'Error durante la importación:',
-                    error
-                );
-
-
-                alert(
-                    'No se pudo completar la importación.' +
-                    '\n\n' +
-                    error.message
-                );
-
-
-            } finally {
-
-                event.target.value =
-                    '';
-
-
-                if (
-                    loader
-                ) {
-
-                    loader.classList.add(
-                        'opacity-0',
-                        'pointer-events-none'
-                    );
-                }
-
-
-                if (
-                    loaderText
-                ) {
-
-                    loaderText.innerText =
-                        'CARGANDO MÓDULO POES...';
-                }
+                strVal =
+                    partes[1];
             }
-        };
+        }
 
 
-    reader.readAsArrayBuffer(
-        file
+        if (
+            strVal.includes(
+                ':'
+            )
+        ) {
+
+            const parts =
+                strVal
+                    .split(
+                        ':'
+                    );
+
+
+            const h =
+                String(
+                    parts[0] ||
+                    '00'
+                )
+                .padStart(
+                    2,
+                    '0'
+                );
+
+
+            const m =
+                String(
+                    parts[1] ||
+                    '00'
+                )
+                .padStart(
+                    2,
+                    '0'
+                );
+
+
+            const s =
+                String(
+                    parts[2] ||
+                    '00'
+                )
+                .split(
+                    '.'
+                )[0]
+                .padStart(
+                    2,
+                    '0'
+                );
+
+
+            return (
+                `${h}:` +
+                `${m}:` +
+                `${s}`
+            );
+        }
+
+
+        return '00:00:00';
+    };
+
+
+// ======================================
+// G. TEXTO NORMALIZADO PARA UID
+// ======================================
+
+const normalizarTexto =
+    (
+        valor
+    ) => {
+
+        return String(
+            valor ??
+            ''
+        )
+        .trim()
+        .toUpperCase();
+    };
+
+
+// ======================================
+// H. CONCENTRACIÓN
+// ======================================
+
+const normalizarConcentracion =
+    (
+        valor
+    ) => {
+
+        let limpio =
+            String(
+                valor ??
+                '0'
+            )
+            .replace(
+                '%',
+                ''
+            )
+            .replace(
+                ',',
+                '.'
+            )
+            .replace(
+                /[^\d.-]/g,
+                ''
+            )
+            .trim();
+
+
+        let numero =
+            Number(
+                limpio
+            );
+
+
+        if (
+            !Number.isFinite(
+                numero
+            )
+        ) {
+
+            numero =
+                0;
+        }
+
+
+        return String(
+            numero
+        );
+    };
+
+
+// ======================================
+// I. MES
+// ======================================
+
+const obtenerMes =
+    (
+        fecha
+    ) => {
+
+        if (!fecha) {
+
+            return 'N/A';
+        }
+
+
+        const nombresMeses =
+            [
+                'ENERO',
+                'FEBRERO',
+                'MARZO',
+                'ABRIL',
+                'MAYO',
+                'JUNIO',
+                'JULIO',
+                'AGOSTO',
+                'SEPTIEMBRE',
+                'OCTUBRE',
+                'NOVIEMBRE',
+                'DICIEMBRE'
+            ];
+
+
+        const parts =
+            fecha
+                .split(
+                    '-'
+                );
+
+
+        if (
+            parts.length !==
+            3
+        ) {
+
+            return 'N/A';
+        }
+
+
+        const indice =
+            parseInt(
+                parts[1],
+                10
+            ) -
+            1;
+
+
+        return (
+            nombresMeses[
+                indice
+            ] ||
+            'N/A'
+        );
+    };
+
+
+// ======================================
+// J. BUSCADOR DE CABECERAS
+// ======================================
+
+const findValue =
+    (
+        row,
+        keywords
+    ) => {
+
+        const foundKey =
+            Object
+                .keys(
+                    row
+                )
+                .find(
+                    key =>
+                        keywords
+                            .some(
+                                kw =>
+                                    key
+                                        .includes(
+                                            kw
+                                        )
+                            )
+                );
+
+
+        return foundKey
+            ? row[
+                foundKey
+              ]
+            : null;
+    };
+
+
+// ======================================
+// K. GENERAR UID
+// ======================================
+
+const crearUID =
+    (
+        r
+    ) => {
+
+        return [
+            r.fecha ||
+            '',
+
+            r.hora ||
+            '',
+
+            normalizarTexto(
+                r.equipo
+            ),
+
+            normalizarTexto(
+                r.solucion
+            ),
+
+            normalizarConcentracion(
+                r.concen
+            ),
+
+            normalizarTexto(
+                r.operario
+            ),
+
+            normalizarTexto(
+                r.laboratorista
+            ),
+
+            normalizarTexto(
+                r.proceso
+            )
+        ]
+        .join(
+            '|'
+        );
+    };
+
+
+// ======================================
+// L. PROCESAR FILAS
+// ======================================
+
+const registrosProcesados =
+    [];
+
+
+const solucionesDesconocidas =
+    new Map();
+
+
+let filasInvalidas =
+    0;
+
+
+rawData
+    .forEach(
+        (
+            row
+        ) => {
+
+            const cleanRow =
+                {};
+
+
+            Object
+                .keys(
+                    row
+                )
+                .forEach(
+                    key => {
+
+                        const cleanKey =
+                            key
+                                .trim()
+                                .toLowerCase()
+                                .normalize(
+                                    'NFD'
+                                )
+                                .replace(
+                                    /[\u0300-\u036f]/g,
+                                    ''
+                                );
+
+
+                        cleanRow[
+                            cleanKey
+                        ] =
+                            row[
+                                key
+                            ];
+                    }
+                );
+
+
+            const f =
+                findValue(
+                    cleanRow,
+                    [
+                        'fecha',
+                        'date',
+                        'creado'
+                    ]
+                );
+
+
+            let h =
+                findValue(
+                    cleanRow,
+                    [
+                        'hora',
+                        'time'
+                    ]
+                );
+
+
+            if (
+                !h &&
+                f &&
+                String(
+                    f
+                )
+                .includes(
+                    ' '
+                )
+            ) {
+
+                h =
+                    String(
+                        f
+                    )
+                    .split(
+                        ' '
+                    )[1];
+            }
+
+
+            const eq =
+                findValue(
+                    cleanRow,
+                    [
+                        'equipo',
+                        'maquina',
+                        'linea'
+                    ]
+                );
+
+
+            const solRaw =
+                findValue(
+                    cleanRow,
+                    [
+                        'solucion',
+                        'quimico',
+                        'producto'
+                    ]
+                );
+
+
+            const conc =
+                findValue(
+                    cleanRow,
+                    [
+                        'concen',
+                        'resultado',
+                        'valor'
+                    ]
+                );
+
+
+            const op =
+                findValue(
+                    cleanRow,
+                    [
+                        'operario',
+                        'operador',
+                        'responsable'
+                    ]
+                );
+
+
+            const lab =
+                findValue(
+                    cleanRow,
+                    [
+                        'laboratorista',
+                        'analista',
+                        'calidad'
+                    ]
+                );
+
+
+            const proc =
+                findValue(
+                    cleanRow,
+                    [
+                        'proceso',
+                        'tipo'
+                    ]
+                );
+
+
+            const fechaParsed =
+                parseExcelDate(
+                    f
+                );
+
+
+            if (
+                !fechaParsed
+            ) {
+
+                filasInvalidas++;
+
+                return;
+            }
+
+
+            const solucionOficial =
+                resolverSolucion(
+                    solRaw
+                );
+
+
+            if (
+                !solucionOficial
+            ) {
+
+                const nombreProblema =
+                    String(
+                        solRaw ??
+                        'VACÍO'
+                    )
+                    .trim();
+
+
+                solucionesDesconocidas
+                    .set(
+                        nombreProblema,
+
+                        (
+                            solucionesDesconocidas
+                                .get(
+                                    nombreProblema
+                                ) ||
+                            0
+                        ) +
+                        1
+                    );
+
+
+                return;
+            }
+
+
+            const registro =
+                {
+                    fecha:
+                        fechaParsed,
+
+                    hora:
+                        parseExcelTime(
+                            h
+                        ),
+
+                    mes:
+                        obtenerMes(
+                            fechaParsed
+                        ),
+
+                    equipo:
+                        String(
+                            eq ||
+                            'N/A'
+                        )
+                        .trim(),
+
+                    solucion:
+                        solucionOficial,
+
+                    concen:
+                        normalizarConcentracion(
+                            conc
+                        ),
+
+                    operario:
+                        String(
+                            op ||
+                            lab ||
+                            'Desconocido'
+                        )
+                        .trim(),
+
+                    laboratorista:
+                        String(
+                            lab ||
+                            op ||
+                            'Desconocido'
+                        )
+                        .trim(),
+
+                    proceso:
+                        String(
+                            proc ||
+                            'CIP'
+                        )
+                        .trim()
+                        .toUpperCase()
+                };
+
+
+            registro.registro_uid =
+                crearUID(
+                    registro
+                );
+
+
+            registrosProcesados
+                .push(
+                    registro
+                );
+        }
     );
+
+
+// ======================================
+// M. VALIDAR RESULTADOS
+// ======================================
+
+if (
+    registrosProcesados.length ===
+    0
+) {
+
+    let mensaje =
+        'No existen registros válidos para importar.';
+
+
+    if (
+        solucionesDesconocidas.size >
+        0
+    ) {
+
+        mensaje +=
+            '\n\nSoluciones no reconocidas:\n';
+
+
+        Array
+            .from(
+                solucionesDesconocidas
+                    .entries()
+            )
+            .forEach(
+                (
+                    [
+                        nombre,
+                        cantidad
+                    ]
+                ) => {
+
+                    mensaje +=
+                        `- ${nombre} (${cantidad})\n`;
+                }
+            );
+    }
+
+
+    alert(
+        mensaje
+    );
+
+    return;
+}
+
+
+// ======================================
+// N. ELIMINAR DUPLICADOS DEL MISMO EXCEL
+// ======================================
+
+const mapaArchivo =
+    new Map();
+
+
+let duplicadosArchivo =
+    0;
+
+
+registrosProcesados
+    .forEach(
+        registro => {
+
+            if (
+                mapaArchivo
+                    .has(
+                        registro.registro_uid
+                    )
+            ) {
+
+                duplicadosArchivo++;
+
+            } else {
+
+                mapaArchivo
+                    .set(
+                        registro.registro_uid,
+                        registro
+                    );
+            }
+        }
+    );
+
+
+const registrosUnicosArchivo =
+    Array
+        .from(
+            mapaArchivo
+                .values()
+        );
+
+
+// ======================================
+// O. COMPARAR CON BD LOCALMENTE
+// ======================================
+
+if (
+    loaderText
+) {
+
+    loaderText.innerText =
+        'COMPARANDO CONTRA LA BASE ACTUAL...';
+}
+
+
+const uidsExistentes =
+    new Set();
+
+
+listaRegistros
+    .forEach(
+        registro => {
+
+            if (
+                registro.registro_uid
+            ) {
+
+                uidsExistentes
+                    .add(
+                        String(
+                            registro.registro_uid
+                        )
+                    );
+
+            } else {
+
+                const uidCalculado =
+                    crearUID(
+                        {
+                            fecha:
+                                registro.fecha,
+
+                            hora:
+                                registro.hora,
+
+                            equipo:
+                                registro.equipo,
+
+                            solucion:
+                                registro.solucion,
+
+                            concen:
+                                registro.concen,
+
+                            operario:
+                                registro.operario,
+
+                            laboratorista:
+                                registro.laboratorista,
+
+                            proceso:
+                                registro.proceso
+                        }
+                    );
+
+
+                uidsExistentes
+                    .add(
+                        uidCalculado
+                    );
+            }
+        }
+    );
+
+
+// ======================================
+// P. DETERMINAR NUEVOS
+// ======================================
+
+const registrosNuevos =
+    registrosUnicosArchivo
+        .filter(
+            registro =>
+                !uidsExistentes
+                    .has(
+                        registro.registro_uid
+                    )
+        );
+
+
+const yaRegistrados =
+    registrosUnicosArchivo.length -
+    registrosNuevos.length;
+
+
+// ======================================
+// Q. LISTADO SOLUCIONES NO RECONOCIDAS
+// ======================================
+
+let textoDesconocidas =
+    '';
+
+
+if (
+    solucionesDesconocidas.size >
+    0
+) {
+
+    textoDesconocidas =
+        '\n\nSOLUCIONES NO RECONOCIDAS:\n';
+
+
+    Array
+        .from(
+            solucionesDesconocidas
+                .entries()
+        )
+        .forEach(
+            (
+                [
+                    nombre,
+                    cantidad
+                ]
+            ) => {
+
+                textoDesconocidas +=
+                    `- ${nombre}: ${cantidad} fila(s)\n`;
+            }
+        );
+}
+
+
+// ======================================
+// R. RESUMEN PREVIO
+// ======================================
+
+const resumen =
+    [
+        'ANÁLISIS DE IMPORTACIÓN',
+        '',
+        `Filas leídas: ${rawData.length}`,
+        `Registros válidos: ${registrosProcesados.length}`,
+        `Duplicados dentro del archivo: ${duplicadosArchivo}`,
+        `Ya registrados en BD: ${yaRegistrados}`,
+        `Nuevos para importar: ${registrosNuevos.length}`,
+        `Filas con fecha inválida: ${filasInvalidas}`,
+        `Filas con solución no reconocida: ${
+            Array
+                .from(
+                    solucionesDesconocidas
+                        .values()
+                )
+                .reduce(
+                    (
+                        a,
+                        b
+                    ) =>
+                        a +
+                        b,
+                    0
+                )
+        }`
+    ]
+    .join(
+        '\n'
+    ) +
+    textoDesconocidas;
+
+
+// ======================================
+// S. SI NO EXISTEN NUEVOS
+// ======================================
+            if (
+    registrosNuevos.length ===
+    0
+) {
+
+    alert(
+        resumen +
+        '\n\nNo existen registros nuevos para agregar.'
+    );
+
+    return;
+}
+
+
+// ======================================
+// T. CONFIRMAR
+// ======================================
+
+const confirmar =
+    confirm(
+        resumen +
+        '\n\n' +
+        `Se agregarán únicamente ${registrosNuevos.length} registros nuevos.` +
+        '\n\n¿Deseas continuar?'
+    );
+
+
+if (
+    !confirmar
+) {
+
+    return;
+}
+
+
+// ======================================
+// U. IMPORTAR POR LOTES
+// ======================================
+
+if (
+    loaderText
+) {
+
+    loaderText.innerText =
+        `IMPORTANDO ${registrosNuevos.length} REGISTROS NUEVOS...`;
+}
+
+
+const chunkSize =
+    500;
+
+
+let procesados =
+    0;
+
+
+for (
+    let i = 0;
+    i <
+    registrosNuevos.length;
+    i +=
+    chunkSize
+) {
+
+    const lote =
+        registrosNuevos
+            .slice(
+                i,
+                i +
+                chunkSize
+            );
+
+
+    const {
+        error
+    } =
+        await clienteSupabase
+            .from(
+                'registros_limpieza'
+            )
+            .upsert(
+                lote,
+                {
+                    onConflict:
+                        'registro_uid',
+
+                    ignoreDuplicates:
+                        true
+                }
+            );
+
+
+    if (
+        error
+    ) {
+
+        console.error(
+            'Error importando lote:',
+            error
+        );
+
+
+        throw new Error(
+            'Supabase rechazó la importación: ' +
+            error.message
+        );
+    }
+
+
+    procesados +=
+        lote.length;
+}
+
+
+// ======================================
+// V. RECARGAR DASHBOARD
+// ======================================
+
+if (
+    loaderText
+) {
+
+    loaderText.innerText =
+        'CONSOLIDANDO DASHBOARD...';
+}
+
+
+await cargarSupabase();
+
+
+// ======================================
+// W. MENSAJE FINAL
+// ======================================
+
+alert(
+    [
+        'IMPORTACIÓN FINALIZADA',
+        '',
+        `Filas del archivo: ${rawData.length}`,
+        `Duplicados internos omitidos: ${duplicadosArchivo}`,
+        `Ya existentes omitidos: ${yaRegistrados}`,
+        `Registros nuevos procesados: ${procesados}`,
+        `Soluciones no reconocidas omitidas: ${
+            Array
+                .from(
+                    solucionesDesconocidas
+                        .values()
+                )
+                .reduce(
+                    (
+                        a,
+                        b
+                    ) =>
+                        a +
+                        b,
+                    0
+                )
+        }`,
+        '',
+        `Total actual BD: ${listaRegistros.length.toLocaleString()}`,
+        '',
+        'La base fue consolidada sin insertar duplicados.'
+    ]
+    .join(
+        '\n'
+    )
+);
+
+
+} catch (
+    error
+) {
+
+    console.error(
+        'Error durante la importación:',
+        error
+    );
+
+
+    alert(
+        'No se pudo completar la importación.' +
+        '\n\n' +
+        error.message
+    );
+
+
+} finally {
+
+    event.target.value =
+        '';
+
+
+    if (
+        loader
+    ) {
+
+        loader.classList.add(
+            'opacity-0',
+            'pointer-events-none'
+        );
+    }
+
+
+    if (
+        loaderText
+    ) {
+
+        loaderText.innerText =
+            'CARGANDO MÓDULO POES...';
+    }
+}
+};
+
+
+reader.readAsArrayBuffer(
+    file
+);
 }
