@@ -3979,18 +3979,16 @@ function limpiarApiKey() {
 
 // ==========================================
 // 17. IMPORTACIÓN EXCEL
-// CONTROL DE DUPLICADOS + UID
+// CONTROL LOCAL DE DUPLICADOS + UID
 // ==========================================
 async function importarArchivoExcel(event) {
-    const file =
-        event.target.files[0];
+
+    const file = event.target.files[0];
 
     if (!file) return;
 
     const loader =
-        document.getElementById(
-            'loader'
-        );
+        document.getElementById('loader');
 
     const loaderText =
         loader
@@ -3998,30 +3996,38 @@ async function importarArchivoExcel(event) {
             : null;
 
     if (loader) {
+
         loader.classList.remove(
             'opacity-0',
             'pointer-events-none'
         );
 
         if (loaderText) {
+
             loaderText.innerText =
                 'ANALIZANDO ARCHIVO EXCEL...';
         }
     }
 
+
     const reader =
         new FileReader();
 
+
     reader.onload =
-        async e => {
+        async (e) => {
+
             try {
+
                 // ======================================
-                // LECTURA DEL ARCHIVO
+                // 1. LEER ARCHIVO
                 // ======================================
+
                 const data =
                     new Uint8Array(
                         e.target.result
                     );
+
 
                 const workbook =
                     XLSX.read(
@@ -4031,13 +4037,16 @@ async function importarArchivoExcel(event) {
                         }
                     );
 
+
                 const firstSheetName =
                     workbook.SheetNames[0];
+
 
                 const worksheet =
                     workbook.Sheets[
                         firstSheetName
                     ];
+
 
                 const rawData =
                     XLSX.utils.sheet_to_json(
@@ -4048,10 +4057,12 @@ async function importarArchivoExcel(event) {
                         }
                     );
 
+
                 if (
                     !rawData ||
                     rawData.length === 0
                 ) {
+
                     alert(
                         'El archivo Excel está vacío o no contiene registros válidos.'
                     );
@@ -4059,28 +4070,36 @@ async function importarArchivoExcel(event) {
                     return;
                 }
 
+
+
                 // ======================================
-                // UTILIDADES
+                // 2. FORMATEAR FECHA
                 // ======================================
+
                 const parseExcelDate =
-                    val => {
+                    (val) => {
+
                         if (
                             val === null ||
                             val === undefined ||
                             val === ''
                         ) {
+
                             return null;
                         }
 
+
+                        // Fecha serial de Excel
                         if (
                             typeof val ===
                             'number'
                         ) {
+
                             const utcDays =
                                 Math.floor(
-                                    val -
-                                    25569
+                                    val - 25569
                                 );
+
 
                             const dateInfo =
                                 new Date(
@@ -4089,40 +4108,52 @@ async function importarArchivoExcel(event) {
                                     1000
                                 );
 
+
                             const y =
                                 dateInfo
                                     .getUTCFullYear();
+
 
                             const m =
                                 String(
                                     dateInfo
                                         .getUTCMonth() +
                                     1
-                                ).padStart(
+                                )
+                                .padStart(
                                     2,
                                     '0'
                                 );
+
 
                             const d =
                                 String(
                                     dateInfo
                                         .getUTCDate()
-                                ).padStart(
+                                )
+                                .padStart(
                                     2,
                                     '0'
                                 );
 
+
                             return `${y}-${m}-${d}`;
                         }
+
 
                         const strVal =
                             String(
                                 val
                             ).trim();
 
+
+                        // Ejemplo:
+                        // 28/09/2026 08:14:17
+
                         const datePart =
                             strVal
                                 .split(' ')[0];
+
 
                         const parts =
                             datePart
@@ -4130,14 +4161,19 @@ async function importarArchivoExcel(event) {
                                     /[/\-]/
                                 );
 
+
                         if (
                             parts.length ===
                             3
                         ) {
+
+                            // DD/MM/YYYY
                             if (
-                                parts[2].length ===
+                                parts[2]
+                                    .length ===
                                 4
                             ) {
+
                                 return (
                                     `${parts[2]}-` +
                                     `${parts[1].padStart(2, '0')}-` +
@@ -4145,10 +4181,14 @@ async function importarArchivoExcel(event) {
                                 );
                             }
 
+
+                            // YYYY-MM-DD
                             if (
-                                parts[0].length ===
+                                parts[0]
+                                    .length ===
                                 4
                             ) {
+
                                 return (
                                     `${parts[0]}-` +
                                     `${parts[1].padStart(2, '0')}-` +
@@ -4157,43 +4197,59 @@ async function importarArchivoExcel(event) {
                             }
                         }
 
+
                         const fallback =
                             new Date(
                                 strVal
                             );
+
 
                         if (
                             !isNaN(
                                 fallback
                             )
                         ) {
+
                             return fallback
                                 .toISOString()
                                 .split('T')[0];
                         }
 
+
                         return null;
                     };
 
+
+
+                // ======================================
+                // 3. FORMATEAR HORA
+                // ======================================
+
                 const parseExcelTime =
-                    val => {
+                    (val) => {
+
                         if (
                             val === null ||
                             val === undefined ||
                             val === ''
                         ) {
+
                             return '00:00:00';
                         }
 
+
+                        // Hora decimal de Excel
                         if (
                             typeof val ===
                             'number'
                         ) {
+
                             const frac =
                                 val -
                                 Math.floor(
                                     val
                                 );
+
 
                             const totalSeconds =
                                 Math.floor(
@@ -4202,16 +4258,19 @@ async function importarArchivoExcel(event) {
                                     0.5
                                 );
 
+
                             const h =
                                 String(
                                     Math.floor(
                                         totalSeconds /
                                         3600
                                     )
-                                ).padStart(
+                                )
+                                .padStart(
                                     2,
                                     '0'
                                 );
+
 
                             const m =
                                 String(
@@ -4222,71 +4281,93 @@ async function importarArchivoExcel(event) {
                                         ) /
                                         60
                                     )
-                                ).padStart(
+                                )
+                                .padStart(
                                     2,
                                     '0'
                                 );
+
 
                             const s =
                                 String(
                                     totalSeconds %
                                     60
-                                ).padStart(
+                                )
+                                .padStart(
                                     2,
                                     '0'
                                 );
 
+
                             return `${h}:${m}:${s}`;
                         }
+
 
                         let strVal =
                             String(
                                 val
                             ).trim();
 
+
+                        // Si llega fecha + hora
                         if (
                             strVal.includes(
                                 ' '
                             )
                         ) {
-                            const timePart =
-                                strVal.split(
-                                    ' '
-                                )[1];
 
-                            if (timePart) {
+                            const partes =
+                                strVal
+                                    .split(
+                                        ' '
+                                    );
+
+
+                            if (
+                                partes.length >
+                                1
+                            ) {
+
                                 strVal =
-                                    timePart;
+                                    partes[1];
                             }
                         }
+
 
                         if (
                             strVal.includes(
                                 ':'
                             )
                         ) {
+
                             const parts =
-                                strVal.split(
-                                    ':'
-                                );
+                                strVal
+                                    .split(
+                                        ':'
+                                    );
+
 
                             const h =
                                 String(
                                     parts[0] ||
                                     '00'
-                                ).padStart(
+                                )
+                                .padStart(
                                     2,
                                     '0'
                                 );
+
 
                             const m =
                                 String(
                                     parts[1] ||
                                     '00'
-                                ).padStart(
+                                )
+                                .padStart(
                                     2,
                                     '0'
                                 );
+
 
                             const s =
                                 String(
@@ -4299,23 +4380,34 @@ async function importarArchivoExcel(event) {
                                     '0'
                                 );
 
+
                             return `${h}:${m}:${s}`;
                         }
+
 
                         return '00:00:00';
                     };
 
+
+
+                // ======================================
+                // 4. NORMALIZADORES
+                // ======================================
+
                 const normalizarTexto =
-                    valor => {
+                    (valor) => {
+
                         return String(
                             valor ?? ''
                         )
-                            .trim()
-                            .toUpperCase();
+                        .trim()
+                        .toUpperCase();
                     };
 
+
                 const normalizarConcentracion =
-                    valor => {
+                    (valor) => {
+
                         let limpio =
                             String(
                                 valor ?? '0'
@@ -4334,60 +4426,84 @@ async function importarArchivoExcel(event) {
                             )
                             .trim();
 
+
                         let numero =
-                            Number(limpio);
+                            Number(
+                                limpio
+                            );
+
 
                         if (
                             !Number.isFinite(
                                 numero
                             )
                         ) {
+
                             numero = 0;
                         }
 
+
+                        // 1.50 -> 1.5
+                        // 35.00 -> 35
                         return String(
                             numero
                         );
                     };
 
+
+
+                // ======================================
+                // 5. MES DESDE FECHA
+                // ======================================
+
                 const obtenerMes =
-                    fecha => {
+                    (fecha) => {
+
                         if (!fecha) {
+
                             return 'N/A';
                         }
 
-                        const nombresMeses = [
-                            'ENERO',
-                            'FEBRERO',
-                            'MARZO',
-                            'ABRIL',
-                            'MAYO',
-                            'JUNIO',
-                            'JULIO',
-                            'AGOSTO',
-                            'SEPTIEMBRE',
-                            'OCTUBRE',
-                            'NOVIEMBRE',
-                            'DICIEMBRE'
-                        ];
+
+                        const nombresMeses =
+                            [
+                                'ENERO',
+                                'FEBRERO',
+                                'MARZO',
+                                'ABRIL',
+                                'MAYO',
+                                'JUNIO',
+                                'JULIO',
+                                'AGOSTO',
+                                'SEPTIEMBRE',
+                                'OCTUBRE',
+                                'NOVIEMBRE',
+                                'DICIEMBRE'
+                            ];
+
 
                         const parts =
-                            fecha.split(
-                                '-'
-                            );
+                            fecha
+                                .split(
+                                    '-'
+                                );
+
 
                         if (
                             parts.length !==
                             3
                         ) {
+
                             return 'N/A';
                         }
+
 
                         const indice =
                             parseInt(
                                 parts[1],
                                 10
                             ) - 1;
+
 
                         return (
                             nombresMeses[
@@ -4397,24 +4513,32 @@ async function importarArchivoExcel(event) {
                         );
                     };
 
+
+
+                // ======================================
+                // 6. BUSCAR COLUMNA
+                // ======================================
+
                 const findValue =
                     (
                         row,
                         keywords
                     ) => {
+
                         const foundKey =
                             Object
                                 .keys(row)
                                 .find(
-                                    k =>
+                                    key =>
                                         keywords
                                             .some(
                                                 kw =>
-                                                    k.includes(
+                                                    key.includes(
                                                         kw
                                                     )
                                             )
                                 );
+
 
                         return foundKey
                             ? row[
@@ -4423,57 +4547,83 @@ async function importarArchivoExcel(event) {
                             : null;
                     };
 
+
+
+                // ======================================
+                // 7. CREAR UID
+                // EXACTAMENTE IGUAL AL DE SUPABASE
+                // ======================================
+
                 const crearUID =
-                    r => {
+                    (r) => {
+
                         return [
+
                             r.fecha || '',
+
                             r.hora || '',
+
                             normalizarTexto(
                                 r.equipo
                             ),
+
                             normalizarTexto(
                                 r.solucion
                             ),
+
                             normalizarConcentracion(
                                 r.concen
                             ),
+
                             normalizarTexto(
                                 r.operario
                             ),
+
                             normalizarTexto(
                                 r.laboratorista
                             ),
+
                             normalizarTexto(
                                 r.proceso
                             )
-                        ].join('|');
+
+                        ].join(
+                            '|'
+                        );
                     };
 
+
+
                 // ======================================
-                // NORMALIZAR FILAS
+                // 8. PROCESAR FILAS
                 // ======================================
+
                 const registrosProcesados =
                     rawData
                         .map(
                             row => {
+
                                 const cleanRow =
                                     {};
+
 
                                 Object
                                     .keys(row)
                                     .forEach(
                                         key => {
+
                                             const cleanKey =
                                                 key
                                                     .trim()
                                                     .toLowerCase()
                                                     .normalize(
-                                                        "NFD"
+                                                        'NFD'
                                                     )
                                                     .replace(
                                                         /[\u0300-\u036f]/g,
-                                                        ""
+                                                        ''
                                                     );
+
 
                                             cleanRow[
                                                 cleanKey
@@ -4483,6 +4633,7 @@ async function importarArchivoExcel(event) {
                                                 ];
                                         }
                                     );
+
 
                                 const f =
                                     findValue(
@@ -4494,6 +4645,7 @@ async function importarArchivoExcel(event) {
                                         ]
                                     );
 
+
                                 let h =
                                     findValue(
                                         cleanRow,
@@ -4503,15 +4655,23 @@ async function importarArchivoExcel(event) {
                                         ]
                                     );
 
+
+                                /*
+                                Si no existe columna hora,
+                                intenta sacarla desde fecha.
+                                */
+
                                 if (
                                     !h &&
                                     f &&
                                     String(
                                         f
-                                    ).includes(
+                                    )
+                                    .includes(
                                         ' '
                                     )
                                 ) {
+
                                     h =
                                         String(
                                             f
@@ -4520,6 +4680,7 @@ async function importarArchivoExcel(event) {
                                             ' '
                                         )[1];
                                 }
+
 
                                 const eq =
                                     findValue(
@@ -4531,6 +4692,7 @@ async function importarArchivoExcel(event) {
                                         ]
                                     );
 
+
                                 const sol =
                                     findValue(
                                         cleanRow,
@@ -4540,6 +4702,7 @@ async function importarArchivoExcel(event) {
                                             'producto'
                                         ]
                                     );
+
 
                                 const conc =
                                     findValue(
@@ -4551,6 +4714,7 @@ async function importarArchivoExcel(event) {
                                         ]
                                     );
 
+
                                 const op =
                                     findValue(
                                         cleanRow,
@@ -4560,6 +4724,7 @@ async function importarArchivoExcel(event) {
                                             'responsable'
                                         ]
                                     );
+
 
                                 const lab =
                                     findValue(
@@ -4571,6 +4736,7 @@ async function importarArchivoExcel(event) {
                                         ]
                                     );
 
+
                                 const proc =
                                     findValue(
                                         cleanRow,
@@ -4580,71 +4746,90 @@ async function importarArchivoExcel(event) {
                                         ]
                                     );
 
+
                                 const fechaParsed =
                                     parseExcelDate(
                                         f
                                     );
 
-                                const registro = {
-                                    fecha:
-                                        fechaParsed,
 
-                                    hora:
-                                        parseExcelTime(
-                                            h
-                                        ),
+                                const registro =
+                                    {
 
-                                    mes:
-                                        obtenerMes(
-                                            fechaParsed
-                                        ),
+                                        fecha:
+                                            fechaParsed,
 
-                                    equipo:
-                                        String(
-                                            eq ||
-                                            'N/A'
-                                        ).trim(),
 
-                                    solucion:
-                                        estandarizarSolucion(
+                                        hora:
+                                            parseExcelTime(
+                                                h
+                                            ),
+
+
+                                        mes:
+                                            obtenerMes(
+                                                fechaParsed
+                                            ),
+
+
+                                        equipo:
                                             String(
-                                                sol ||
-                                                'S/N'
-                                            ).trim()
-                                        ),
+                                                eq ||
+                                                'N/A'
+                                            )
+                                            .trim(),
 
-                                    concen:
-                                        normalizarConcentracion(
-                                            conc
-                                        ),
 
-                                    operario:
-                                        String(
-                                            op ||
-                                            lab ||
-                                            'Desconocido'
-                                        ).trim(),
+                                        solucion:
+                                            estandarizarSolucion(
+                                                String(
+                                                    sol ||
+                                                    'S/N'
+                                                )
+                                                .trim()
+                                            ),
 
-                                    laboratorista:
-                                        String(
-                                            lab ||
-                                            op ||
-                                            'Desconocido'
-                                        ).trim(),
 
-                                    proceso:
-                                        String(
-                                            proc ||
-                                            'CIP'
-                                        )
-                                        .trim()
-                                        .toUpperCase()
-                                };
+                                        concen:
+                                            normalizarConcentracion(
+                                                conc
+                                            ),
+
+
+                                        operario:
+                                            String(
+                                                op ||
+                                                lab ||
+                                                'Desconocido'
+                                            )
+                                            .trim(),
+
+
+                                        laboratorista:
+                                            String(
+                                                lab ||
+                                                op ||
+                                                'Desconocido'
+                                            )
+                                            .trim(),
+
+
+                                        proceso:
+                                            String(
+                                                proc ||
+                                                'CIP'
+                                            )
+                                            .trim()
+                                            .toUpperCase()
+
+                                    };
+
 
                                 registro.registro_uid =
                                     crearUID(
                                         registro
                                     );
+
 
                                 return registro;
                             }
@@ -4656,143 +4841,197 @@ async function importarArchivoExcel(event) {
                                     'S/N'
                         );
 
+
+
+                // ======================================
+                // 9. VALIDAR
+                // ======================================
+
                 if (
-                    registrosProcesados.length ===
+                    registrosProcesados
+                        .length ===
                     0
                 ) {
+
                     alert(
-                        'No se encontraron registros válidos. Revisa las columnas del archivo.'
+                        'No se encontraron registros válidos en el archivo.'
                     );
 
                     return;
                 }
 
+
+
                 // ======================================
-                // DUPLICADOS DENTRO DEL ARCHIVO
+                // 10. DUPLICADOS DENTRO DEL EXCEL
                 // ======================================
+
                 const mapaArchivo =
                     new Map();
+
 
                 let duplicadosArchivo =
                     0;
 
+
                 registrosProcesados
                     .forEach(
-                        r => {
+                        registro => {
+
                             if (
-                                mapaArchivo.has(
-                                    r.registro_uid
-                                )
+                                mapaArchivo
+                                    .has(
+                                        registro
+                                            .registro_uid
+                                    )
                             ) {
+
                                 duplicadosArchivo++;
 
                             } else {
-                                mapaArchivo.set(
-                                    r.registro_uid,
-                                    r
-                                );
+
+                                mapaArchivo
+                                    .set(
+                                        registro
+                                            .registro_uid,
+                                        registro
+                                    );
                             }
                         }
                     );
+
 
                 const registrosUnicosArchivo =
                     Array.from(
-                        mapaArchivo.values()
+                        mapaArchivo
+                            .values()
                     );
 
+
+
                 // ======================================
-                // CONSULTAR UIDs EXISTENTES
+                // 11. COMPARACIÓN LOCAL
+                // NO HACEMOS .IN() CONTRA SUPABASE
                 // ======================================
+
                 if (loaderText) {
+
                     loaderText.innerText =
-                        'COMPARANDO CON LA BASE DE DATOS...';
+                        'COMPARANDO CONTRA LOS REGISTROS EXISTENTES...';
                 }
 
-                const existentes =
+
+                /*
+                listaRegistros ya fue cargada
+                desde Supabase al abrir la app.
+                */
+
+
+                const uidsExistentes =
                     new Set();
 
-                const consultaSize =
-                    300;
 
-                for (
-                    let i = 0;
-                    i <
-                    registrosUnicosArchivo.length;
-                    i += consultaSize
-                ) {
-                    const bloque =
-                        registrosUnicosArchivo
-                            .slice(
-                                i,
-                                i +
-                                consultaSize
-                            );
+                listaRegistros
+                    .forEach(
+                        registro => {
 
-                    const uids =
-                        bloque.map(
-                            r =>
-                                r.registro_uid
-                        );
-
-                    const {
-                        data:
-                            encontrados,
-                        error:
-                            errorConsulta
-                    } =
-                        await clienteSupabase
-                            .from(
-                                'registros_limpieza'
-                            )
-                            .select(
-                                'registro_uid'
-                            )
-                            .in(
-                                'registro_uid',
-                                uids
-                            );
-
-                    if (
-                        errorConsulta
-                    ) {
-                        throw new Error(
-                            'Error consultando duplicados: ' +
-                            errorConsulta.message
-                        );
-                    }
-
-                    (
-                        encontrados ||
-                        []
-                    ).forEach(
-                        r => {
                             if (
-                                r.registro_uid
+                                registro
+                                    .registro_uid
                             ) {
-                                existentes.add(
-                                    r.registro_uid
-                                );
+
+                                uidsExistentes
+                                    .add(
+                                        String(
+                                            registro
+                                                .registro_uid
+                                        )
+                                    );
+
+                            } else {
+
+                                /*
+                                Protección adicional:
+                                si existiera algún registro
+                                viejo sin UID, lo reconstruimos.
+                                */
+
+                                const uidCalculado =
+                                    crearUID(
+                                        {
+                                            fecha:
+                                                registro
+                                                    .fecha,
+
+                                            hora:
+                                                registro
+                                                    .hora,
+
+                                            equipo:
+                                                registro
+                                                    .equipo,
+
+                                            solucion:
+                                                registro
+                                                    .solucion,
+
+                                            concen:
+                                                registro
+                                                    .concen,
+
+                                            operario:
+                                                registro
+                                                    .operario,
+
+                                            laboratorista:
+                                                registro
+                                                    .laboratorista,
+
+                                            proceso:
+                                                registro
+                                                    .proceso
+                                        }
+                                    );
+
+
+                                uidsExistentes
+                                    .add(
+                                        uidCalculado
+                                    );
                             }
                         }
                     );
-                }
+
+
+
+                // ======================================
+                // 12. IDENTIFICAR NUEVOS
+                // ======================================
 
                 const registrosNuevos =
                     registrosUnicosArchivo
                         .filter(
-                            r =>
-                                !existentes.has(
-                                    r.registro_uid
-                                )
+                            registro =>
+                                !uidsExistentes
+                                    .has(
+                                        registro
+                                            .registro_uid
+                                    )
                         );
 
+
                 const yaRegistrados =
-                    registrosUnicosArchivo.length -
-                    registrosNuevos.length;
+                    registrosUnicosArchivo
+                        .length -
+                    registrosNuevos
+                        .length;
+
+
 
                 // ======================================
-                // RESUMEN
+                // 13. RESUMEN
                 // ======================================
+
                 const resumen =
                     [
                         'ANÁLISIS DE IMPORTACIÓN',
@@ -4804,16 +5043,27 @@ async function importarArchivoExcel(event) {
                         `Nuevos para importar: ${registrosNuevos.length}`,
                         '',
                         registrosNuevos.length > 0
-                            ? `Se agregarán únicamente ${registrosNuevos.length} registros nuevos.`
-                            : 'No existen registros nuevos para agregar.'
-                    ].join(
+                            ?
+                            `Se agregarán únicamente ${registrosNuevos.length} registros nuevos.`
+                            :
+                            'No existen registros nuevos para agregar.'
+                    ]
+                    .join(
                         '\n'
                     );
 
+
+
+                // ======================================
+                // 14. SI NO HAY NUEVOS
+                // ======================================
+
                 if (
-                    registrosNuevos.length ===
+                    registrosNuevos
+                        .length ===
                     0
                 ) {
+
                     alert(
                         resumen
                     );
@@ -4821,36 +5071,56 @@ async function importarArchivoExcel(event) {
                     return;
                 }
 
+
+
+                // ======================================
+                // 15. CONFIRMACIÓN
+                // ======================================
+
                 const confirmar =
                     confirm(
                         resumen +
                         '\n\n¿Deseas continuar con la importación?'
                     );
 
-                if (!confirmar) {
+
+                if (
+                    !confirmar
+                ) {
+
                     return;
                 }
 
+
+
                 // ======================================
-                // INSERTAR SOLO NUEVOS
+                // 16. INSERTAR SOLO NUEVOS
                 // ======================================
+
                 if (loaderText) {
+
                     loaderText.innerText =
                         `IMPORTANDO ${registrosNuevos.length} REGISTROS NUEVOS...`;
                 }
 
+
                 const chunkSize =
                     500;
+
 
                 let insertados =
                     0;
 
+
                 for (
                     let i = 0;
                     i <
-                    registrosNuevos.length;
-                    i += chunkSize
+                    registrosNuevos
+                        .length;
+                    i +=
+                    chunkSize
                 ) {
+
                     const lote =
                         registrosNuevos
                             .slice(
@@ -4858,6 +5128,7 @@ async function importarArchivoExcel(event) {
                                 i +
                                 chunkSize
                             );
+
 
                     const {
                         error
@@ -4871,79 +5142,115 @@ async function importarArchivoExcel(event) {
                                 {
                                     onConflict:
                                         'registro_uid',
+
                                     ignoreDuplicates:
                                         true
                                 }
                             );
 
-                    if (error) {
+
+                    if (
+                        error
+                    ) {
+
                         console.error(
                             'Error importando lote:',
                             error
                         );
 
+
                         throw new Error(
+                            'Supabase rechazó la importación: ' +
                             error.message
                         );
                     }
+
 
                     insertados +=
                         lote.length;
                 }
 
+
+
                 // ======================================
-                // RECARGAR DASHBOARD
+                // 17. RECARGAR BASE COMPLETA
                 // ======================================
+
                 if (loaderText) {
+
                     loaderText.innerText =
                         'CONSOLIDANDO DASHBOARD...';
                 }
 
+
                 await cargarSupabase();
+
+
+
+                // ======================================
+                // 18. MENSAJE FINAL
+                // ======================================
 
                 alert(
                     [
                         'IMPORTACIÓN FINALIZADA',
                         '',
-                        `Filas del archivo: ${rawData.length}`,
+                        `Filas analizadas: ${rawData.length}`,
                         `Duplicados internos omitidos: ${duplicadosArchivo}`,
                         `Ya existentes omitidos: ${yaRegistrados}`,
                         `Nuevos procesados: ${insertados}`,
                         '',
-                        'La base de datos fue actualizada sin duplicar registros.'
-                    ].join(
+                        `Total actual BD: ${listaRegistros.length.toLocaleString()}`,
+                        '',
+                        'La base fue actualizada sin duplicar registros.'
+                    ]
+                    .join(
                         '\n'
                     )
                 );
 
-            } catch (error) {
+
+            } catch (
+                error
+            ) {
+
                 console.error(
                     'Error durante la importación:',
                     error
                 );
+
 
                 alert(
                     'No se pudo completar la importación.\n\n' +
                     error.message
                 );
 
+
             } finally {
+
                 event.target.value =
                     '';
 
+
                 if (loader) {
-                    loader.classList.add(
-                        'opacity-0',
-                        'pointer-events-none'
-                    );
+
+                    loader
+                        .classList
+                        .add(
+                            'opacity-0',
+                            'pointer-events-none'
+                        );
                 }
 
+
                 if (loaderText) {
+
                     loaderText.innerText =
                         'CARGANDO MÓDULO POES...';
                 }
             }
         };
+
 
     reader.readAsArrayBuffer(
         file
