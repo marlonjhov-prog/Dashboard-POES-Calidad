@@ -180,27 +180,32 @@
                     <div class="h-12 mt-2 -mx-2"><canvas id="sparkExceso"></canvas></div>
                 </div>
 
-                <!-- TARJETA 5: DUAL INTERACTIVA -->
+                <!-- TARJETA 5: IMPACTO ECONÓMICO Y TÉCNICO -->
                 <div id="card-impacto" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between relative overflow-hidden">
                     <div class="w-full h-full flex flex-col relative z-10">
                         <div class="flex justify-between items-start mb-2 border-b border-slate-100 pb-1">
-                            <p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Impacto de Desvíos</p>
+                            <p class="text-[11px] font-bold text-slate-500 tracking-wider uppercase">Impacto Económico y Técnico</p>
                             <i class="fa-solid fa-scale-unbalanced text-slate-300"></i>
                         </div>
                         <div class="flex justify-between items-stretch flex-grow gap-2">
-                            <!-- Columna Izquierda: Fuga -->
+                            <!-- Columna Izquierda: Costo equivalente -->
                             <div onclick="abrirModalImpacto('fuga')" class="w-[48%] flex flex-col cursor-pointer p-1.5 rounded-xl hover:bg-amber-50/70 hover:border-amber-200 border border-transparent transition-all group/fuga">
                                 <div class="flex items-center justify-between mb-0.5">
                                     <div class="flex items-center gap-1">
                                         <i class="fa-solid fa-hand-holding-dollar text-[10px] text-amber-400"></i>
-                                        <p class="text-[9px] text-amber-500 font-bold uppercase leading-none">Fuga (Σ%)</p>
+                                        <p class="text-[9px] text-amber-500 font-bold uppercase leading-none">Costo Eq. Exceso</p>
                                     </div>
                                     <i class="fa-solid fa-arrow-up-right-from-square text-[9px] text-slate-300 opacity-0 group-hover/fuga:opacity-100 transition-opacity"></i>
                                 </div>
                                 <div class="flex items-baseline gap-0.5">
                                     <span class="text-[14px] font-bold text-amber-500/60">$</span>
-                                    <h3 id="kpi-fuga" class="text-xl sm:text-2xl font-black text-amber-600 leading-tight">0.0</h3>
+                                    <h3 id="kpi-fuga" class="text-xl sm:text-2xl font-black text-amber-600 leading-tight">0,00</h3>
                                 </div>
+                                <div class="flex flex-wrap gap-1 mt-1">
+                                    <span id="kpi-cobertura-costos" class="text-[8px] font-bold text-amber-700 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded">Cobertura 0%</span>
+                                    <span id="kpi-eventos-costeados" class="text-[8px] font-bold text-slate-500 bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded">0/0 eventos</span>
+                                </div>
+                                <p class="text-[7px] text-slate-400 mt-1 leading-tight">USD / 1.000 kg/L equivalentes</p>
                                 <div id="trend-fuga-container" class="mt-1"></div>
                                 <div class="h-8 w-full mt-auto pt-2"><canvas id="sparkFuga"></canvas></div>
                             </div>
@@ -217,11 +222,20 @@
                                     </div>
                                 </div>
                                 <h3 id="kpi-severidad" class="text-xl sm:text-2xl font-black text-red-600 leading-tight">0.0%</h3>
+                                <p id="kpi-indice-exceso-tecnico" class="text-[8px] text-slate-400 mt-1">Índice técnico: 0,00</p>
                                 <div id="trend-severidad-container" class="mt-1"></div>
                                 <div class="h-8 w-full mt-auto pt-2"><canvas id="sparkSeveridad"></canvas></div>
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-3 shadow-sm">
+                <i class="fa-solid fa-circle-info text-amber-600 mt-0.5"></i>
+                <div>
+                    <p class="text-[10px] font-bold text-amber-800 uppercase tracking-wide">Metodología del KPI económico</p>
+                    <p class="text-[10px] text-amber-700 mt-0.5 leading-relaxed">El costo mostrado es una estimación normalizada por concentración y precio del producto principal, expresada por 1.000 kg/L equivalentes. No representa el consumo real total de cada limpieza.</p>
                 </div>
             </div>
 
@@ -280,10 +294,10 @@
                 <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
                     <div class="flex justify-between items-start mb-4">
                         <div>
-                            <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-spider text-amber-500 mr-2"></i> ÍNDICE DE FUGA QUÍMICA</h2>
-                            <p class="text-[11px] text-slate-500 mt-0.5">Volumen Acumulado (Σ%)</p>
+                            <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-spider text-amber-500 mr-2"></i> ÍNDICE TÉCNICO DE EXCESO</h2>
+                            <p class="text-[11px] text-slate-500 mt-0.5">Σ diferencia sobre el máximo (sin monetizar)</p>
                         </div>
-                        <button onclick="expandirGrafico('radar', 'Índice de Fuga Química')" class="text-slate-400 hover:text-corporate-blue p-1.5 rounded-lg transition bg-slate-50 border border-slate-200 hover:bg-blue-50 shadow-sm" title="Modo Enfoque (Expandir)"><i class="fa-solid fa-expand"></i></button>
+                        <button onclick="expandirGrafico('radar', 'Índice Técnico de Exceso')" class="text-slate-400 hover:text-corporate-blue p-1.5 rounded-lg transition bg-slate-50 border border-slate-200 hover:bg-blue-50 shadow-sm" title="Modo Enfoque (Expandir)"><i class="fa-solid fa-expand"></i></button>
                     </div>
                     <div class="h-[220px] w-full relative flex items-center justify-center">
                         <canvas id="fugaQuimicaChart"></canvas>
@@ -299,7 +313,7 @@
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 pb-3 border-b border-slate-100 gap-3">
                     <div>
                         <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-robot text-corporate-blue mr-2"></i> MOTOR DE AUDITORÍA CON IA</h2>
-                        <p class="text-[11px] text-slate-500 mt-0.5">Análisis de rendimiento y mermas (Costos) sobre matemáticas duras.</p>
+                        <p class="text-[11px] text-slate-500 mt-0.5">Análisis de rendimiento, exceso técnico y costo equivalente normalizado.</p>
                     </div>
                     <div class="flex items-center space-x-3">
                         <span id="badge-ia-status" class="text-[10px] font-bold px-2 py-1 rounded bg-slate-100 text-slate-400 border border-slate-200">IA Inactiva</span>
@@ -335,7 +349,7 @@
 
     <!-- MODAL DINÁMICO DE IMPACTO (FILTRO DE DATOS CORREGIDO) -->
     <div id="modal-impacto" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[80] hidden flex items-center justify-center p-4">
-        <div class="bg-white border border-slate-200 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+        <div class="bg-white border border-slate-200 w-full max-w-6xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                 <div>
                     <h3 id="modal-impacto-titulo" class="font-black text-slate-800 text-lg flex items-center">Desglose Operativo</h3>
@@ -344,7 +358,7 @@
                 <button onclick="cerrarModalImpacto()" class="text-slate-400 hover:text-slate-700 text-2xl font-bold px-2 py-1">&times;</button>
             </div>
             <div class="p-6 overflow-y-auto flex-grow bg-white">
-                <table class="w-full text-left text-xs border-collapse">
+                <table class="w-full text-left text-xs border-collapse min-w-[980px]">
                     <thead id="modal-impacto-thead"></thead>
                     <tbody id="modal-impacto-tbody" class="divide-y divide-slate-100 text-slate-700"></tbody>
                 </table>
