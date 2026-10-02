@@ -14,20 +14,135 @@ const clienteSupabase = supabase.createClient(
 // 2. PARÁMETROS TÉCNICOS
 // ==========================================
 const PARAMETROS_TECNICOS = [
-    { solucion: 'SOSA', min: 1.5, max: 2.5 },
-    { solucion: 'SOSA (MADRE)', min: 35, max: 50 },
-    { solucion: 'ÁCIDO NÍTRICO', min: 0.8, max: 2.0 },
-    { solucion: 'ÁCIDO NÍTRICO MADRE', min: 55, max: 65 },
-    { solucion: 'AGUA ENJUAGUE', min: 6.5, max: 7.6 },
-    { solucion: 'PEROXIDO', min: 35, max: 45 },
-    { solucion: 'ÁCIDO PERACÉTICO', min: 200, max: 450 },
-    { solucion: 'BACOXIN', min: 100, max: 200 },
-    { solucion: 'SOSA (CENTRO ACOPIO)', min: 20, max: 30 },
-    { solucion: 'SOSA (PASIVACIÓN)', min: 2.5, max: 5 },
-    { solucion: 'ÁCIDO (PASIVACIÓN)', min: 8, max: 15 },
-    { solucion: 'ÁCIDO FOSFÓRICO', min: 0.8, max: 2.0 },
-    { solucion: 'CLORO', min: 0, max: 200 }
+    { solucion: 'SOSA', min: 1.5, max: 2.5, medida: '%' },
+    { solucion: 'SOSA (MADRE)', min: 35, max: 50, medida: '%' },
+    { solucion: 'ÁCIDO NÍTRICO', min: 0.8, max: 2.0, medida: '%' },
+    { solucion: 'ÁCIDO NÍTRICO MADRE', min: 55, max: 65, medida: '%' },
+    { solucion: 'AGUA ENJUAGUE', min: 6.5, max: 7.5, medida: 'pH' },
+    { solucion: 'PEROXIDO', min: 35, max: 45, medida: '%' },
+    { solucion: 'ÁCIDO PERACÉTICO', min: 200, max: 450, medida: 'ppm' },
+    { solucion: 'BACOXIN', min: 100, max: 200, medida: 'ppm' },
+    { solucion: 'SOSA (CENTRO ACOPIO)', min: 20, max: 30, medida: '%' },
+    { solucion: 'SOSA (PASIVACIÓN)', min: 2.5, max: 5, medida: '%' },
+    { solucion: 'ÁCIDO (PASIVACIÓN)', min: 8, max: 15, medida: '%' },
+    { solucion: 'ÁCIDO FOSFÓRICO', min: 0.8, max: 2.0, medida: '%' },
+    { solucion: 'CLORO', min: 150, max: 200, medida: 'ppm' }
 ];
+
+
+// ==========================================
+// 2.1 PARÁMETROS ECONÓMICOS NORMALIZADOS
+// ==========================================
+// Los costos representan una estimación equivalente por concentración.
+// No corresponden al consumo real total del proceso porque no se dispone
+// de volumen dosificado. La base normalizada es:
+// - 1.000 kg equivalentes para resultados expresados en porcentaje.
+// - 1.000 L equivalentes para resultados expresados en ppm.
+const BASE_EQUIVALENTE_PORCENTAJE = 1000;
+const BASE_EQUIVALENTE_PPM = 1000;
+
+const PARAMETROS_ECONOMICOS = {
+    'SOSA': {
+        productoBase: 'SOSA',
+        precioUnitario: 0.79,
+        unidadPrecio: 'kg',
+        concentracionComercialPct: 98.5,
+        tipoMedida: 'porcentaje',
+        baseEtiqueta: '1.000 kg eq.'
+    },
+
+    'SOSA (MADRE)': {
+        productoBase: 'SOSA',
+        precioUnitario: 0.79,
+        unidadPrecio: 'kg',
+        concentracionComercialPct: 98.5,
+        tipoMedida: 'porcentaje',
+        baseEtiqueta: '1.000 kg eq.'
+    },
+
+    'SOSA (CENTRO ACOPIO)': {
+        productoBase: 'SOSA',
+        precioUnitario: 0.79,
+        unidadPrecio: 'kg',
+        concentracionComercialPct: 98.5,
+        tipoMedida: 'porcentaje',
+        baseEtiqueta: '1.000 kg eq.'
+    },
+
+    'SOSA (PASIVACIÓN)': {
+        productoBase: 'SOSA',
+        precioUnitario: 0.79,
+        unidadPrecio: 'kg',
+        concentracionComercialPct: 98.5,
+        tipoMedida: 'porcentaje',
+        baseEtiqueta: '1.000 kg eq.'
+    },
+
+    'ÁCIDO NÍTRICO': {
+        productoBase: 'ÁCIDO NÍTRICO',
+        precioUnitario: 1.00,
+        unidadPrecio: 'kg',
+        concentracionComercialPct: 67,
+        tipoMedida: 'porcentaje',
+        baseEtiqueta: '1.000 kg eq.'
+    },
+
+    'ÁCIDO NÍTRICO MADRE': {
+        productoBase: 'ÁCIDO NÍTRICO',
+        precioUnitario: 1.00,
+        unidadPrecio: 'kg',
+        concentracionComercialPct: 67,
+        tipoMedida: 'porcentaje',
+        baseEtiqueta: '1.000 kg eq.'
+    },
+
+    'ÁCIDO (PASIVACIÓN)': {
+        productoBase: 'ÁCIDO NÍTRICO',
+        precioUnitario: 1.00,
+        unidadPrecio: 'kg',
+        concentracionComercialPct: 67,
+        tipoMedida: 'porcentaje',
+        baseEtiqueta: '1.000 kg eq.'
+    },
+
+    'PEROXIDO': {
+        productoBase: 'PEROXIDO',
+        precioUnitario: 1.32,
+        unidadPrecio: 'kg',
+        concentracionComercialPct: 35,
+        tipoMedida: 'porcentaje',
+        baseEtiqueta: '1.000 kg eq.',
+        observacion: 'Estimación proporcional sobre la concentración comercial declarada.'
+    },
+
+    'ÁCIDO PERACÉTICO': {
+        productoBase: 'ÁCIDO PERACÉTICO',
+        precioUnitario: 4.13,
+        unidadPrecio: 'kg',
+        concentracionComercialPct: 15,
+        tipoMedida: 'ppm',
+        baseEtiqueta: '1.000 L eq.'
+    },
+
+    'BACOXIN': {
+        productoBase: 'BACOXIN',
+        precioUnitario: 3.95,
+        unidadPrecio: 'L',
+        concentracionComercialPct: 5,
+        tipoMedida: 'ppm',
+        baseEtiqueta: '1.000 L eq.',
+        observacion: 'Estimación proporcional basada en la concentración declarada.'
+    },
+
+    'CLORO': {
+        productoBase: 'CLORO',
+        precioUnitario: 2.20,
+        unidadPrecio: 'kg',
+        concentracionComercialPct: 70,
+        tipoMedida: 'ppm',
+        baseEtiqueta: '1.000 L eq.'
+    }
+};
 
 
 // ==========================================
@@ -95,7 +210,7 @@ const quadrantPlugin = {
         } = chart;
 
         const midX = x.getPixelForValue(85);
-        const yMax = y.max;
+        const yMax = Math.max(0, y.max);
         const midY = y.getPixelForValue(yMax / 2);
 
         ctx.save();
@@ -158,6 +273,123 @@ const quadrantPlugin = {
 };
 
 
+const solutionPointLabelsPlugin = {
+    id: 'solutionPointLabelsPlugin',
+
+    afterDatasetsDraw(
+        chart,
+        args,
+        options
+    ) {
+
+        if (
+            !options ||
+            !options.display
+        ) {
+            return;
+        }
+
+        const dataset =
+            chart.data.datasets?.[0];
+
+        const meta =
+            chart.getDatasetMeta(0);
+
+        if (
+            !dataset ||
+            !meta ||
+            !Array.isArray(dataset.data)
+        ) {
+            return;
+        }
+
+        const {
+            ctx,
+            chartArea
+        } = chart;
+
+        ctx.save();
+        ctx.font =
+            `600 ${options.fontSize || 10}px Inter`;
+        ctx.fillStyle =
+            options.color || '#475569';
+        ctx.textBaseline = 'middle';
+
+        meta.data.forEach(
+            (
+                point,
+                index
+            ) => {
+
+                const raw =
+                    dataset.data[index] || {};
+
+                let label =
+                    raw.solucion ||
+                    raw.label ||
+                    '';
+
+                if (!label) {
+                    return;
+                }
+
+                const maxLength =
+                    options.maxLength || 24;
+
+                if (
+                    label.length >
+                    maxLength
+                ) {
+                    label =
+                        label.slice(
+                            0,
+                            maxLength - 1
+                        ) + '…';
+                }
+
+                const ancho =
+                    ctx.measureText(
+                        label
+                    ).width;
+
+                let x =
+                    point.x + 9;
+
+                let y =
+                    point.y - 9;
+
+                let align =
+                    'left';
+
+                if (
+                    x + ancho >
+                    chartArea.right + 34
+                ) {
+                    x = point.x - 9;
+                    align = 'right';
+                }
+
+                if (
+                    y <
+                    chartArea.top + 6
+                ) {
+                    y = point.y + 12;
+                }
+
+                ctx.textAlign = align;
+                ctx.fillText(
+                    label,
+                    x,
+                    y
+                );
+            }
+        );
+
+        ctx.restore();
+    }
+};
+
+
 // ==========================================
 // 5. UTILIDADES GENERALES
 // ==========================================
@@ -184,6 +416,496 @@ function parseConcen(v) {
         : num;
 }
 
+
+// ==========================================
+// 5.1 UTILIDADES ECONÓMICAS
+// ==========================================
+function obtenerParametroTecnico(solucion) {
+
+    return PARAMETROS_TECNICOS.find(
+        p => p.solucion === solucion
+    ) || null;
+}
+
+
+function obtenerParametroEconomico(solucion) {
+
+    return PARAMETROS_ECONOMICOS[solucion] || null;
+}
+
+
+function formatearMoneda(valor) {
+
+    const numero = Number(valor);
+
+    return Number.isFinite(numero)
+        ? numero.toLocaleString(
+            'es-EC',
+            {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }
+        )
+        : '0,00';
+}
+
+
+function formatearNumero(valor, decimales = 2) {
+
+    const numero = Number(valor);
+
+    return Number.isFinite(numero)
+        ? numero.toLocaleString(
+            'es-EC',
+            {
+                minimumFractionDigits: decimales,
+                maximumFractionDigits: decimales
+            }
+        )
+        : '0';
+}
+
+
+function calcularPrecioEquivalente(
+    solucion,
+    concentracion
+) {
+
+    const eco =
+        obtenerParametroEconomico(
+            solucion
+        );
+
+    const valor =
+        Number(concentracion);
+
+    if (
+        !eco ||
+        !Number.isFinite(valor) ||
+        eco.concentracionComercialPct <= 0
+    ) {
+
+        return null;
+    }
+
+    let concentracionPct =
+        valor;
+
+    if (
+        eco.tipoMedida ===
+        'ppm'
+    ) {
+
+        concentracionPct =
+            valor /
+            10000;
+    }
+
+    return (
+        eco.precioUnitario *
+        concentracionPct /
+        eco.concentracionComercialPct
+    );
+}
+
+
+function obtenerRangoPrecioEquivalente(
+    solucion
+) {
+
+    const tecnico =
+        obtenerParametroTecnico(
+            solucion
+        );
+
+    const eco =
+        obtenerParametroEconomico(
+            solucion
+        );
+
+    if (
+        !tecnico ||
+        !eco
+    ) {
+
+        return null;
+    }
+
+    const medio =
+        (
+            tecnico.min +
+            tecnico.max
+        ) /
+        2;
+
+    return {
+        minimo:
+            calcularPrecioEquivalente(
+                solucion,
+                tecnico.min
+            ),
+
+        medio:
+            calcularPrecioEquivalente(
+                solucion,
+                medio
+            ),
+
+        maximo:
+            calcularPrecioEquivalente(
+                solucion,
+                tecnico.max
+            ),
+
+        unidad:
+            eco.unidadPrecio,
+
+        productoBase:
+            eco.productoBase,
+
+        precioBase:
+            eco.precioUnitario,
+
+        concentracionComercialPct:
+            eco.concentracionComercialPct,
+
+        baseEtiqueta:
+            eco.baseEtiqueta
+    };
+}
+
+
+function calcularCostoExcesoNormalizado(
+    solucion,
+    resultado,
+    limiteMaximo = null
+) {
+
+    const tecnico =
+        obtenerParametroTecnico(
+            solucion
+        );
+
+    const eco =
+        obtenerParametroEconomico(
+            solucion
+        );
+
+    const valor =
+        Number(resultado);
+
+    const maximo =
+        limiteMaximo === null
+            ? tecnico?.max
+            : Number(limiteMaximo);
+
+    if (
+        !tecnico ||
+        !eco ||
+        !Number.isFinite(valor) ||
+        !Number.isFinite(maximo) ||
+        eco.concentracionComercialPct <= 0
+    ) {
+
+        return {
+            calculable: false,
+            costo: 0,
+            exceso: 0,
+            factor: 0,
+            productoBase:
+                eco?.productoBase ||
+                'SIN PRECIO',
+            baseEtiqueta:
+                eco?.baseEtiqueta ||
+                'No calculable',
+            unidadMedida:
+                tecnico?.medida ||
+                '',
+            motivo:
+                !eco
+                    ? 'Sin precio o producto base parametrizado.'
+                    : 'Parámetros incompletos.'
+        };
+    }
+
+    const exceso =
+        Math.max(
+            0,
+            valor -
+            maximo
+        );
+
+    let factor =
+        0;
+
+    if (
+        eco.tipoMedida ===
+        'porcentaje'
+    ) {
+
+        factor =
+            BASE_EQUIVALENTE_PORCENTAJE *
+            (1 / 100) /
+            (
+                eco.concentracionComercialPct /
+                100
+            ) *
+            eco.precioUnitario;
+
+    } else if (
+        eco.tipoMedida ===
+        'ppm'
+    ) {
+
+        factor =
+            BASE_EQUIVALENTE_PPM *
+            (1 / 1000000) /
+            (
+                eco.concentracionComercialPct /
+                100
+            ) *
+            eco.precioUnitario;
+    }
+
+    const costo =
+        exceso *
+        factor;
+
+    return {
+        calculable: true,
+        costo,
+        exceso,
+        factor,
+        productoBase:
+            eco.productoBase,
+        precioUnitario:
+            eco.precioUnitario,
+        unidadPrecio:
+            eco.unidadPrecio,
+        concentracionComercialPct:
+            eco.concentracionComercialPct,
+        baseEtiqueta:
+            eco.baseEtiqueta,
+        unidadMedida:
+            tecnico.medida,
+        observacion:
+            eco.observacion ||
+            ''
+    };
+}
+
+
+function calcularResumenEconomico(
+    datos
+) {
+
+    let totalCosto = 0;
+    let totalEventosExceso = 0;
+    let eventosMonetizados = 0;
+    let eventosSinPrecio = 0;
+    let totalExcesoRelativo = 0;
+
+    const agrupado = {};
+
+    datos.forEach(
+        registro => {
+
+            const tecnico =
+                obtenerParametroTecnico(
+                    registro.solucion
+                );
+
+            if (!tecnico) {
+                return;
+            }
+
+            const valor =
+                parseConcen(
+                    registro.concen
+                );
+
+            if (
+                valor <=
+                tecnico.max
+            ) {
+                return;
+            }
+
+            totalEventosExceso++;
+
+            const exceso =
+                Math.max(
+                    0,
+                    valor -
+                    tecnico.max
+                );
+
+            const excesoRelativo =
+                tecnico.max > 0
+                    ? (
+                        exceso /
+                        tecnico.max
+                      ) * 100
+                    : 0;
+
+            totalExcesoRelativo +=
+                excesoRelativo;
+
+            const impacto =
+                calcularCostoExcesoNormalizado(
+                    registro.solucion,
+                    valor,
+                    tecnico.max
+                );
+
+            if (
+                !agrupado[
+                    registro.solucion
+                ]
+            ) {
+
+                agrupado[
+                    registro.solucion
+                ] = {
+                    solucion:
+                        registro.solucion,
+                    eventos:
+                        0,
+                    eventosMonetizados:
+                        0,
+                    excesoAcumulado:
+                        0,
+                    excesoRelativoAcumulado:
+                        0,
+                    costoAcumulado:
+                        0,
+                    productoBase:
+                        impacto.productoBase,
+                    unidadMedida:
+                        tecnico.medida,
+                    baseEtiqueta:
+                        impacto.baseEtiqueta,
+                    calculable:
+                        impacto.calculable
+                };
+            }
+
+            const grupo =
+                agrupado[
+                    registro.solucion
+                ];
+
+            grupo.eventos++;
+
+            grupo.excesoAcumulado +=
+                exceso;
+
+            grupo.excesoRelativoAcumulado +=
+                excesoRelativo;
+
+            if (
+                impacto.calculable
+            ) {
+
+                totalCosto +=
+                    impacto.costo;
+
+                eventosMonetizados++;
+
+                grupo.eventosMonetizados++;
+
+                grupo.costoAcumulado +=
+                    impacto.costo;
+
+                grupo.calculable =
+                    true;
+
+            } else {
+
+                eventosSinPrecio++;
+            }
+        }
+    );
+
+    const cobertura =
+        totalEventosExceso > 0
+            ? (
+                eventosMonetizados /
+                totalEventosExceso
+              ) * 100
+            : null;
+
+    const costoPromedio =
+        eventosMonetizados > 0
+            ? totalCosto /
+              eventosMonetizados
+            : 0;
+
+    const excesoRelativoPromedio =
+        totalEventosExceso > 0
+            ? totalExcesoRelativo /
+              totalEventosExceso
+            : 0;
+
+    const ranking =
+        Object
+            .values(
+                agrupado
+            )
+            .map(
+                item => ({
+                    ...item,
+                    participacionEventos:
+                        totalEventosExceso > 0
+                            ? (
+                                item.eventos /
+                                totalEventosExceso
+                              ) * 100
+                            : 0,
+                    participacionCosto:
+                        totalCosto > 0
+                            ? (
+                                item.costoAcumulado /
+                                totalCosto
+                              ) * 100
+                            : 0,
+                    excesoRelativoPromedio:
+                        item.eventos > 0
+                            ? item.excesoRelativoAcumulado /
+                              item.eventos
+                            : 0,
+                    costoPromedioEvento:
+                        item.eventosMonetizados > 0
+                            ? item.costoAcumulado /
+                              item.eventosMonetizados
+                            : 0
+                })
+            )
+            .sort(
+                (a, b) =>
+                    b.costoAcumulado -
+                    a.costoAcumulado
+            );
+
+    return {
+        totalCosto,
+        totalEventosExceso,
+        eventosMonetizados,
+        eventosSinPrecio,
+        cobertura,
+        costoPromedio,
+        totalExcesoRelativo,
+        excesoRelativoPromedio,
+        ranking,
+        mayorImpacto:
+            ranking.find(
+                item =>
+                    item.costoAcumulado > 0
+            ) ||
+            ranking[0] ||
+            null
+    };
+}
 
 function estandarizarSolucion(nombre) {
 
@@ -974,10 +1696,10 @@ function renderizarCore() {
     };
 
 
-    let totalFuga =
+    let totalExcesoRelativo =
         0;
 
-    let totalSeveridadAbs =
+    let totalSeveridadRelativa =
         0;
 
 
@@ -985,12 +1707,9 @@ function renderizarCore() {
         r => {
 
             const p =
-                PARAMETROS_TECNICOS
-                    .find(
-                        x =>
-                            x.solucion ===
-                            r.solucion
-                    );
+                obtenerParametroTecnico(
+                    r.solucion
+                );
 
 
             if (p) {
@@ -1012,8 +1731,16 @@ function renderizarCore() {
                         p.min -
                         val;
 
-                    totalSeveridadAbs +=
-                        dif;
+                    const severidadRelativa =
+                        p.min > 0
+                            ? (
+                                dif /
+                                p.min
+                              ) * 100
+                            : 0;
+
+                    totalSeveridadRelativa +=
+                        severidadRelativa;
 
 
                     stats
@@ -1021,7 +1748,14 @@ function renderizarCore() {
                         .push(
                             {
                                 ...r,
-                                dif
+                                dif,
+                                severidadRelativa,
+                                tipoDesvio:
+                                    'riesgo',
+                                costoEquivalente:
+                                    0,
+                                monetizable:
+                                    false
                             }
                         );
 
@@ -1036,8 +1770,23 @@ function renderizarCore() {
                         val -
                         p.max;
 
-                    totalFuga +=
-                        dif;
+                    const excesoRelativo =
+                        p.max > 0
+                            ? (
+                                dif /
+                                p.max
+                              ) * 100
+                            : 0;
+
+                    totalExcesoRelativo +=
+                        excesoRelativo;
+
+                    const impacto =
+                        calcularCostoExcesoNormalizado(
+                            r.solucion,
+                            val,
+                            p.max
+                        );
 
 
                     stats
@@ -1045,7 +1794,18 @@ function renderizarCore() {
                         .push(
                             {
                                 ...r,
-                                dif
+                                dif,
+                                excesoRelativo,
+                                tipoDesvio:
+                                    'exceso',
+                                costoEquivalente:
+                                    impacto.costo,
+                                monetizable:
+                                    impacto.calculable,
+                                productoBase:
+                                    impacto.productoBase,
+                                baseEconomica:
+                                    impacto.baseEtiqueta
                             }
                         );
 
@@ -1067,6 +1827,12 @@ function renderizarCore() {
     );
 
 
+    const resumenEconomico =
+        calcularResumenEconomico(
+            datos
+        );
+
+
     const total =
         datos.length;
 
@@ -1084,8 +1850,18 @@ function renderizarCore() {
     const severidadPromedio =
         stats.riesgo > 0
             ? (
-                totalSeveridadAbs /
+                totalSeveridadRelativa /
                 stats.riesgo
+              )
+
+            : 0;
+
+
+    const excesoRelativoPromedio =
+        stats.exceso > 0
+            ? (
+                totalExcesoRelativo /
+                stats.exceso
               )
 
             : 0;
@@ -1185,13 +1961,113 @@ function renderizarCore() {
             }%)`;
 
 
-    document
-        .getElementById(
+    const kpiCosto =
+        document.getElementById(
             'kpi-fuga'
-        )
-        .innerText =
-            totalFuga
-                .toFixed(1);
+        );
+
+    if (kpiCosto) {
+
+        kpiCosto.innerText =
+            formatearMoneda(
+                resumenEconomico.totalCosto
+            );
+    }
+
+
+    const eventosExcesoEconomico =
+        document.getElementById(
+            'kpi-eventos-exceso-economico'
+        );
+
+    const coberturaCosto =
+        document.getElementById(
+            'kpi-cobertura-costos'
+        );
+
+    const eventosCosto =
+        document.getElementById(
+            'kpi-eventos-costeados'
+        );
+
+
+    if (eventosExcesoEconomico) {
+
+        eventosExcesoEconomico.innerText =
+            `Excesos ${resumenEconomico.totalEventosExceso}`;
+    }
+
+
+    if (coberturaCosto) {
+
+        if (
+            resumenEconomico.totalEventosExceso ===
+            0
+        ) {
+
+            coberturaCosto.innerText =
+                'Cobertura N/A';
+
+            coberturaCosto.className =
+                'text-[8px] font-bold text-slate-500 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded';
+
+        } else {
+
+            coberturaCosto.innerText =
+                `Cobertura ${resumenEconomico.cobertura.toFixed(1)}%`;
+
+            coberturaCosto.className =
+                resumenEconomico.cobertura >= 99.9
+                    ? 'text-[8px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded'
+                    : 'text-[8px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded';
+        }
+    }
+
+
+    if (eventosCosto) {
+
+        if (
+            resumenEconomico.totalEventosExceso ===
+            0
+        ) {
+
+            eventosCosto.innerText =
+                'Sin excesos';
+
+        } else {
+
+            eventosCosto.innerText =
+                `Monetizados ${resumenEconomico.eventosMonetizados}/${resumenEconomico.totalEventosExceso}`;
+        }
+    }
+
+
+    const indiceTecnico =
+        document.getElementById(
+            'kpi-indice-exceso-tecnico'
+        );
+
+    if (indiceTecnico) {
+
+        indiceTecnico.innerText =
+            stats.exceso > 0
+                ? `Exceso rel. prom.: ${formatearNumero(excesoRelativoPromedio, 2)}%`
+                : 'Sin sobredosificación';
+    }
+
+
+    const eventosRiesgoImpacto =
+        document.getElementById(
+            'kpi-eventos-riesgo-impacto'
+        );
+
+    if (eventosRiesgoImpacto) {
+
+        eventosRiesgoImpacto.innerText =
+            stats.riesgo > 0
+                ? `Riesgos ${stats.riesgo}`
+                : 'Sin riesgos';
+    }
 
 
     document
@@ -1219,7 +2095,7 @@ function renderizarCore() {
         stats.riesgo,
         stats.exceso,
         total,
-        totalFuga,
+        resumenEconomico.totalCosto,
         severidadPromedio
     );
 
@@ -1363,6 +2239,7 @@ function renderizarCore() {
 }
 
 
+
 // ==========================================
 // 10. TENDENCIAS
 // ==========================================
@@ -1372,7 +2249,7 @@ function calcularTendencias(
     riesActual,
     excActual,
     totActual,
-    fugaActual,
+    costoActual,
     sevActual
 ) {
 
@@ -1541,11 +2418,7 @@ function calcularTendencias(
     };
 
 
-    let pFuga =
-        0;
-
-
-    let pSeveridadAbs =
+    let pSeveridadRelativa =
         0;
 
 
@@ -1554,12 +2427,9 @@ function calcularTendencias(
             r => {
 
                 const p =
-                    PARAMETROS_TECNICOS
-                        .find(
-                            x =>
-                                x.solucion ===
-                                r.solucion
-                        );
+                    obtenerParametroTecnico(
+                        r.solucion
+                    );
 
 
                 if (p) {
@@ -1577,11 +2447,19 @@ function calcularTendencias(
 
                         pStats.r++;
 
-                        pSeveridadAbs +=
-                            (
-                                p.min -
-                                val
-                            );
+                        if (
+                            p.min > 0
+                        ) {
+
+                            pSeveridadRelativa +=
+                                (
+                                    (
+                                        p.min -
+                                        val
+                                    ) /
+                                    p.min
+                                ) * 100;
+                        }
 
                     } else if (
                         val >
@@ -1590,18 +2468,18 @@ function calcularTendencias(
 
                         pStats.e++;
 
-                        pFuga +=
-                            (
-                                val -
-                                p.max
-                            );
-
                     } else {
 
                         pStats.c++;
                     }
                 }
             }
+        );
+
+
+    const pResumenEconomico =
+        calcularResumenEconomico(
+            prevDatos
         );
 
 
@@ -1622,7 +2500,7 @@ function calcularTendencias(
     const pSev =
         pStats.r > 0
             ? (
-                pSeveridadAbs /
+                pSeveridadRelativa /
                 pStats.r
               )
 
@@ -1636,7 +2514,8 @@ function calcularTendencias(
             prev,
             isPct,
             invertColors = false,
-            isTop = false
+            isTop = false,
+            isMoney = false
         ) => {
 
             const c =
@@ -1716,24 +2595,42 @@ function calcularTendencias(
             }
 
 
-            const valStr =
-                isPct
-                    ? diff
-                        .toFixed(1) +
-                      '%'
+            const valorAbsoluto =
+                Math.abs(
+                    diff
+                );
 
-                    : diff
-                        .toFixed(0);
+
+            const valStr =
+                isMoney
+                    ? '$' +
+                      formatearMoneda(
+                          valorAbsoluto
+                      )
+
+                    : isPct
+                        ? valorAbsoluto
+                            .toFixed(1) +
+                          '%'
+
+                        : valorAbsoluto
+                            .toFixed(0);
 
 
             const prevStr =
-                isPct
-                    ? prev
-                        .toFixed(1) +
-                      '%'
+                isMoney
+                    ? '$' +
+                      formatearMoneda(
+                          prev
+                      )
 
-                    : prev
-                        .toLocaleString();
+                    : isPct
+                        ? prev
+                            .toFixed(1) +
+                          '%'
+
+                        : prev
+                            .toLocaleString();
 
 
             c.innerHTML =
@@ -1802,8 +2699,10 @@ function calcularTendencias(
 
     render(
         'trend-fuga-container',
-        fugaActual,
-        pFuga,
+        costoActual,
+        pResumenEconomico.totalCosto,
+        false,
+        true,
         false,
         true
     );
@@ -1827,6 +2726,7 @@ function calcularTendencias(
         true
     );
 }
+
 
 
 // ==========================================
@@ -1932,7 +2832,7 @@ function drawSparklines(
                         severidadAbs:
                             0,
 
-                        fugaAbs:
+                        costoExceso:
                             0
                     };
             }
@@ -1942,12 +2842,9 @@ function drawSparklines(
 
 
             const p =
-                PARAMETROS_TECNICOS
-                    .find(
-                        x =>
-                            x.solucion ===
-                            r.solucion
-                    );
+                obtenerParametroTecnico(
+                    r.solucion
+                );
 
 
             if (p) {
@@ -1965,11 +2862,19 @@ function drawSparklines(
 
                     grouped[key].r++;
 
-                    grouped[key].severidadAbs +=
-                        (
-                            p.min -
-                            v
-                        );
+                    if (
+                        p.min > 0
+                    ) {
+
+                        grouped[key].severidadAbs +=
+                            (
+                                (
+                                    p.min -
+                                    v
+                                ) /
+                                p.min
+                            ) * 100;
+                    }
 
                 } else if (
                     v >
@@ -1978,11 +2883,20 @@ function drawSparklines(
 
                     grouped[key].e++;
 
-                    grouped[key].fugaAbs +=
-                        (
-                            v -
+                    const impacto =
+                        calcularCostoExcesoNormalizado(
+                            r.solucion,
+                            v,
                             p.max
                         );
+
+                    if (
+                        impacto.calculable
+                    ) {
+
+                        grouped[key].costoExceso +=
+                            impacto.costo;
+                    }
 
                 } else {
 
@@ -2041,10 +2955,14 @@ function drawSparklines(
         );
 
 
-    let dFuga =
+    let dCosto =
         keys.map(
             k =>
-                grouped[k].fugaAbs
+                Number(
+                    grouped[k]
+                        .costoExceso
+                        .toFixed(2)
+                )
         );
 
 
@@ -2139,7 +3057,8 @@ function drawSparklines(
         type,
         data,
         color,
-        isFill = false
+        isFill = false,
+        label = 'Valor'
     ) {
 
         if (
@@ -2166,6 +3085,8 @@ function drawSparklines(
 
         let ds =
             {
+                label,
+
                 data:
                     data,
 
@@ -2243,6 +3164,31 @@ function drawSparklines(
         }
 
 
+        const opciones =
+            {
+                ...baseOpts,
+
+                plugins:
+                    {
+                        ...baseOpts.plugins,
+
+                        tooltip:
+                            {
+                                ...baseOpts.plugins.tooltip,
+
+                                callbacks:
+                                    id === 'sparkFuga'
+                                        ? {
+                                            label:
+                                                contexto =>
+                                                    `Costo eq.: $${formatearMoneda(contexto.raw)}`
+                                          }
+                                        : undefined
+                            }
+                    }
+            };
+
+
         sparkInst[id] =
             new Chart(
                 ctx,
@@ -2262,7 +3208,7 @@ function drawSparklines(
                         },
 
                     options:
-                        baseOpts
+                        opciones
                 }
             );
     }
@@ -2273,7 +3219,8 @@ function drawSparklines(
         'line',
         dEfi,
         'rgba(59, 130, 246, 1)',
-        true
+        true,
+        'Eficacia'
     );
 
 
@@ -2281,7 +3228,9 @@ function drawSparklines(
         'sparkConformes',
         'bar',
         dConf,
-        'rgba(16, 185, 129, 1)'
+        'rgba(16, 185, 129, 1)',
+        false,
+        'Conformes'
     );
 
 
@@ -2289,7 +3238,9 @@ function drawSparklines(
         'sparkRiesgo',
         'bar',
         dRies,
-        'rgba(239, 68, 68, 1)'
+        'rgba(239, 68, 68, 1)',
+        false,
+        'Riesgo'
     );
 
 
@@ -2297,16 +3248,19 @@ function drawSparklines(
         'sparkExceso',
         'bar',
         dExc,
-        'rgba(245, 158, 11, 1)'
+        'rgba(245, 158, 11, 1)',
+        false,
+        'Exceso'
     );
 
 
     renderSpark(
         'sparkFuga',
         'line',
-        dFuga,
+        dCosto,
         'rgba(245, 158, 11, 1)',
-        true
+        true,
+        'Costo equivalente'
     );
 
 
@@ -2315,9 +3269,11 @@ function drawSparklines(
         'line',
         dImpacto,
         'rgba(239, 68, 68, 1)',
-        true
+        true,
+        'Severidad'
     );
 }
+
 
 
 // ==========================================
@@ -3285,380 +4241,319 @@ function drawMagicQuadrant(
             ? expandedChartInst
             : quadrantInst;
 
-
     if (targetInst) {
-
         targetInst.destroy();
     }
-
 
     if (
         datos.length ===
         0
     ) {
-
         return;
     }
 
-
-    let evalSoluciones =
-        {};
-
+    const evalSoluciones = {};
 
     datos.forEach(
         r => {
 
             const p =
-                PARAMETROS_TECNICOS
-                    .find(
-                        x =>
-                            x.solucion ===
-                            r.solucion
-                    );
+                obtenerParametroTecnico(
+                    r.solucion
+                );
 
+            if (!p) {
+                return;
+            }
 
-            if (p) {
-
-                if (
-                    !evalSoluciones[
-                        r.solucion
-                    ]
-                ) {
-
-                    evalSoluciones[
-                        r.solucion
-                    ] =
-                        {
-                            total:
-                                0,
-
-                            ok:
-                                0
-                        };
-                }
-
+            if (
+                !evalSoluciones[
+                    r.solucion
+                ]
+            ) {
 
                 evalSoluciones[
                     r.solucion
-                ].total++;
+                ] = {
+                    total: 0,
+                    ok: 0
+                };
+            }
 
+            evalSoluciones[
+                r.solucion
+            ].total++;
 
-                const v =
-                    parseConcen(
-                        r.concen
-                    );
+            const v =
+                parseConcen(
+                    r.concen
+                );
 
+            if (
+                v >= p.min &&
+                v <= p.max
+            ) {
 
-                if (
-                    v >= p.min &&
-                    v <= p.max
-                ) {
-
-                    evalSoluciones[
-                        r.solucion
-                    ].ok++;
-                }
+                evalSoluciones[
+                    r.solucion
+                ].ok++;
             }
         }
     );
 
+    const scatterData =
+        Object
+            .keys(
+                evalSoluciones
+            )
+            .map(
+                solucion => {
 
-    let scatterData =
-        [];
-
-
-    let tooltipsData =
-        [];
-
-
-    Object
-        .keys(
-            evalSoluciones
-        )
-        .forEach(
-            sol => {
-
-                const vol =
-                    evalSoluciones[
-                        sol
-                    ].total;
-
-
-                const efi =
-                    (
+                    const volumen =
                         evalSoluciones[
-                            sol
-                        ].ok /
-                        vol
-                    ) * 100;
+                            solucion
+                        ].total;
 
+                    const eficacia =
+                        volumen > 0
+                            ? (
+                                evalSoluciones[
+                                    solucion
+                                ].ok /
+                                volumen
+                              ) * 100
+                            : 0;
 
-                scatterData
-                    .push(
-                        {
-                            x:
-                                efi,
+                    return {
+                        x: eficacia,
+                        y: volumen,
+                        solucion
+                    };
+                }
+            );
 
-                            y:
-                                vol
-                        }
-                    );
+    if (
+        scatterData.length ===
+        0
+    ) {
+        return;
+    }
 
-
-                tooltipsData
-                    .push(
-                        sol
-                    );
-            }
+    const maxVolumen =
+        Math.max(
+            ...scatterData.map(
+                p => p.y
+            ),
+            1
         );
 
+    const margenYInferior =
+        Math.max(
+            1,
+            maxVolumen * 0.045
+        );
+
+    const margenYSuperior =
+        Math.max(
+            3,
+            maxVolumen * 0.12
+        );
 
     const canvas =
         document.getElementById(
             canvasId
         );
 
+    if (!canvas) {
+        return;
+    }
 
-    if (!canvas) return;
-
-
-    let newInst =
+    const newInst =
         new Chart(
-            canvas
-                .getContext(
-                    '2d'
-                ),
+            canvas.getContext(
+                '2d'
+            ),
             {
-                type:
-                    'scatter',
+                type: 'scatter',
 
-                plugins:
-                    [
-                        quadrantPlugin
-                    ],
+                plugins: [
+                    quadrantPlugin,
+                    solutionPointLabelsPlugin
+                ],
 
-                data:
-                    {
-                        datasets:
-                            [
-                                {
-                                    label:
-                                        'Soluciones',
+                data: {
+                    datasets: [
+                        {
+                            label: 'Soluciones',
+                            data: scatterData,
+                            backgroundColor: '#6366f1',
+                            borderColor: '#ffffff',
+                            borderWidth: 2,
+                            pointRadius:
+                                isExpanded
+                                    ? 10
+                                    : 7,
+                            pointHoverRadius:
+                                isExpanded
+                                    ? 14
+                                    : 10,
+                            clip: false
+                        }
+                    ]
+                },
 
-                                    data:
-                                        scatterData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
 
-                                    backgroundColor:
-                                        '#6366f1',
-
-                                    borderColor:
-                                        '#ffffff',
-
-                                    borderWidth:
-                                        2,
-
-                                    pointRadius:
-                                        isExpanded
-                                            ? 10
-                                            : 7,
-
-                                    pointHoverRadius:
-                                        isExpanded
-                                            ? 14
-                                            : 9
-                                }
-                            ]
+                    layout: {
+                        padding: {
+                            left:
+                                isExpanded
+                                    ? 26
+                                    : 18,
+                            right:
+                                isExpanded
+                                    ? 80
+                                    : 30,
+                            top:
+                                isExpanded
+                                    ? 30
+                                    : 22,
+                            bottom:
+                                isExpanded
+                                    ? 30
+                                    : 22
+                        }
                     },
 
-                options:
-                    {
-                        responsive:
-                            true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
 
-                        maintainAspectRatio:
-                            false,
+                        solutionPointLabels: {
+                            display: isExpanded,
+                            fontSize:
+                                isExpanded
+                                    ? 11
+                                    : 9,
+                            color: '#475569',
+                            maxLength: 24
+                        },
 
-                        layout:
-                            {
-                                padding:
-                                    {
-                                        right:
-                                            10,
-
-                                        top:
-                                            10
-                                    }
+                        tooltip: {
+                            backgroundColor: '#1e293b',
+                            padding: 12,
+                            titleFont: {
+                                size:
+                                    isExpanded
+                                        ? 14
+                                        : 11
                             },
-
-                        plugins:
-                            {
-                                legend:
-                                    {
-                                        display:
-                                            false
-                                    },
-
-                                tooltip:
-                                    {
-                                        backgroundColor:
-                                            '#1e293b',
-
-                                        padding:
-                                            12,
-
-                                        titleFont:
-                                            {
-                                                size:
-                                                    isExpanded
-                                                        ? 14
-                                                        : 11
-                                            },
-
-                                        bodyFont:
-                                            {
-                                                size:
-                                                    isExpanded
-                                                        ? 14
-                                                        : 11
-                                            },
-
-                                        callbacks:
-                                            {
-                                                label:
-                                                    function(
-                                                        ctx
-                                                    ) {
-
-                                                        return (
-                                                            `${tooltipsData[ctx.dataIndex]}: ` +
-                                                            `Eficacia ${ctx.raw.x.toFixed(1)}% | ` +
-                                                            `Muestras: ${ctx.raw.y}`
-                                                        );
-                                                    }
-                                            }
-                                    }
+                            bodyFont: {
+                                size:
+                                    isExpanded
+                                        ? 14
+                                        : 11
                             },
-
-                        scales:
-                            {
-                                x:
-                                    {
-                                        title:
-                                            {
-                                                display:
-                                                    true,
-
-                                                text:
-                                                    'Eficacia Sanitaria (%)',
-
-                                                font:
-                                                    {
-                                                        size:
-                                                            isExpanded
-                                                                ? 12
-                                                                : 10,
-
-                                                        weight:
-                                                            'bold'
-                                                    },
-
-                                                color:
-                                                    '#64748b'
-                                            },
-
-                                        min:
-                                            0,
-
-                                        max:
-                                            100,
-
-                                        grid:
-                                            {
-                                                display:
-                                                    true,
-
-                                                color:
-                                                    '#f1f5f9'
-                                            },
-
-                                        ticks:
-                                            {
-                                                font:
-                                                    {
-                                                        size:
-                                                            isExpanded
-                                                                ? 12
-                                                                : 10
-                                                    }
-                                            }
-                                    },
-
-                                y:
-                                    {
-                                        title:
-                                            {
-                                                display:
-                                                    true,
-
-                                                text:
-                                                    'Volumen Operativo',
-
-                                                font:
-                                                    {
-                                                        size:
-                                                            isExpanded
-                                                                ? 12
-                                                                : 10,
-
-                                                        weight:
-                                                            'bold'
-                                                    },
-
-                                                color:
-                                                    '#64748b'
-                                            },
-
-                                        min:
-                                            0,
-
-                                        grid:
-                                            {
-                                                display:
-                                                    true,
-
-                                                color:
-                                                    '#f1f5f9'
-                                            },
-
-                                        ticks:
-                                            {
-                                                font:
-                                                    {
-                                                        size:
-                                                            isExpanded
-                                                                ? 12
-                                                                : 10
-                                                    }
-                                            }
-                                    }
+                            callbacks: {
+                                label(ctx) {
+                                    return (
+                                        `${ctx.raw.solucion}: ` +
+                                        `Eficacia ${ctx.raw.x.toFixed(1)}% | ` +
+                                        `Muestras: ${ctx.raw.y}`
+                                    );
+                                }
                             }
+                        }
+                    },
+
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Eficacia Sanitaria (%)',
+                                font: {
+                                    size:
+                                        isExpanded
+                                            ? 12
+                                            : 10,
+                                    weight: 'bold'
+                                },
+                                color: '#64748b'
+                            },
+                            min: -4,
+                            max: 104,
+                            grid: {
+                                display: true,
+                                color: '#f1f5f9'
+                            },
+                            ticks: {
+                                font: {
+                                    size:
+                                        isExpanded
+                                            ? 12
+                                            : 10
+                                },
+                                callback(value) {
+                                    return (
+                                        value < 0 ||
+                                        value > 100
+                                    )
+                                        ? ''
+                                        : value;
+                                }
+                            }
+                        },
+
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Volumen Operativo',
+                                font: {
+                                    size:
+                                        isExpanded
+                                            ? 12
+                                            : 10,
+                                    weight: 'bold'
+                                },
+                                color: '#64748b'
+                            },
+                            min: -margenYInferior,
+                            max:
+                                maxVolumen +
+                                margenYSuperior,
+                            grid: {
+                                display: true,
+                                color: '#f1f5f9'
+                            },
+                            ticks: {
+                                precision: 0,
+                                font: {
+                                    size:
+                                        isExpanded
+                                            ? 12
+                                            : 10
+                                },
+                                callback(value) {
+                                    return value < 0
+                                        ? ''
+                                        : value;
+                                }
+                            }
+                        }
                     }
+                }
             }
         );
 
-
     if (isExpanded) {
-
-        expandedChartInst =
-            newInst;
-
+        expandedChartInst = newInst;
     } else {
-
-        quadrantInst =
-            newInst;
+        quadrantInst = newInst;
     }
 }
-
 
 // ==========================================
 // 15. CONFORMIDAD TÉCNICA
@@ -4084,25 +4979,18 @@ function drawRadarFugas(
             ? expandedChartInst
             : fugaChartInst;
 
-
     if (targetInst) {
-
         targetInst.destroy();
     }
 
-
-    let excesos =
+    const excesos =
         desvios.filter(
             d => {
 
                 const p =
-                    PARAMETROS_TECNICOS
-                        .find(
-                            x =>
-                                x.solucion ===
-                                d.solucion
-                        );
-
+                    obtenerParametroTecnico(
+                        d.solucion
+                    );
 
                 return (
                     p &&
@@ -4114,265 +5002,231 @@ function drawRadarFugas(
             }
         );
 
-
-    if (!isExpanded) {
-
-        const msgObj =
-            document.getElementById(
+    const msgObj =
+        !isExpanded
+            ? document.getElementById(
                 'fuga-empty-msg'
-            );
-
-
-        if (
-            excesos.length ===
-            0
-        ) {
-
-            if (msgObj) {
-
-                msgObj.classList.remove(
-                    'hidden'
-                );
-            }
-
-            return;
-        }
-
-
-        if (msgObj) {
-
-            msgObj.classList.add(
-                'hidden'
-            );
-        }
-    }
-
+              )
+            : null;
 
     if (
-        isExpanded &&
         excesos.length ===
         0
     ) {
 
+        if (msgObj) {
+            msgObj.classList.remove(
+                'hidden'
+            );
+        }
+
         return;
     }
 
+    if (msgObj) {
+        msgObj.classList.add(
+            'hidden'
+        );
+    }
 
-    let fugas =
-        {};
-
+    const agrupado = {};
 
     excesos.forEach(
-        e => {
+        registro => {
+
+            const p =
+                obtenerParametroTecnico(
+                    registro.solucion
+                );
+
+            const valor =
+                parseConcen(
+                    registro.concen
+                );
+
+            const excesoRelativo =
+                p.max > 0
+                    ? (
+                        (
+                            valor -
+                            p.max
+                        ) /
+                        p.max
+                      ) * 100
+                    : 0;
 
             if (
-                !fugas[
-                    e.solucion
+                !agrupado[
+                    registro.solucion
                 ]
             ) {
 
-                fugas[
-                    e.solucion
-                ] =
-                    0;
+                agrupado[
+                    registro.solucion
+                ] = {
+                    sumaRelativa: 0,
+                    eventos: 0
+                };
             }
 
+            agrupado[
+                registro.solucion
+            ].sumaRelativa +=
+                excesoRelativo;
 
-            const p =
-                PARAMETROS_TECNICOS
-                    .find(
-                        x =>
-                            x.solucion ===
-                            e.solucion
-                    );
-
-
-            fugas[
-                e.solucion
-            ] +=
-                (
-                    parseConcen(
-                        e.concen
-                    ) -
-                    p.max
-                );
+            agrupado[
+                registro.solucion
+            ].eventos++;
         }
     );
 
+    const labels =
+        Object.keys(
+            agrupado
+        );
+
+    const valores =
+        labels.map(
+            solucion =>
+                agrupado[
+                    solucion
+                ].eventos > 0
+                    ? agrupado[
+                        solucion
+                      ].sumaRelativa /
+                      agrupado[
+                        solucion
+                      ].eventos
+                    : 0
+        );
+
+    const eventos =
+        labels.map(
+            solucion =>
+                agrupado[
+                    solucion
+                ].eventos
+        );
 
     const canvas =
         document.getElementById(
             canvasId
         );
 
+    if (!canvas) {
+        return;
+    }
 
-    if (!canvas) return;
-
-
-    let newInst =
+    const newInst =
         new Chart(
-            canvas
-                .getContext(
-                    '2d'
-                ),
+            canvas.getContext(
+                '2d'
+            ),
             {
-                type:
-                    'radar',
+                type: 'radar',
 
-                data:
-                    {
-                        labels:
-                            Object
-                                .keys(
-                                    fugas
-                                ),
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label:
+                                'Exceso relativo promedio (%)',
+                            data: valores,
+                            backgroundColor:
+                                'rgba(245, 158, 11, 0.25)',
+                            borderColor:
+                                '#f59e0b',
+                            pointBackgroundColor:
+                                '#ffffff',
+                            pointBorderColor:
+                                '#f59e0b',
+                            pointBorderWidth: 2,
+                            pointRadius:
+                                isExpanded
+                                    ? 6
+                                    : 4,
+                            borderWidth:
+                                isExpanded
+                                    ? 3
+                                    : 2
+                        }
+                    ]
+                },
 
-                        datasets:
-                            [
-                                {
-                                    label:
-                                        'Índice de Fuga (Σ%)',
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
 
-                                    data:
-                                        Object
-                                            .values(
-                                                fugas
-                                            ),
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
 
-                                    backgroundColor:
-                                        'rgba(245, 158, 11, 0.25)',
-
-                                    borderColor:
-                                        '#f59e0b',
-
-                                    pointBackgroundColor:
-                                        '#ffffff',
-
-                                    pointBorderColor:
-                                        '#f59e0b',
-
-                                    pointBorderWidth:
-                                        2,
-
-                                    pointRadius:
-                                        isExpanded
-                                            ? 6
-                                            : 4,
-
-                                    borderWidth:
-                                        isExpanded
-                                            ? 3
-                                            : 2
+                        tooltip: {
+                            titleFont: {
+                                size:
+                                    isExpanded
+                                        ? 14
+                                        : 12
+                            },
+                            bodyFont: {
+                                size:
+                                    isExpanded
+                                        ? 14
+                                        : 12
+                            },
+                            callbacks: {
+                                label(ctx) {
+                                    return (
+                                        ` Exceso promedio: ${ctx.raw.toFixed(2)}% ` +
+                                        `sobre el máximo | Eventos: ${eventos[ctx.dataIndex]}`
+                                    );
                                 }
-                            ]
+                            }
+                        }
                     },
 
-                options:
-                    {
-                        responsive:
-                            true,
-
-                        maintainAspectRatio:
-                            false,
-
-                        plugins:
-                            {
-                                legend:
-                                    {
-                                        display:
-                                            false
-                                    },
-
-                                tooltip:
-                                    {
-                                        titleFont:
-                                            {
-                                                size:
-                                                    isExpanded
-                                                        ? 14
-                                                        : 12
-                                            },
-
-                                        bodyFont:
-                                            {
-                                                size:
-                                                    isExpanded
-                                                        ? 14
-                                                        : 12
-                                            },
-
-                                        callbacks:
-                                            {
-                                                label:
-                                                    c =>
-                                                        ` Volumen Desperdiciado: ${c.raw.toFixed(2)} Índice de Fuga (Σ%)`
-                                            }
-                                    }
+                    scales: {
+                        r: {
+                            beginAtZero: true,
+                            angleLines: {
+                                color: '#e2e8f0'
                             },
-
-                        scales:
-                            {
-                                r:
-                                    {
-                                        angleLines:
-                                            {
-                                                color:
-                                                    '#e2e8f0'
-                                            },
-
-                                        grid:
-                                            {
-                                                color:
-                                                    '#e2e8f0',
-
-                                                circular:
-                                                    true
-                                            },
-
-                                        pointLabels:
-                                            {
-                                                font:
-                                                    {
-                                                        size:
-                                                            isExpanded
-                                                                ? 12
-                                                                : 9,
-
-                                                        weight:
-                                                            'bold'
-                                                    },
-
-                                                color:
-                                                    '#475569'
-                                            },
-
-                                        ticks:
-                                            {
-                                                display:
-                                                    false,
-
-                                                beginAtZero:
-                                                    true
-                                            }
-                                    }
+                            grid: {
+                                color: '#e2e8f0',
+                                circular: true
+                            },
+                            pointLabels: {
+                                font: {
+                                    size:
+                                        isExpanded
+                                            ? 12
+                                            : 9,
+                                    weight: 'bold'
+                                },
+                                color: '#475569'
+                            },
+                            ticks: {
+                                display:
+                                    isExpanded,
+                                backdropColor:
+                                    'rgba(255,255,255,0.75)',
+                                callback(value) {
+                                    return `${value}%`;
+                                }
                             }
+                        }
                     }
+                }
             }
         );
 
-
     if (isExpanded) {
-
-        expandedChartInst =
-            newInst;
-
+        expandedChartInst = newInst;
     } else {
-
-        fugaChartInst =
-            newInst;
+        fugaChartInst = newInst;
     }
 }
-
 
 // ==========================================
 // 17. EXPANDIR GRÁFICOS
@@ -5826,226 +6680,241 @@ function abrirModalImpacto(
             'modal-impacto'
         );
 
-
     const thead =
         document.getElementById(
             'modal-impacto-thead'
         );
-
 
     const tbody =
         document.getElementById(
             'modal-impacto-tbody'
         );
 
-
     const tituloModal =
         document.getElementById(
             'modal-impacto-titulo'
         );
-
 
     const subtituloModal =
         document.getElementById(
             'modal-impacto-subtitulo'
         );
 
+    const resumenModal =
+        document.getElementById(
+            'modal-impacto-resumen'
+        );
 
     if (
         !modal ||
         !tbody ||
         !thead
     ) {
-
         return;
     }
 
+    tbody.innerHTML = '';
 
-    tbody.innerHTML =
-        '';
-
-
-    let datosAnalisis =
-        [];
-
-
-    if (
-        tipo ===
-        'fuga'
-    ) {
-
-        datosAnalisis =
-            desviosUltimoFiltro
-                .filter(
-                    d => {
-
-                        const p =
-                            PARAMETROS_TECNICOS
-                                .find(
-                                    x =>
-                                        x.solucion ===
-                                        d.solucion
-                                );
-
-
-                        return (
-                            p &&
-                            parseConcen(
-                                d.concen
-                            ) >
-                            p.max
-                        );
-                    }
-                );
-
-    } else if (
-        tipo ===
-        'severidad'
-    ) {
-
-        datosAnalisis =
-            desviosUltimoFiltro
-                .filter(
-                    d => {
-
-                        const p =
-                            PARAMETROS_TECNICOS
-                                .find(
-                                    x =>
-                                        x.solucion ===
-                                        d.solucion
-                                );
-
-
-                        return (
-                            p &&
-                            parseConcen(
-                                d.concen
-                            ) <
-                            p.min
-                        );
-                    }
-                );
+    if (resumenModal) {
+        resumenModal.innerHTML = '';
     }
 
+    const datosAnalisis =
+        desviosUltimoFiltro.filter(
+            d => {
+
+                const p =
+                    obtenerParametroTecnico(
+                        d.solucion
+                    );
+
+                if (!p) {
+                    return false;
+                }
+
+                const valor =
+                    parseConcen(
+                        d.concen
+                    );
+
+                return tipo === 'fuga'
+                    ? valor > p.max
+                    : valor < p.min;
+            }
+        );
 
     if (
         datosAnalisis.length ===
         0
     ) {
 
-        thead.innerHTML =
-            `
-            <tr>
-                <th
-                    class="py-3 px-4"
-                >
-                    Análisis de Desvíos
-                </th>
-            </tr>
-            `;
+        if (tituloModal) {
+            tituloModal.innerHTML =
+                tipo === 'fuga'
+                    ? '<i class="fa-solid fa-hand-holding-dollar text-amber-600 mr-2"></i>Impacto Económico de Sobredosificación'
+                    : '<i class="fa-solid fa-gauge-high text-red-500 mr-2"></i>Severidad Técnica por Subdosificación';
+        }
 
+        if (subtituloModal) {
+            subtituloModal.innerText =
+                'No existen eventos que apliquen al filtro actual.';
+        }
 
-        tbody.innerHTML =
-            `
-            <tr>
-                <td
-                    class="py-8 text-center text-slate-500 font-bold bg-slate-50"
-                >
-                    No hay eventos que apliquen a este criterio.
-                </td>
-            </tr>
-            `;
+        if (resumenModal) {
+            resumenModal.innerHTML =
+                `
+                <div class="col-span-full bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center text-emerald-700 font-bold text-xs">
+                    <i class="fa-solid fa-circle-check mr-2"></i>
+                    Sin eventos para este criterio.
+                </div>
+                `;
+        }
 
+        thead.innerHTML = '';
+        tbody.innerHTML = '';
 
         modal.classList.add(
             'flex'
         );
-
         modal.classList.remove(
             'hidden'
         );
-
         return;
     }
 
+    const agrupado = {};
 
-    let agrupado =
-        {};
+    datosAnalisis.forEach(
+        d => {
 
+            const p =
+                obtenerParametroTecnico(
+                    d.solucion
+                );
 
-    datosAnalisis
-        .forEach(
-            d => {
+            const valor =
+                parseConcen(
+                    d.concen
+                );
 
-                if (
-                    !agrupado[
+            if (
+                !agrupado[
+                    d.solucion
+                ]
+            ) {
+
+                const eco =
+                    obtenerParametroEconomico(
                         d.solucion
-                    ]
-                ) {
-
-                    agrupado[
-                        d.solucion
-                    ] =
-                        {
-                            conteo:
-                                0,
-
-                            valorAcumulado:
-                                0
-                        };
-                }
-
+                    );
 
                 agrupado[
                     d.solucion
-                ].conteo++;
+                ] = {
+                    conteo: 0,
+                    valorAcumulado: 0,
+                    valorRelativoAcumulado: 0,
+                    costoAcumulado: 0,
+                    eventosMonetizados: 0,
+                    productoBase:
+                        eco?.productoBase ||
+                        'SIN PRECIO',
+                    precioBase:
+                        eco?.precioUnitario ||
+                        0,
+                    unidadPrecio:
+                        eco?.unidadPrecio ||
+                        '',
+                    concentracionComercialPct:
+                        eco?.concentracionComercialPct ||
+                        0,
+                    baseEtiqueta:
+                        eco?.baseEtiqueta ||
+                        'No calculable',
+                    unidadMedida:
+                        p?.medida ||
+                        '',
+                    rangoPrecio:
+                        obtenerRangoPrecioEquivalente(
+                            d.solucion
+                        )
+                };
+            }
 
+            const grupo =
+                agrupado[
+                    d.solucion
+                ];
 
-                const p =
-                    PARAMETROS_TECNICOS
-                        .find(
-                            x =>
-                                x.solucion ===
-                                d.solucion
-                        );
+            grupo.conteo++;
 
+            if (
+                tipo === 'fuga'
+            ) {
 
-                const val =
-                    parseConcen(
-                        d.concen
+                const exceso =
+                    Math.max(
+                        0,
+                        valor -
+                        p.max
                     );
 
+                const excesoRelativo =
+                    p.max > 0
+                        ? (
+                            exceso /
+                            p.max
+                          ) * 100
+                        : 0;
+
+                grupo.valorAcumulado +=
+                    exceso;
+
+                grupo.valorRelativoAcumulado +=
+                    excesoRelativo;
+
+                const impacto =
+                    calcularCostoExcesoNormalizado(
+                        d.solucion,
+                        valor,
+                        p.max
+                    );
 
                 if (
-                    tipo ===
-                    'fuga'
+                    impacto.calculable
                 ) {
 
-                    agrupado[
-                        d.solucion
-                    ].valorAcumulado +=
-                        (
-                            val -
-                            p.max
-                        );
+                    grupo.costoAcumulado +=
+                        impacto.costo;
 
-                } else if (
-                    tipo ===
-                    'severidad'
-                ) {
-
-                    agrupado[
-                        d.solucion
-                    ].valorAcumulado +=
-                        (
-                            p.min -
-                            val
-                        );
+                    grupo.eventosMonetizados++;
                 }
-            }
-        );
 
+            } else {
+
+                const deficit =
+                    Math.max(
+                        0,
+                        p.min -
+                        valor
+                    );
+
+                const severidadRelativa =
+                    p.min > 0
+                        ? (
+                            deficit /
+                            p.min
+                          ) * 100
+                        : 0;
+
+                grupo.valorAcumulado +=
+                    deficit;
+
+                grupo.valorRelativoAcumulado +=
+                    severidadRelativa;
+            }
+        }
+    );
 
     let ranking =
         Object
@@ -6053,248 +6922,357 @@ function abrirModalImpacto(
                 agrupado
             )
             .map(
-                k => ({
-                    sol:
-                        k,
-
-                    c:
-                        agrupado[
-                            k
-                        ].conteo,
-
-                    val:
-                        agrupado[
-                            k
-                        ].valorAcumulado
+                solucion => ({
+                    sol: solucion,
+                    ...agrupado[
+                        solucion
+                    ]
                 })
             );
 
-
-    if (
-        tipo ===
-        'severidad'
-    ) {
-
-        ranking.sort(
+    const totalEventos =
+        ranking.reduce(
             (
-                a,
-                b
+                acumulado,
+                item
             ) =>
-                (
-                    b.val /
-                    b.c
-                ) -
-                (
-                    a.val /
-                    a.c
-                )
+                acumulado +
+                item.conteo,
+            0
         );
 
+    if (
+        tipo === 'severidad'
+    ) {
 
-        if (
-            tituloModal
-        ) {
+        ranking = ranking
+            .map(
+                item => ({
+                    ...item,
+                    participacionEventos:
+                        totalEventos > 0
+                            ? (
+                                item.conteo /
+                                totalEventos
+                              ) * 100
+                            : 0,
+                    promedioNativo:
+                        item.conteo > 0
+                            ? item.valorAcumulado /
+                              item.conteo
+                            : 0,
+                    severidadRelativaPromedio:
+                        item.conteo > 0
+                            ? item.valorRelativoAcumulado /
+                              item.conteo
+                            : 0
+                })
+            )
+            .sort(
+                (a, b) =>
+                    b.severidadRelativaPromedio -
+                    a.severidadRelativaPromedio
+            );
 
+        const severidadGlobal =
+            totalEventos > 0
+                ? ranking.reduce(
+                    (
+                        acumulado,
+                        item
+                    ) =>
+                        acumulado +
+                        item.valorRelativoAcumulado,
+                    0
+                  ) /
+                  totalEventos
+                : 0;
+
+        const mayorSeveridad =
+            ranking[0] ||
+            null;
+
+        if (tituloModal) {
             tituloModal.innerHTML =
-                `
-                <i
-                    class="fa-solid fa-gauge-high text-red-500 mr-2"
-                ></i>
+                '<i class="fa-solid fa-gauge-high text-red-500 mr-2"></i>Severidad Técnica por Subdosificación';
+        }
 
-                Desglose de Severidad Técnica
+        if (subtituloModal) {
+            subtituloModal.innerText =
+                'Déficit promedio relativo al mínimo permitido; comparable entre soluciones expresadas en % y ppm.';
+        }
+
+        if (resumenModal) {
+            resumenModal.innerHTML =
+                `
+                <div class="bg-red-50 border border-red-200 rounded-xl p-3">
+                    <p class="text-[9px] uppercase font-bold text-red-500">Eventos de riesgo</p>
+                    <p class="text-xl font-black text-red-700 mt-1">${totalEventos}</p>
+                </div>
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                    <p class="text-[9px] uppercase font-bold text-slate-500">Severidad relativa prom.</p>
+                    <p class="text-xl font-black text-slate-700 mt-1">${formatearNumero(severidadGlobal, 2)}%</p>
+                </div>
+                <div class="bg-rose-50 border border-rose-200 rounded-xl p-3 md:col-span-2">
+                    <p class="text-[9px] uppercase font-bold text-rose-500">Solución más crítica</p>
+                    <p class="text-sm font-black text-rose-700 mt-1">${mayorSeveridad?.sol || 'N/A'}</p>
+                    <p class="text-[9px] text-rose-500 mt-1">${mayorSeveridad ? formatearNumero(mayorSeveridad.severidadRelativaPromedio, 2) + '% de déficit relativo promedio' : ''}</p>
+                </div>
                 `;
         }
 
-
-        if (
-            subtituloModal
-        ) {
-
-            subtituloModal.innerText =
-                `Soluciones que incurrieron en Riesgo (< Mínimo), ordenadas por gravedad.`;
-        }
-
-
         thead.innerHTML =
             `
-            <tr
-                class="text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200"
-            >
-
-                <th
-                    class="py-3 px-4"
-                >
-                    Solución Química (Riesgo)
-                </th>
-
-                <th
-                    class="py-3 px-4 text-center"
-                >
-                    Muestras Desviadas
-                </th>
-
-                <th
-                    class="py-3 px-4 text-center text-red-600"
-                >
-                    <i
-                        class="fa-solid fa-gauge-high mr-1"
-                    ></i>
-
-                    Severidad Prom.
-                </th>
-
+            <tr class="text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200 bg-slate-50">
+                <th class="py-3 px-4">Solución</th>
+                <th class="py-3 px-4 text-center">Eventos</th>
+                <th class="py-3 px-4 text-center">% de eventos</th>
+                <th class="py-3 px-4 text-center">Déficit prom. nativo</th>
+                <th class="py-3 px-4 text-center text-red-600">Severidad relativa prom.</th>
             </tr>
             `;
 
-    } else {
+        ranking.forEach(
+            item => {
 
-        ranking.sort(
-            (
-                a,
-                b
-            ) =>
-                b.val -
-                a.val
+                tbody.innerHTML +=
+                    `
+                    <tr class="hover:bg-slate-50 border-b border-slate-100">
+                        <td class="py-4 px-4 font-bold text-slate-700">${item.sol}</td>
+                        <td class="py-4 px-4 text-center text-slate-600 font-bold">${item.conteo}</td>
+                        <td class="py-4 px-4 text-center">
+                            <span class="font-bold text-slate-700">${formatearNumero(item.participacionEventos, 1)}%</span>
+                            <div class="h-1.5 bg-slate-100 rounded-full overflow-hidden mt-2">
+                                <div class="h-full bg-red-400 rounded-full" style="width:${Math.min(100, item.participacionEventos)}%"></div>
+                            </div>
+                        </td>
+                        <td class="py-4 px-4 text-center text-slate-600 font-bold">
+                            ${formatearNumero(item.promedioNativo, 2)}
+                            <span class="text-[9px] font-normal text-slate-400 block">${item.unidadMedida}</span>
+                        </td>
+                        <td class="py-4 px-4 text-center font-black text-red-600 bg-red-50/70">
+                            ${formatearNumero(item.severidadRelativaPromedio, 2)}%
+                        </td>
+                    </tr>
+                    `;
+            }
         );
 
+    } else {
 
-        if (
-            tituloModal
-        ) {
+        const monetizados =
+            ranking.reduce(
+                (
+                    acumulado,
+                    item
+                ) =>
+                    acumulado +
+                    item.eventosMonetizados,
+                0
+            );
 
+        const totalCosto =
+            ranking.reduce(
+                (
+                    acumulado,
+                    item
+                ) =>
+                    acumulado +
+                    item.costoAcumulado,
+                0
+            );
+
+        const cobertura =
+            totalEventos > 0
+                ? (
+                    monetizados /
+                    totalEventos
+                  ) * 100
+                : null;
+
+        const promedio =
+            monetizados > 0
+                ? totalCosto /
+                  monetizados
+                : 0;
+
+        ranking = ranking
+            .map(
+                item => ({
+                    ...item,
+                    participacionEventos:
+                        totalEventos > 0
+                            ? (
+                                item.conteo /
+                                totalEventos
+                              ) * 100
+                            : 0,
+                    participacionCosto:
+                        totalCosto > 0
+                            ? (
+                                item.costoAcumulado /
+                                totalCosto
+                              ) * 100
+                            : 0,
+                    excesoRelativoPromedio:
+                        item.conteo > 0
+                            ? item.valorRelativoAcumulado /
+                              item.conteo
+                            : 0,
+                    costoPromedioEvento:
+                        item.eventosMonetizados > 0
+                            ? item.costoAcumulado /
+                              item.eventosMonetizados
+                            : 0
+                })
+            )
+            .sort(
+                (a, b) =>
+                    b.costoAcumulado -
+                    a.costoAcumulado
+            );
+
+        const mayorImpacto =
+            ranking.find(
+                item =>
+                    item.costoAcumulado > 0
+            ) ||
+            ranking[0] ||
+            null;
+
+        if (tituloModal) {
             tituloModal.innerHTML =
-                `
-                <i
-                    class="fa-solid fa-hand-holding-dollar text-amber-600 mr-2"
-                ></i>
+                '<i class="fa-solid fa-hand-holding-dollar text-amber-600 mr-2"></i>Costo Equivalente Normalizado de Sobredosificación';
+        }
 
-                Desglose de Fuga Financiera (Σ%)
+        if (subtituloModal) {
+            subtituloModal.innerText =
+                'Participación por solución sobre los eventos con exceso y sobre el costo equivalente total. Base normalizada de 1.000 kg/L equivalentes.';
+        }
+
+        if (resumenModal) {
+            resumenModal.innerHTML =
+                `
+                <div class="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                    <p class="text-[9px] uppercase font-bold text-amber-600">Costo equivalente total</p>
+                    <p class="text-xl font-black text-amber-700 mt-1">$${formatearMoneda(totalCosto)}</p>
+                </div>
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                    <p class="text-[9px] uppercase font-bold text-slate-500">Eventos con exceso</p>
+                    <p class="text-xl font-black text-slate-700 mt-1">${totalEventos}</p>
+                </div>
+                <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+                    <p class="text-[9px] uppercase font-bold text-emerald-600">Cobertura económica</p>
+                    <p class="text-xl font-black text-emerald-700 mt-1">${cobertura === null ? 'N/A' : formatearNumero(cobertura, 1) + '%'}</p>
+                    <p class="text-[9px] text-emerald-600 mt-1">${monetizados}/${totalEventos} monetizados</p>
+                </div>
+                <div class="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                    <p class="text-[9px] uppercase font-bold text-blue-600">Costo promedio / evento</p>
+                    <p class="text-xl font-black text-blue-700 mt-1">$${formatearMoneda(promedio)}</p>
+                </div>
+                <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-3 md:col-span-2 xl:col-span-1">
+                    <p class="text-[9px] uppercase font-bold text-indigo-600">Mayor impacto económico</p>
+                    <p class="text-sm font-black text-indigo-700 mt-1">${mayorImpacto?.sol || 'N/A'}</p>
+                    <p class="text-[9px] text-indigo-600 mt-1">${mayorImpacto ? formatearNumero(mayorImpacto.participacionCosto, 1) + '% del costo total' : ''}</p>
+                </div>
                 `;
         }
 
-
-        if (
-            subtituloModal
-        ) {
-
-            subtituloModal.innerText =
-                `Soluciones Sobredosificadas (> Máximo), agrupadas por la pérdida de químicos.`;
-        }
-
-
         thead.innerHTML =
             `
-            <tr
-                class="text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200"
-            >
+            <tr class="text-[9px] uppercase font-bold text-slate-500 border-b border-slate-200 bg-slate-50">
+                <th class="py-3 px-3">Solución / Base</th>
+                <th class="py-3 px-3 text-center">Eventos</th>
+                <th class="py-3 px-3 text-center">% eventos</th>
+                <th class="py-3 px-3 text-center">Exceso técnico</th>
+                <th class="py-3 px-3 text-center">Exceso rel. prom.</th>
+                <th class="py-3 px-3 text-center text-amber-600">Costo Eq.</th>
+                <th class="py-3 px-3 text-center">% costo</th>
+                <th class="py-3 px-3 text-center">Prom. / evento</th>
+            </tr>
+            `;
 
-                <th
-                    class="py-3 px-4"
-                >
-                    Solución Química (Sobredosis)
-                </th>
+        ranking.forEach(
+            item => {
 
-                <th
-                    class="py-3 px-4 text-center"
-                >
-                    Muestras Desviadas
-                </th>
+                const rango =
+                    item.rangoPrecio;
 
-                <th
-                    class="py-3 px-4 text-center text-amber-600"
-                >
-                    <i
-                        class="fa-solid fa-hand-holding-dollar mr-1"
-                    ></i>
+                const rangoTexto =
+                    rango
+                        ? `$${formatearMoneda(rango.minimo)} / $${formatearMoneda(rango.medio)} / $${formatearMoneda(rango.maximo)}`
+                        : 'Sin precio';
 
-                    Fuga Acumulada
-                </th>
+                const costoTexto =
+                    item.eventosMonetizados > 0
+                        ? `$${formatearMoneda(item.costoAcumulado)}`
+                        : 'No calculable';
 
+                tbody.innerHTML +=
+                    `
+                    <tr class="hover:bg-slate-50 border-b border-slate-100">
+                        <td class="py-4 px-3 min-w-[220px]">
+                            <span class="font-bold text-slate-700 block">${item.sol}</span>
+                            <span class="text-[9px] text-slate-400 block mt-1">Base: ${item.productoBase}${item.precioBase > 0 ? ` | $${item.precioBase.toFixed(2)}/${item.unidadPrecio} al ${item.concentracionComercialPct}%` : ''}</span>
+                            <span class="text-[8px] text-slate-400 block mt-1">Precio eq. min/med/max: ${rangoTexto}</span>
+                        </td>
+                        <td class="py-4 px-3 text-center text-slate-600 font-bold">
+                            ${item.conteo}
+                            <span class="text-[8px] font-normal text-slate-400 block">${item.eventosMonetizados} monetizados</span>
+                        </td>
+                        <td class="py-4 px-3 text-center min-w-[110px]">
+                            <span class="font-bold text-slate-700">${formatearNumero(item.participacionEventos, 1)}%</span>
+                            <div class="h-1.5 bg-slate-100 rounded-full overflow-hidden mt-2">
+                                <div class="h-full bg-indigo-400 rounded-full" style="width:${Math.min(100, item.participacionEventos)}%"></div>
+                            </div>
+                        </td>
+                        <td class="py-4 px-3 text-center text-slate-600 font-bold">
+                            ${formatearNumero(item.valorAcumulado, 2)}
+                            <span class="text-[8px] font-normal text-slate-400 block">${item.unidadMedida}</span>
+                        </td>
+                        <td class="py-4 px-3 text-center font-bold text-orange-600 bg-orange-50/50">
+                            ${formatearNumero(item.excesoRelativoPromedio, 2)}%
+                        </td>
+                        <td class="py-4 px-3 text-center font-black ${item.eventosMonetizados > 0 ? 'text-amber-600 bg-amber-50/70' : 'text-slate-400 bg-slate-50'}">
+                            ${costoTexto}
+                            <span class="text-[8px] font-normal block mt-1 opacity-70">${item.baseEtiqueta}</span>
+                        </td>
+                        <td class="py-4 px-3 text-center min-w-[110px]">
+                            <span class="font-bold text-amber-700">${formatearNumero(item.participacionCosto, 1)}%</span>
+                            <div class="h-1.5 bg-amber-100 rounded-full overflow-hidden mt-2">
+                                <div class="h-full bg-amber-500 rounded-full" style="width:${Math.min(100, item.participacionCosto)}%"></div>
+                            </div>
+                        </td>
+                        <td class="py-4 px-3 text-center font-bold text-blue-700 bg-blue-50/50">
+                            ${item.eventosMonetizados > 0 ? '$' + formatearMoneda(item.costoPromedioEvento) : 'N/A'}
+                        </td>
+                    </tr>
+                    `;
+            }
+        );
+
+        tbody.innerHTML +=
+            `
+            <tr class="bg-slate-100 border-t-2 border-slate-300 font-black">
+                <td class="py-4 px-3 text-slate-800">TOTAL GENERAL</td>
+                <td class="py-4 px-3 text-center text-slate-800">${totalEventos}</td>
+                <td class="py-4 px-3 text-center text-slate-800">100,0%</td>
+                <td class="py-4 px-3 text-center text-slate-500">Unidades mixtas</td>
+                <td class="py-4 px-3 text-center text-orange-700">—</td>
+                <td class="py-4 px-3 text-center text-amber-700">$${formatearMoneda(totalCosto)}</td>
+                <td class="py-4 px-3 text-center text-amber-700">${totalCosto > 0 ? '100,0%' : '0,0%'}</td>
+                <td class="py-4 px-3 text-center text-blue-700">$${formatearMoneda(promedio)}</td>
             </tr>
             `;
     }
 
-
-    ranking.forEach(
-        item => {
-
-            let celdaDinamica =
-                '';
-
-
-            if (
-                tipo ===
-                'severidad'
-            ) {
-
-                const promedio =
-                    item.val /
-                    item.c;
-
-
-                celdaDinamica =
-                    `
-                    <td
-                        class="py-4 px-4 text-center font-bold text-red-500 bg-red-50/80"
-                    >
-                        ${promedio.toFixed(2)}%
-                    </td>
-                    `;
-
-            } else {
-
-                celdaDinamica =
-                    `
-                    <td
-                        class="py-4 px-4 text-center font-black text-amber-600 bg-amber-50/80"
-                    >
-                        $ ${item.val.toFixed(2)}
-                    </td>
-                    `;
-            }
-
-
-            tbody.innerHTML +=
-                `
-                <tr
-                    class="hover:bg-slate-50 border-b border-slate-100"
-                >
-
-                    <td
-                        class="py-4 px-4 font-bold text-slate-700"
-                    >
-                        ${item.sol}
-                    </td>
-
-                    <td
-                        class="py-4 px-4 text-center text-slate-500 font-bold"
-                    >
-                        ${item.c}
-
-                        <span
-                            class="text-[9px] font-normal text-slate-400 block"
-                        >
-                            eventos
-                        </span>
-                    </td>
-
-                    ${celdaDinamica}
-
-                </tr>
-                `;
-        }
-    );
-
-
     modal.classList.add(
         'flex'
     );
-
     modal.classList.remove(
         'hidden'
     );
 }
-
 
 function cerrarModalImpacto() {
 
@@ -6368,7 +7346,7 @@ async function dispararAnalisisIA() {
                     class="fa-solid fa-microchip mr-2"
                 ></i>
 
-                Evaluando matemáticas operativas con 3.5 Flash-Lite...
+                Evaluando impacto técnico y costo equivalente normalizado...
             </td>
         </tr>
         `;
@@ -6380,12 +7358,9 @@ async function dispararAnalisisIA() {
                 d => {
 
                     const p =
-                        PARAMETROS_TECNICOS
-                            .find(
-                                x =>
-                                    x.solucion ===
-                                    d.solucion
-                            );
+                        obtenerParametroTecnico(
+                            d.solucion
+                        );
 
 
                     return (
@@ -6403,12 +7378,41 @@ async function dispararAnalisisIA() {
         excesos.length;
 
 
+    if (
+        totalExcesos ===
+        0
+    ) {
+
+        tbody.innerHTML =
+            `
+            <tr>
+                <td
+                    colspan="3"
+                    class="py-8 text-center text-emerald-600 font-bold bg-emerald-50 rounded-lg"
+                >
+                    No hay eventos de sobredosificación en el filtro actual.
+                </td>
+            </tr>
+            `;
+
+        return;
+    }
+
+
     let statsFugas =
         {};
 
 
     let opsStats =
         {};
+
+
+    let totalCosto =
+        0;
+
+
+    let eventosMonetizados =
+        0;
 
 
     excesos.forEach(
@@ -6420,6 +7424,11 @@ async function dispararAnalisisIA() {
                 ]
             ) {
 
+                const eco =
+                    obtenerParametroEconomico(
+                        e.solucion
+                    );
+
                 statsFugas[
                     e.solucion
                 ] =
@@ -6427,8 +7436,21 @@ async function dispararAnalisisIA() {
                         conteo:
                             0,
 
-                        volumenPerdido:
-                            0
+                        excesoTecnico:
+                            0,
+
+                        excesoRelativoAcumulado:
+                            0,
+
+                        costoEquivalente:
+                            0,
+
+                        monetizados:
+                            0,
+
+                        productoBase:
+                            eco?.productoBase ||
+                            'SIN PRECIO'
                     };
             }
 
@@ -6439,23 +7461,70 @@ async function dispararAnalisisIA() {
 
 
             const p =
-                PARAMETROS_TECNICOS
-                    .find(
-                        x =>
-                            x.solucion ===
-                            e.solucion
-                    );
+                obtenerParametroTecnico(
+                    e.solucion
+                );
+
+
+            const valor =
+                parseConcen(
+                    e.concen
+                );
+
+
+            const exceso =
+                Math.max(
+                    0,
+                    valor -
+                    p.max
+                );
 
 
             statsFugas[
                 e.solucion
-            ].volumenPerdido +=
-                (
-                    parseConcen(
-                        e.concen
-                    ) -
+            ].excesoTecnico +=
+                exceso;
+
+            if (
+                p.max > 0
+            ) {
+
+                statsFugas[
+                    e.solucion
+                ].excesoRelativoAcumulado +=
+                    (
+                        exceso /
+                        p.max
+                    ) * 100;
+            }
+
+
+            const impacto =
+                calcularCostoExcesoNormalizado(
+                    e.solucion,
+                    valor,
                     p.max
                 );
+
+
+            if (
+                impacto.calculable
+            ) {
+
+                statsFugas[
+                    e.solucion
+                ].costoEquivalente +=
+                    impacto.costo;
+
+                statsFugas[
+                    e.solucion
+                ].monetizados++;
+
+                totalCosto +=
+                    impacto.costo;
+
+                eventosMonetizados++;
+            }
 
 
             const op =
@@ -6478,8 +7547,25 @@ async function dispararAnalisisIA() {
     );
 
 
+    const cobertura =
+        totalExcesos > 0
+            ? eventosMonetizados /
+              totalExcesos *
+              100
+            : 100;
+
+
     let desgloseTexto =
-        `TOTAL EVENTOS EXCESO: ${totalExcesos}\n`;
+        `TOTAL EVENTOS EXCESO: ${totalExcesos}
+` +
+        `EVENTOS MONETIZADOS: ${eventosMonetizados}
+` +
+        `COBERTURA ECONÓMICA: ${cobertura.toFixed(1)}%
+` +
+        `COSTO EQUIVALENTE NORMALIZADO TOTAL: $${formatearMoneda(totalCosto)}
+` +
+        `NOTA METODOLÓGICA: los valores monetarios son estimaciones normalizadas por concentración sobre una base de 1.000 kg/L equivalentes y no representan el consumo real total.
+`;
 
 
     Object
@@ -6489,18 +7575,41 @@ async function dispararAnalisisIA() {
         .forEach(
             sol => {
 
+                const item =
+                    statsFugas[
+                        sol
+                    ];
+
+                const costoTexto =
+                    item.monetizados > 0
+                        ? `$${formatearMoneda(item.costoEquivalente)}`
+                        : 'SIN PRECIO DISPONIBLE';
+
+                const participacionCosto =
+                    totalCosto > 0
+                        ? (
+                            item.costoEquivalente /
+                            totalCosto
+                          ) * 100
+                        : 0;
+
+                const excesoRelativoPromedio =
+                    item.conteo > 0
+                        ? item.excesoRelativoAcumulado /
+                          item.conteo
+                        : 0;
+
                 desgloseTexto +=
-                    `- Químico ${sol}: ${(
-                        (
-                            statsFugas[
-                                sol
-                            ].conteo /
-                            totalExcesos
-                        ) *
+                    `- Químico ${sol} | Producto base: ${item.productoBase} | ` +
+                    `${(
+                        item.conteo /
+                        totalExcesos *
                         100
-                    ).toFixed(1)}% de eventos. ` +
-                    `Costo de Fuga acumulada: ` +
-                    `${statsFugas[sol].volumenPerdido.toFixed(2)}.\n`;
+                    ).toFixed(1)}% de los eventos | ` +
+                    `Exceso relativo promedio: ${excesoRelativoPromedio.toFixed(2)}% | ` +
+                    `Costo equivalente normalizado: ${costoTexto} | ` +
+                    `Participación en el costo: ${participacionCosto.toFixed(1)}%.
+`;
             }
         );
 
@@ -6509,7 +7618,7 @@ async function dispararAnalisisIA() {
         `
 Eres Analista de Datos Ejecutivo en Lácteos San Antonio.
 
-Analiza ESTOS DATOS DUROS referidos a mermas químicas:
+Analiza ESTOS DATOS DUROS referidos a sobredosificación química y costo equivalente normalizado:
 
 ${desgloseTexto}
 
@@ -6525,15 +7634,18 @@ ${Object
 
 REGLAS ESTRICTAS:
 
-1. Explica qué químico representa la mayor fuga/costo desperdiciado de inventario.
-2. Incluye siempre una "Alerta de Impacto en Costos" clara en el análisis.
-3. PROHIBIDO recomendaciones mecánicas o teóricas de mantenimiento general.
-4. Devuelve el resultado en JSON estricto:
+1. Explica qué químico representa el mayor costo equivalente normalizado.
+2. Incluye siempre una "Alerta de Impacto en Costos" clara.
+3. Aclara que los valores son estimaciones normalizadas por concentración y no consumo real total.
+4. Diferencia entre exceso técnico y costo equivalente.
+5. No inventes valores para soluciones sin precio disponible.
+6. PROHIBIDO recomendaciones mecánicas o teóricas de mantenimiento general.
+7. Devuelve el resultado en JSON estricto:
 
 [
     {
         "desvio": "Hallazgo principal",
-        "analisis_datos": "Análisis con Alerta de Costos",
+        "analisis_datos": "Análisis con Alerta de Costos y aclaración metodológica",
         "responsable": "Nombre"
     }
 ]
@@ -6664,6 +7776,7 @@ Sin markdown.
             `;
     }
 }
+
 
 
 function obtenerApiKeySegura() {
