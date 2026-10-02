@@ -202,10 +202,12 @@
                                     <h3 id="kpi-fuga" class="text-xl sm:text-2xl font-black text-amber-600 leading-tight">0,00</h3>
                                 </div>
                                 <div class="flex flex-wrap gap-1 mt-1">
-                                    <span id="kpi-cobertura-costos" class="text-[8px] font-bold text-amber-700 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded">Cobertura 0%</span>
-                                    <span id="kpi-eventos-costeados" class="text-[8px] font-bold text-slate-500 bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded">0/0 eventos</span>
+                                    <span id="kpi-eventos-exceso-economico" class="text-[8px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded">Excesos 0</span>
+                                    <span id="kpi-eventos-costeados" class="text-[8px] font-bold text-slate-500 bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded">Sin excesos</span>
+                                    <span id="kpi-cobertura-costos" class="text-[8px] font-bold text-slate-500 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded">Cobertura N/A</span>
                                 </div>
-                                <p class="text-[7px] text-slate-400 mt-1 leading-tight">USD / 1.000 kg/L equivalentes</p>
+                                <p id="kpi-indice-exceso-tecnico" class="text-[8px] text-orange-500 font-bold mt-1 leading-tight">Sin sobredosificación</p>
+                                <p class="text-[7px] text-slate-400 mt-1 leading-tight">Estimación normalizada · USD / 1.000 kg/L eq.</p>
                                 <div id="trend-fuga-container" class="mt-1"></div>
                                 <div class="h-8 w-full mt-auto pt-2"><canvas id="sparkFuga"></canvas></div>
                             </div>
@@ -217,12 +219,12 @@
                                 <div class="flex items-center justify-between w-full mb-0.5">
                                     <i class="fa-solid fa-arrow-up-right-from-square text-[9px] text-slate-300 opacity-0 group-hover/sev:opacity-100 transition-opacity"></i>
                                     <div class="flex items-center gap-1">
-                                        <p class="text-[9px] text-red-500 font-bold uppercase leading-none">Severidad</p>
+                                        <p class="text-[9px] text-red-500 font-bold uppercase leading-none" title="Déficit promedio relativo al mínimo permitido">Severidad Rel.</p>
                                         <i class="fa-solid fa-gauge-high text-[10px] text-red-400"></i>
                                     </div>
                                 </div>
                                 <h3 id="kpi-severidad" class="text-xl sm:text-2xl font-black text-red-600 leading-tight">0.0%</h3>
-                                <p id="kpi-indice-exceso-tecnico" class="text-[8px] text-slate-400 mt-1">Índice técnico: 0,00</p>
+                                <span id="kpi-eventos-riesgo-impacto" class="text-[8px] font-bold text-slate-500 bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded mt-1">Sin riesgos</span>
                                 <div id="trend-severidad-container" class="mt-1"></div>
                                 <div class="h-8 w-full mt-auto pt-2"><canvas id="sparkSeveridad"></canvas></div>
                             </div>
@@ -235,7 +237,7 @@
                 <i class="fa-solid fa-circle-info text-amber-600 mt-0.5"></i>
                 <div>
                     <p class="text-[10px] font-bold text-amber-800 uppercase tracking-wide">Metodología del KPI económico</p>
-                    <p class="text-[10px] text-amber-700 mt-0.5 leading-relaxed">El costo mostrado es una estimación normalizada por concentración y precio del producto principal, expresada por 1.000 kg/L equivalentes. No representa el consumo real total de cada limpieza.</p>
+                    <p class="text-[10px] text-amber-700 mt-0.5 leading-relaxed">El costo mostrado es una estimación normalizada por concentración y precio del producto principal, expresada por 1.000 kg/L equivalentes. La cobertura indica qué proporción de eventos con exceso dispone de precio parametrizado; cuando no existen excesos se muestra N/A. No representa el consumo real total de cada limpieza.</p>
                 </div>
             </div>
 
@@ -259,7 +261,7 @@
                     <div class="flex justify-between items-start mb-2">
                         <div>
                             <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-table-cells-large text-indigo-500 mr-2"></i> MATRIZ DE DESEMPEÑO</h2>
-                            <p class="text-[11px] text-slate-500 mt-0.5">Volumen vs Eficacia por Solución</p>
+                            <p class="text-[11px] text-slate-500 mt-0.5">Eficacia vs número de muestras por solución · etiquetas visibles al expandir</p>
                         </div>
                         <button onclick="expandirGrafico('cuadrante', 'Matriz de Desempeño')" class="text-slate-400 hover:text-corporate-blue p-1.5 rounded-lg transition bg-slate-50 border border-slate-200 hover:bg-blue-50 shadow-sm" title="Modo Enfoque (Expandir)"><i class="fa-solid fa-expand"></i></button>
                     </div>
@@ -294,10 +296,10 @@
                 <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
                     <div class="flex justify-between items-start mb-4">
                         <div>
-                            <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-spider text-amber-500 mr-2"></i> ÍNDICE TÉCNICO DE EXCESO</h2>
-                            <p class="text-[11px] text-slate-500 mt-0.5">Σ diferencia sobre el máximo (sin monetizar)</p>
+                            <h2 class="text-slate-800 font-bold text-sm flex items-center"><i class="fa-solid fa-spider text-amber-500 mr-2"></i> EXCESO RELATIVO POR SOLUCIÓN</h2>
+                            <p class="text-[11px] text-slate-500 mt-0.5">Promedio % sobre el máximo · comparable entre % y ppm</p>
                         </div>
-                        <button onclick="expandirGrafico('radar', 'Índice Técnico de Exceso')" class="text-slate-400 hover:text-corporate-blue p-1.5 rounded-lg transition bg-slate-50 border border-slate-200 hover:bg-blue-50 shadow-sm" title="Modo Enfoque (Expandir)"><i class="fa-solid fa-expand"></i></button>
+                        <button onclick="expandirGrafico('radar', 'Exceso Relativo por Solución')" class="text-slate-400 hover:text-corporate-blue p-1.5 rounded-lg transition bg-slate-50 border border-slate-200 hover:bg-blue-50 shadow-sm" title="Modo Enfoque (Expandir)"><i class="fa-solid fa-expand"></i></button>
                     </div>
                     <div class="h-[220px] w-full relative flex items-center justify-center">
                         <canvas id="fugaQuimicaChart"></canvas>
@@ -349,7 +351,7 @@
 
     <!-- MODAL DINÁMICO DE IMPACTO (FILTRO DE DATOS CORREGIDO) -->
     <div id="modal-impacto" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[80] hidden flex items-center justify-center p-4">
-        <div class="bg-white border border-slate-200 w-full max-w-6xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+        <div class="bg-white border border-slate-200 w-full max-w-[1500px] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                 <div>
                     <h3 id="modal-impacto-titulo" class="font-black text-slate-800 text-lg flex items-center">Desglose Operativo</h3>
@@ -358,10 +360,13 @@
                 <button onclick="cerrarModalImpacto()" class="text-slate-400 hover:text-slate-700 text-2xl font-bold px-2 py-1">&times;</button>
             </div>
             <div class="p-6 overflow-y-auto flex-grow bg-white">
-                <table class="w-full text-left text-xs border-collapse min-w-[980px]">
+                <div id="modal-impacto-resumen" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 mb-5"></div>
+                <div class="overflow-x-auto border border-slate-100 rounded-xl">
+                <table class="w-full text-left text-xs border-collapse min-w-[1320px]">
                     <thead id="modal-impacto-thead"></thead>
                     <tbody id="modal-impacto-tbody" class="divide-y divide-slate-100 text-slate-700"></tbody>
                 </table>
+                </div>
             </div>
             <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
                 <button onclick="cerrarModalImpacto()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs py-2 px-5 rounded-lg transition">Cerrar Análisis</button>
