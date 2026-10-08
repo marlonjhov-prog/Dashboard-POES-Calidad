@@ -1,0 +1,53 @@
+name: Integrar retorno al Portal Central
+
+on:
+  push:
+    branches:
+      - integracion/volver-portal
+
+permissions:
+  contents: write
+
+jobs:
+  integrar:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar rama
+        uses: actions/checkout@v4
+        with:
+          ref: integracion/volver-portal
+          fetch-depth: 0
+
+      - name: Insertar script de retorno sin alterar la lógica POES
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+          marker = '    <script src="js/app.js"></script>'
+          addition = '    <script src="js/portal-return.js"></script>\n' + marker
+
+          if 'js/portal-return.js' in text:
+              print('El retorno al Portal ya está integrado.')
+          elif marker not in text:
+              raise SystemExit('No se encontró el punto seguro de inserción antes de js/app.js')
+          else:
+              path.write_text(text.replace(marker, addition, 1), encoding='utf-8')
+              print('Script de retorno integrado antes de la lógica POES.')
+          PY
+
+      - name: Confirmar cambio en la rama de integración
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No hay cambios pendientes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Mostrar acceso de regreso al Portal Central"
+          git push origin HEAD:integracion/volver-portal
